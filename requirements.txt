@@ -1,0 +1,12 @@
+Django==5.2.4
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.3.1
+Pillow==11.3.0
+asgiref==3.9.1
+sqlparse==0.5.3
+tzdata==2025.2
+django-tinymce==4.1.0
+django-admin-interface==0.28.8
+django-colorfield==0.11.0
+PyJWT==2.10.1

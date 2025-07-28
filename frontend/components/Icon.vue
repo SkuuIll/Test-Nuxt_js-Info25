@@ -1,0 +1,474 @@
+<template>
+  <svg
+    :class="className"
+    fill="currentColor"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <!-- Search Icon -->
+    <path
+      v-if="name === 'search'"
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Menu Icon -->
+    <path
+      v-else-if="name === 'menu'"
+      d="M4 6h16M4 12h16M4 18h16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- X Icon -->
+    <path
+      v-else-if="name === 'x'"
+      d="M18 6L6 18M6 6l12 12"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Sun Icon -->
+    <g v-else-if="name === 'sun'">
+      <circle
+        cx="12"
+        cy="12"
+        r="5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <path
+        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </g>
+    
+    <!-- Moon Icon -->
+    <path
+      v-else-if="name === 'moon'"
+      d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Chevron Down Icon -->
+    <path
+      v-else-if="name === 'chevron-down'"
+      d="M6 9l6 6 6-6"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- User Icon -->
+    <g v-else-if="name === 'user'">
+      <path
+        d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <circle
+        cx="12"
+        cy="7"
+        r="4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+    </g>
+    
+    <!-- Logout Icon -->
+    <g v-else-if="name === 'logout'">
+      <path
+        d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <polyline
+        points="16,17 21,12 16,7"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <line
+        x1="21"
+        y1="12"
+        x2="9"
+        y2="12"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </g>
+    
+    <!-- Newspaper Icon -->
+    <g v-else-if="name === 'newspaper'">
+      <path
+        d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2 2 2 0 01-2-2V6a2 2 0 012-2h2"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <line
+        x1="10"
+        y1="6"
+        x2="18"
+        y2="6"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <line
+        x1="10"
+        y1="10"
+        x2="18"
+        y2="10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <line
+        x1="10"
+        y1="14"
+        x2="18"
+        y2="14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </g>
+    
+    <!-- Calendar Icon -->
+    <g v-else-if="name === 'calendar'">
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="18"
+        rx="2"
+        ry="2"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <line
+        x1="16"
+        y1="2"
+        x2="16"
+        y2="6"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <line
+        x1="8"
+        y1="2"
+        x2="8"
+        y2="6"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <line
+        x1="3"
+        y1="10"
+        x2="21"
+        y2="10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </g>
+    
+    <!-- Clock Icon -->
+    <g v-else-if="name === 'clock'">
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <polyline
+        points="12,6 12,12 16,14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </g>
+    
+    <!-- Tag Icon -->
+    <g v-else-if="name === 'tag'">
+      <path
+        d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <line
+        x1="7"
+        y1="7"
+        x2="7.01"
+        y2="7"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </g>
+    
+    <!-- Arrow Up Icon -->
+    <path
+      v-else-if="name === 'arrow-up'"
+      d="M7 14l5-5 5 5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Heart Icon -->
+    <path
+      v-else-if="name === 'heart'"
+      d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Share Icon -->
+    <g v-else-if="name === 'share'">
+      <circle
+        cx="18"
+        cy="5"
+        r="3"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <circle
+        cx="6"
+        cy="12"
+        r="3"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <circle
+        cx="18"
+        cy="19"
+        r="3"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <line
+        x1="8.59"
+        y1="13.51"
+        x2="15.42"
+        y2="17.49"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <line
+        x1="15.41"
+        y1="6.51"
+        x2="8.59"
+        y2="10.49"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+    </g>
+    
+    <!-- Chat/Comment Icon -->
+    <g v-else-if="name === 'chat'">
+      <path
+        d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </g>
+    
+    <!-- Folder Icon -->
+    <path
+      v-else-if="name === 'folder'"
+      d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Mail Icon -->
+    <g v-else-if="name === 'mail'">
+      <path
+        d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <polyline
+        points="22,6 12,13 2,6"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+    </g>
+    
+    <!-- Facebook Icon -->
+    <path
+      v-else-if="name === 'facebook'"
+      d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Twitter Icon -->
+    <path
+      v-else-if="name === 'twitter'"
+      d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    
+    <!-- Instagram Icon -->
+    <g v-else-if="name === 'instagram'">
+      <rect
+        x="2"
+        y="2"
+        width="20"
+        height="20"
+        rx="5"
+        ry="5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <path
+        d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <line
+        x1="17.5"
+        y1="6.5"
+        x2="17.51"
+        y2="6.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </g>
+    
+    <!-- LinkedIn Icon -->
+    <g v-else-if="name === 'linkedin'">
+      <path
+        d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <rect
+        x="2"
+        y="9"
+        width="4"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+      <circle
+        cx="4"
+        cy="4"
+        r="2"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      />
+    </g>
+    
+    <!-- Default fallback -->
+    <circle
+      v-else
+      cx="12"
+      cy="12"
+      r="10"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    />
+  </svg>
+</template>
+
+<script setup lang="ts">
+interface Props {
+  name: string
+  class?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  class: 'w-6 h-6'
+})
+
+const className = computed(() => props.class)
+</script>
