@@ -194,6 +194,12 @@ declare global {
   const useCurrentElement: typeof import('@vueuse/core')['useCurrentElement']
   const useCycleList: typeof import('@vueuse/core')['useCycleList']
   const useDark: typeof import('@vueuse/core')['useDark']
+  const useDashboardAuth: typeof import('../../composables/useDashboardAuth')['useDashboardAuth']
+  const useDashboardComments: typeof import('../../composables/useDashboardComments')['useDashboardComments']
+  const useDashboardNotifications: typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']
+  const useDashboardPosts: typeof import('../../composables/useDashboardPosts')['useDashboardPosts']
+  const useDashboardStats: typeof import('../../composables/useDashboardStats')['useDashboardStats']
+  const useDashboardUsers: typeof import('../../composables/useDashboardUsers')['useDashboardUsers']
   const useDateFormat: typeof import('@vueuse/core')['useDateFormat']
   const useDebounce: typeof import('@vueuse/core')['useDebounce']
   const useDebounceFn: typeof import('@vueuse/core')['useDebounceFn']
@@ -361,6 +367,7 @@ declare global {
   const useTimestamp: typeof import('@vueuse/core')['useTimestamp']
   const useToNumber: typeof import('@vueuse/core')['useToNumber']
   const useToString: typeof import('@vueuse/core')['useToString']
+  const useToast: typeof import('../../composables/useToast')['useToast']
   const useToggle: typeof import('@vueuse/core')['useToggle']
   const useTransition: typeof import('@vueuse/core')['useTransition']
   const useTransitionState: typeof import('../../node_modules/vue')['useTransitionState']
@@ -605,6 +612,12 @@ declare module 'vue' {
     readonly useCurrentElement: UnwrapRef<typeof import('@vueuse/core')['useCurrentElement']>
     readonly useCycleList: UnwrapRef<typeof import('@vueuse/core')['useCycleList']>
     readonly useDark: UnwrapRef<typeof import('@vueuse/core')['useDark']>
+    readonly useDashboardAuth: UnwrapRef<typeof import('../../composables/useDashboardAuth')['useDashboardAuth']>
+    readonly useDashboardComments: UnwrapRef<typeof import('../../composables/useDashboardComments')['useDashboardComments']>
+    readonly useDashboardNotifications: UnwrapRef<typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']>
+    readonly useDashboardPosts: UnwrapRef<typeof import('../../composables/useDashboardPosts')['useDashboardPosts']>
+    readonly useDashboardStats: UnwrapRef<typeof import('../../composables/useDashboardStats')['useDashboardStats']>
+    readonly useDashboardUsers: UnwrapRef<typeof import('../../composables/useDashboardUsers')['useDashboardUsers']>
     readonly useDateFormat: UnwrapRef<typeof import('@vueuse/core')['useDateFormat']>
     readonly useDebounce: UnwrapRef<typeof import('@vueuse/core')['useDebounce']>
     readonly useDebounceFn: UnwrapRef<typeof import('@vueuse/core')['useDebounceFn']>
@@ -772,6 +785,7 @@ declare module 'vue' {
     readonly useTimestamp: UnwrapRef<typeof import('@vueuse/core')['useTimestamp']>
     readonly useToNumber: UnwrapRef<typeof import('@vueuse/core')['useToNumber']>
     readonly useToString: UnwrapRef<typeof import('@vueuse/core')['useToString']>
+    readonly useToast: UnwrapRef<typeof import('../../composables/useToast')['useToast']>
     readonly useToggle: UnwrapRef<typeof import('@vueuse/core')['useToggle']>
     readonly useTransition: UnwrapRef<typeof import('@vueuse/core')['useTransition']>
     readonly useTransitionState: UnwrapRef<typeof import('../../node_modules/vue')['useTransitionState']>

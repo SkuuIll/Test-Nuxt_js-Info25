@@ -18,6 +18,20 @@ interface _GlobalComponents {
     'BlogSidebar': typeof import("../components/BlogSidebar.vue")['default']
     'Breadcrumbs': typeof import("../components/Breadcrumbs.vue")['default']
     'CategoryFilter': typeof import("../components/CategoryFilter.vue")['default']
+    'DashboardActivityFeed': typeof import("../components/Dashboard/ActivityFeed.vue")['default']
+    'DashboardBreadcrumb': typeof import("../components/Dashboard/Breadcrumb.vue")['default']
+    'DashboardChart': typeof import("../components/Dashboard/Chart.vue")['default']
+    'DashboardHeader': typeof import("../components/Dashboard/Header.vue")['default']
+    'DashboardModal': typeof import("../components/Dashboard/Modal.vue")['default']
+    'DashboardNotifications': typeof import("../components/Dashboard/Notifications.vue")['default']
+    'DashboardPopularPosts': typeof import("../components/Dashboard/PopularPosts.vue")['default']
+    'DashboardQuickAction': typeof import("../components/Dashboard/QuickAction.vue")['default']
+    'DashboardSidebar': typeof import("../components/Dashboard/Sidebar.vue")['default']
+    'DashboardSidebarItem': typeof import("../components/Dashboard/SidebarItem.vue")['default']
+    'DashboardSidebarSection': typeof import("../components/Dashboard/SidebarSection.vue")['default']
+    'DashboardStatCard': typeof import("../components/Dashboard/StatCard.vue")['default']
+    'DashboardToast': typeof import("../components/Dashboard/Toast.vue")['default']
+    'DashboardUserMenu': typeof import("../components/Dashboard/UserMenu.vue")['default']
     'HeroSection': typeof import("../components/HeroSection.vue")['default']
     'Icon': typeof import("../components/Icon.vue")['default']
     'PostCard': typeof import("../components/PostCard.vue")['default']
@@ -58,6 +72,20 @@ interface _GlobalComponents {
     'LazyBlogSidebar': LazyComponent<typeof import("../components/BlogSidebar.vue")['default']>
     'LazyBreadcrumbs': LazyComponent<typeof import("../components/Breadcrumbs.vue")['default']>
     'LazyCategoryFilter': LazyComponent<typeof import("../components/CategoryFilter.vue")['default']>
+    'LazyDashboardActivityFeed': LazyComponent<typeof import("../components/Dashboard/ActivityFeed.vue")['default']>
+    'LazyDashboardBreadcrumb': LazyComponent<typeof import("../components/Dashboard/Breadcrumb.vue")['default']>
+    'LazyDashboardChart': LazyComponent<typeof import("../components/Dashboard/Chart.vue")['default']>
+    'LazyDashboardHeader': LazyComponent<typeof import("../components/Dashboard/Header.vue")['default']>
+    'LazyDashboardModal': LazyComponent<typeof import("../components/Dashboard/Modal.vue")['default']>
+    'LazyDashboardNotifications': LazyComponent<typeof import("../components/Dashboard/Notifications.vue")['default']>
+    'LazyDashboardPopularPosts': LazyComponent<typeof import("../components/Dashboard/PopularPosts.vue")['default']>
+    'LazyDashboardQuickAction': LazyComponent<typeof import("../components/Dashboard/QuickAction.vue")['default']>
+    'LazyDashboardSidebar': LazyComponent<typeof import("../components/Dashboard/Sidebar.vue")['default']>
+    'LazyDashboardSidebarItem': LazyComponent<typeof import("../components/Dashboard/SidebarItem.vue")['default']>
+    'LazyDashboardSidebarSection': LazyComponent<typeof import("../components/Dashboard/SidebarSection.vue")['default']>
+    'LazyDashboardStatCard': LazyComponent<typeof import("../components/Dashboard/StatCard.vue")['default']>
+    'LazyDashboardToast': LazyComponent<typeof import("../components/Dashboard/Toast.vue")['default']>
+    'LazyDashboardUserMenu': LazyComponent<typeof import("../components/Dashboard/UserMenu.vue")['default']>
     'LazyHeroSection': LazyComponent<typeof import("../components/HeroSection.vue")['default']>
     'LazyIcon': LazyComponent<typeof import("../components/Icon.vue")['default']>
     'LazyPostCard': LazyComponent<typeof import("../components/PostCard.vue")['default']>
@@ -104,6 +132,20 @@ export const BackToTop: typeof import("../components/BackToTop.vue")['default']
 export const BlogSidebar: typeof import("../components/BlogSidebar.vue")['default']
 export const Breadcrumbs: typeof import("../components/Breadcrumbs.vue")['default']
 export const CategoryFilter: typeof import("../components/CategoryFilter.vue")['default']
+export const DashboardActivityFeed: typeof import("../components/Dashboard/ActivityFeed.vue")['default']
+export const DashboardBreadcrumb: typeof import("../components/Dashboard/Breadcrumb.vue")['default']
+export const DashboardChart: typeof import("../components/Dashboard/Chart.vue")['default']
+export const DashboardHeader: typeof import("../components/Dashboard/Header.vue")['default']
+export const DashboardModal: typeof import("../components/Dashboard/Modal.vue")['default']
+export const DashboardNotifications: typeof import("../components/Dashboard/Notifications.vue")['default']
+export const DashboardPopularPosts: typeof import("../components/Dashboard/PopularPosts.vue")['default']
+export const DashboardQuickAction: typeof import("../components/Dashboard/QuickAction.vue")['default']
+export const DashboardSidebar: typeof import("../components/Dashboard/Sidebar.vue")['default']
+export const DashboardSidebarItem: typeof import("../components/Dashboard/SidebarItem.vue")['default']
+export const DashboardSidebarSection: typeof import("../components/Dashboard/SidebarSection.vue")['default']
+export const DashboardStatCard: typeof import("../components/Dashboard/StatCard.vue")['default']
+export const DashboardToast: typeof import("../components/Dashboard/Toast.vue")['default']
+export const DashboardUserMenu: typeof import("../components/Dashboard/UserMenu.vue")['default']
 export const HeroSection: typeof import("../components/HeroSection.vue")['default']
 export const Icon: typeof import("../components/Icon.vue")['default']
 export const PostCard: typeof import("../components/PostCard.vue")['default']
@@ -144,6 +186,20 @@ export const LazyBackToTop: LazyComponent<typeof import("../components/BackToTop
 export const LazyBlogSidebar: LazyComponent<typeof import("../components/BlogSidebar.vue")['default']>
 export const LazyBreadcrumbs: LazyComponent<typeof import("../components/Breadcrumbs.vue")['default']>
 export const LazyCategoryFilter: LazyComponent<typeof import("../components/CategoryFilter.vue")['default']>
+export const LazyDashboardActivityFeed: LazyComponent<typeof import("../components/Dashboard/ActivityFeed.vue")['default']>
+export const LazyDashboardBreadcrumb: LazyComponent<typeof import("../components/Dashboard/Breadcrumb.vue")['default']>
+export const LazyDashboardChart: LazyComponent<typeof import("../components/Dashboard/Chart.vue")['default']>
+export const LazyDashboardHeader: LazyComponent<typeof import("../components/Dashboard/Header.vue")['default']>
+export const LazyDashboardModal: LazyComponent<typeof import("../components/Dashboard/Modal.vue")['default']>
+export const LazyDashboardNotifications: LazyComponent<typeof import("../components/Dashboard/Notifications.vue")['default']>
+export const LazyDashboardPopularPosts: LazyComponent<typeof import("../components/Dashboard/PopularPosts.vue")['default']>
+export const LazyDashboardQuickAction: LazyComponent<typeof import("../components/Dashboard/QuickAction.vue")['default']>
+export const LazyDashboardSidebar: LazyComponent<typeof import("../components/Dashboard/Sidebar.vue")['default']>
+export const LazyDashboardSidebarItem: LazyComponent<typeof import("../components/Dashboard/SidebarItem.vue")['default']>
+export const LazyDashboardSidebarSection: LazyComponent<typeof import("../components/Dashboard/SidebarSection.vue")['default']>
+export const LazyDashboardStatCard: LazyComponent<typeof import("../components/Dashboard/StatCard.vue")['default']>
+export const LazyDashboardToast: LazyComponent<typeof import("../components/Dashboard/Toast.vue")['default']>
+export const LazyDashboardUserMenu: LazyComponent<typeof import("../components/Dashboard/UserMenu.vue")['default']>
 export const LazyHeroSection: LazyComponent<typeof import("../components/HeroSection.vue")['default']>
 export const LazyIcon: LazyComponent<typeof import("../components/Icon.vue")['default']>
 export const LazyPostCard: LazyComponent<typeof import("../components/PostCard.vue")['default']>

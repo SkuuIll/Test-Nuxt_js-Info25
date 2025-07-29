@@ -30,6 +30,8 @@ def api_root(request):
             'posts': '/api/v1/posts/',
             'categories': '/api/v1/categories/',
             'users': '/api/v1/users/',
+            'dashboard': '/api/v1/dashboard/',
+            'dashboard_auth': '/api/v1/dashboard/auth/',
         }
     })
 
@@ -39,6 +41,7 @@ urlpatterns = [
     path('tinymce/', include('tinymce.urls')),
     path('api/v1/', include('posts.urls')),  # API endpoints
     path('api/v1/users/', include('users.urls')),  # User API endpoints
+    path('api/v1/dashboard/', include('dashboard.urls')),  # Dashboard API endpoints
 ]
 
 # Serve media files during development

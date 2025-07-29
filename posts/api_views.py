@@ -28,21 +28,20 @@ class PostListAPIView(generics.ListCreateAPIView):
         # Filter by category
         category = self.request.query_params.get('category')
         if category:
-            queryset = queryset.filter(category__slug=category)
+            queryset = queryset.filter(categoria__nombre__icontains=category)
         
         # Filter by search
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
-                Q(title__icontains=search) |
-                Q(content__icontains=search) |
-                Q(excerpt__icontains=search)
+                Q(titulo__icontains=search) |
+                Q(contenido__icontains=search)
             )
         
         # Filter by author
         author = self.request.query_params.get('author')
         if author:
-            queryset = queryset.filter(author__username=author)
+            queryset = queryset.filter(autor__username=author)
         
         # Ordering
         ordering = self.request.query_params.get('ordering', '-fecha_publicacion')
@@ -62,7 +61,7 @@ class PostListAPIView(generics.ListCreateAPIView):
 class PostDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.filter(status='published')
     serializer_class = PostSerializer
-    lookup_field = 'slug'
+    lookup_field = 'pk'  # Use primary key instead of slug
     permission_classes = [IsAuthorOrReadOnly]
 
 class CategoryListAPIView(generics.ListAPIView):
@@ -72,7 +71,7 @@ class CategoryListAPIView(generics.ListAPIView):
 class CategoryDetailAPIView(generics.RetrieveAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    lookup_field = 'slug'
+    lookup_field = 'pk'  # Use primary key instead of slug
 
 @api_view(['GET'])
 def featured_posts(request):
@@ -91,13 +90,12 @@ def search_posts(request):
     
     if query:
         posts = posts.filter(
-            Q(title__icontains=query) |
-            Q(content__icontains=query) |
-            Q(excerpt__icontains=query)
+            Q(titulo__icontains=query) |
+            Q(contenido__icontains=query)
         )
     
     if category:
-        posts = posts.filter(category__slug=category)
+        posts = posts.filter(categoria__nombre__icontains=category)
     
     posts = posts.order_by('-fecha_publicacion')
     

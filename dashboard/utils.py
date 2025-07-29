@@ -141,6 +141,134 @@ def get_monthly_stats():
     }
 
 
+def get_growth_stats():
+    """
+    Obtener estadísticas de crecimiento comparando períodos
+    """
+    now = timezone.now()
+    thirty_days_ago = now - timedelta(days=30)
+    sixty_days_ago = now - timedelta(days=60)
+    
+    # Posts - últimos 30 días vs 30 días anteriores
+    posts_current = Post.objects.filter(fecha_creacion__gte=thirty_days_ago).count()
+    posts_previous = Post.objects.filter(
+        fecha_creacion__gte=sixty_days_ago,
+        fecha_creacion__lt=thirty_days_ago
+    ).count()
+    
+    posts_growth = calculate_growth_percentage(posts_current, posts_previous)
+    
+    # Usuarios - últimos 30 días vs 30 días anteriores
+    users_current = User.objects.filter(date_joined__gte=thirty_days_ago).count()
+    users_previous = User.objects.filter(
+        date_joined__gte=sixty_days_ago,
+        date_joined__lt=thirty_days_ago
+    ).count()
+    
+    users_growth = calculate_growth_percentage(users_current, users_previous)
+    
+    # Comentarios - últimos 30 días vs 30 días anteriores
+    comments_current = Comentario.objects.filter(fecha_creacion__gte=thirty_days_ago).count()
+    comments_previous = Comentario.objects.filter(
+        fecha_creacion__gte=sixty_days_ago,
+        fecha_creacion__lt=thirty_days_ago
+    ).count()
+    
+    comments_growth = calculate_growth_percentage(comments_current, comments_previous)
+    
+    return {
+        'posts': {
+            'current_period': posts_current,
+            'previous_period': posts_previous,
+            'growth_percentage': posts_growth
+        },
+        'users': {
+            'current_period': users_current,
+            'previous_period': users_previous,
+            'growth_percentage': users_growth
+        },
+        'comments': {
+            'current_period': comments_current,
+            'previous_period': comments_previous,
+            'growth_percentage': comments_growth
+        }
+    }
+
+
+def calculate_growth_percentage(current, previous):
+    """
+    Calcular porcentaje de crecimiento
+    """
+    if previous == 0:
+        return 100 if current > 0 else 0
+    
+    return round(((current - previous) / previous) * 100, 2)
+
+
+def get_top_performing_content():
+    """
+    Obtener contenido con mejor rendimiento
+    """
+    try:
+        # Posts más comentados del mes
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        
+        top_posts_month = Post.objects.filter(
+            fecha_publicacion__gte=thirty_days_ago,
+            status='published'
+        ).annotate(
+            comments_count=Count('comentarios')
+        ).order_by('-comments_count')[:10]
+        
+        # Categorías más activas (simplificado)
+        active_categories = Categoria.objects.annotate(
+            posts_count=Count('post')
+        ).filter(posts_count__gt=0).order_by('-posts_count')[:5]
+        
+        # Autores más activos del mes (simplificado)
+        active_authors = User.objects.annotate(
+            posts_count=Count('post')
+        ).filter(posts_count__gt=0).order_by('-posts_count')[:10]
+        
+        return {
+            'top_posts_month': [
+                {
+                    'id': post.id,
+                    'title': post.titulo,
+                    'comments_count': post.comments_count,
+                    'author': post.autor.username,
+                    'published_date': post.fecha_publicacion.strftime('%d/%m/%Y')
+                }
+                for post in top_posts_month
+            ],
+            'active_categories': [
+                {
+                    'id': cat.id,
+                    'name': cat.nombre,
+                    'posts_count': cat.posts_count,
+                    'comments_count': 0  # Simplificado por ahora
+                }
+                for cat in active_categories
+            ],
+            'active_authors': [
+                {
+                    'id': author.id,
+                    'username': author.username,
+                    'posts_count': author.posts_count,
+                    'comments_received': 0  # Simplificado por ahora
+                }
+                for author in active_authors
+            ]
+        }
+    except Exception as e:
+        # Retornar datos vacíos en caso de error
+        return {
+            'top_posts_month': [],
+            'active_categories': [],
+            'active_authors': []
+        }
+
+
 def create_dashboard_admin_user(username, email, password):
     """
     Crear un usuario administrador del dashboard
