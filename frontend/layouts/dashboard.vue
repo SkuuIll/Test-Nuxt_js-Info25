@@ -41,6 +41,9 @@
 
     <!-- Toast notifications -->
     <DashboardToast />
+    
+    <!-- Session warning modal -->
+    <DashboardSessionWarning />
   </div>
 </template>
 
@@ -52,9 +55,13 @@ const sidebarOpen = ref(false)
 
 // Verificar autenticación al cargar el layout
 const { isAuthenticated, initialized } = useDashboardAuth()
+const { initializeSession } = useDashboardSession()
 
 // Mostrar loading hasta que se inicialice la autenticación
 const showContent = ref(false)
+
+// Cleanup function for session management
+let sessionCleanup: (() => void) | null = null
 
 // Redirigir si no está autenticado
 onMounted(() => {
@@ -65,6 +72,8 @@ onMounted(() => {
         navigateTo('/dashboard/login')
       } else {
         showContent.value = true
+        // Initialize session management
+        sessionCleanup = initializeSession()
       }
     } else {
       // Reintentar en el siguiente tick
@@ -73,5 +82,12 @@ onMounted(() => {
   }
   
   checkAuth()
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (sessionCleanup) {
+    sessionCleanup()
+  }
 })
 </script>

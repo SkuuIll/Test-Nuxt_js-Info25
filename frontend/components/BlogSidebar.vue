@@ -23,16 +23,16 @@
       </h3>
       <div class="space-y-2">
         <NuxtLink
-          v-for="category in categories"
-          :key="category.id"
-          :to="`/category/${category.slug}`"
+          v-for="category in categories || []"
+          :key="category?.id || category?.slug"
+          :to="`/category/${category?.slug || ''}`"
           class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 group"
         >
           <span class="text-gray-700 dark:text-gray-300 group-hover:text-primary-600 dark:group-hover:text-primary-400">
-            {{ category.name }}
+            {{ category?.name || 'Sin nombre' }}
           </span>
           <span class="bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 text-xs px-2 py-1 rounded-full">
-            {{ category.posts_count }}
+            {{ category?.posts_count || 0 }}
           </span>
         </NuxtLink>
       </div>

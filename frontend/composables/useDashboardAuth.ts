@@ -44,7 +44,7 @@ export const useDashboardAuth = () => {
     const initialized = ref(false)
 
     // Initialize from localStorage on client side
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
         if (process.client && !initialized.value) {
             const storedUser = localStorage.getItem('dashboard_user')
             const storedAccessToken = localStorage.getItem('dashboard_access_token')
@@ -216,6 +216,46 @@ export const useDashboardAuth = () => {
         return permissions.value?.[permission] || false
     }
 
+    // Get access token (for API calls)
+    const getAccessToken = (): string | null => {
+        return accessToken.value
+    }
+
+    // API call with automatic token refresh
+    const apiCall = async (url: string, options: any = {}) => {
+        const makeRequest = async (token: string) => {
+            return await $fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+        }
+
+        try {
+            if (!accessToken.value) {
+                throw new Error('No access token available')
+            }
+
+            return await makeRequest(accessToken.value)
+        } catch (error: any) {
+            // If 401 error, try to refresh token
+            if (error.status === 401 || error.statusCode === 401) {
+                const refreshed = await refreshAccessToken()
+                if (refreshed && accessToken.value) {
+                    return await makeRequest(accessToken.value)
+                } else {
+                    // Refresh failed, redirect to login
+                    await logout(false)
+                    await navigateTo('/dashboard/login')
+                    throw error
+                }
+            }
+            throw error
+        }
+    }
+
     return {
         user: readonly(user),
         permissions: readonly(permissions),
@@ -227,6 +267,8 @@ export const useDashboardAuth = () => {
         isAuthenticated,
         fetchUserProfile,
         hasPermission,
-        initializeAuth
+        initializeAuth,
+        getAccessToken,
+        apiCall
     }
 }

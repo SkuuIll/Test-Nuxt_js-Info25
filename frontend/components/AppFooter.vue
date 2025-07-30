@@ -117,15 +117,15 @@
           </h3>
           <ul class="space-y-2">
             <li
-              v-for="category in categories.slice(0, 6)"
-              :key="category.id"
+              v-for="category in (categories || []).slice(0, 6)"
+              :key="category?.id || category?.slug"
             >
               <NuxtLink 
-                :to="`/category/${category.slug}`" 
+                :to="`/category/${category?.slug || ''}`" 
                 class="text-gray-300 hover:text-primary-400 transition-colors duration-200 flex items-center justify-between"
               >
-                <span>{{ category.name }}</span>
-                <span class="text-xs bg-gray-800 px-2 py-1 rounded">{{ category.posts_count }}</span>
+                <span>{{ category?.name || 'Sin nombre' }}</span>
+                <span class="text-xs bg-gray-800 px-2 py-1 rounded">{{ category?.posts_count || 0 }}</span>
               </NuxtLink>
             </li>
           </ul>

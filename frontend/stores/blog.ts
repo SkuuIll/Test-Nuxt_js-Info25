@@ -118,10 +118,14 @@ export const useBlogStore = defineStore('blog', () => {
       const api = useApi()
       const { handleError } = useErrorHandler()
 
+      console.log('📂 Cargando categorías...')
       categories.value = await api.getCategories()
+      console.log('✅ Categorías cargadas:', categories.value.length)
     } catch (err: any) {
+      console.error('❌ Error cargando categorías:', err)
       handleError(err, 'fetchCategories')
-      console.error('Error fetching categories:', err)
+      // Set empty array as fallback
+      categories.value = []
     }
   }
 

@@ -1,8 +1,13 @@
 import axios from 'axios'
 
+// DISABLED: This plugin conflicts with the main useApi composable
+// Using $fetch instead of axios for consistency
 export default defineNuxtPlugin(() => {
+  return // Early return to disable this plugin
+
+  // Legacy code below - keeping for reference
   const config = useRuntimeConfig()
-  
+
   // Create axios instance
   const axiosInstance = axios.create({
     baseURL: config.public.apiBase + '/api/v1',
@@ -55,7 +60,7 @@ export default defineNuxtPlugin(() => {
               const parsedTokens = JSON.parse(tokens)
               if (parsedTokens.refresh) {
                 // Try to refresh token
-                const refreshResponse = await axiosInstance.post('/auth/refresh/', {
+                const refreshResponse = await axiosInstance.post('/users/auth/refresh/', {
                   refresh: parsedTokens.refresh
                 })
 

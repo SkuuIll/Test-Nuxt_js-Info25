@@ -6,7 +6,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 from django.utils import timezone
 from django.db.models import Q, Count
 from django.core.exceptions import ValidationError

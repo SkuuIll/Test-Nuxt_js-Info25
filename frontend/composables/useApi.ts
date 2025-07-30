@@ -85,24 +85,37 @@ export const useApi = () => {
         }
       }
 
-      // Handle token refresh on 401
-      if (response.status === 401) {
+      // Handle token refresh on 401 (but not for login/register/refresh endpoints)
+      if (response.status === 401 &&
+        !request.toString().includes('/auth/login') &&
+        !request.toString().includes('/auth/register') &&
+        !request.toString().includes('/auth/refresh')) {
+
         const tokens = getTokens()
         if (tokens?.refresh) {
           try {
+            console.log('🔄 Token expirado, intentando renovar...')
             const newTokens = await refreshTokens(tokens.refresh)
             setTokens(newTokens)
-            // The request will be automatically retried by the caller
+            console.log('✅ Token renovado exitosamente')
+            // Don't throw error here - let the request retry with new token
+            return
           } catch (error) {
-            // Refresh failed, redirect to login
+            console.error('❌ Error renovando token:', error)
+            // Refresh failed, clear tokens and stop the loop
             clearTokens()
-            await navigateTo('/login')
+            // Force logout to prevent infinite loops
+            if (process.client) {
+              window.location.href = '/login'
+            }
             throw error
           }
         } else {
-          // No refresh token, redirect to login
+          console.log('🚫 No hay refresh token disponible')
           clearTokens()
-          await navigateTo('/login')
+          if (process.client) {
+            window.location.href = '/login'
+          }
         }
       }
     }

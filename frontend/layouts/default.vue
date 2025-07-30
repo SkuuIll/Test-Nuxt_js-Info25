@@ -39,9 +39,14 @@ onMounted(async () => {
   await authStore.initializeAuth()
   
   // Fetch initial data
-  await Promise.all([
-    blogStore.fetchCategories(),
-    blogStore.fetchFeaturedPosts()
-  ])
+  try {
+    await Promise.all([
+      blogStore.fetchCategories(),
+      blogStore.fetchFeaturedPosts()
+    ])
+  } catch (error) {
+    console.error('❌ Error cargando datos iniciales:', error)
+    // Continue anyway - components will handle empty states
+  }
 })
 </script>

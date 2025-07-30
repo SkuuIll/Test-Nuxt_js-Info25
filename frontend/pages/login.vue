@@ -84,7 +84,7 @@
           </div>
         </div>
 
-        <div>
+        <div class="space-y-2">
           <button
             type="submit"
             :disabled="loading"
@@ -100,6 +100,14 @@
               />
             </span>
             {{ loading ? 'Iniciando sesión...' : 'Iniciar Sesión' }}
+          </button>
+          
+          <button
+            type="button"
+            @click="clearAuth"
+            class="w-full text-sm text-gray-500 hover:text-gray-700 py-2"
+          >
+            🧹 Limpiar datos de autenticación
           </button>
         </div>
 
@@ -147,6 +155,22 @@ const handleLogin = async () => {
     
   } catch (err) {
     // Error is handled by the auth store
+  }
+}
+
+const clearAuth = () => {
+  if (process.client) {
+    // Clear all localStorage
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Show success message
+    handleSuccess('Datos de autenticación limpiados')
+    
+    // Reload page
+    setTimeout(() => {
+      window.location.reload()
+    }, 1000)
   }
 }
 

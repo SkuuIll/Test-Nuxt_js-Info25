@@ -203,6 +203,7 @@ declare global {
   const useDashboardComments: typeof import('../../composables/useDashboardComments')['useDashboardComments']
   const useDashboardNotifications: typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']
   const useDashboardPosts: typeof import('../../composables/useDashboardPosts')['useDashboardPosts']
+  const useDashboardSession: typeof import('../../composables/useDashboardSession')['useDashboardSession']
   const useDashboardStats: typeof import('../../composables/useDashboardStats')['useDashboardStats']
   const useDashboardUsers: typeof import('../../composables/useDashboardUsers')['useDashboardUsers']
   const useDateFormat: typeof import('@vueuse/core')['useDateFormat']
@@ -628,6 +629,7 @@ declare module 'vue' {
     readonly useDashboardComments: UnwrapRef<typeof import('../../composables/useDashboardComments')['useDashboardComments']>
     readonly useDashboardNotifications: UnwrapRef<typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']>
     readonly useDashboardPosts: UnwrapRef<typeof import('../../composables/useDashboardPosts')['useDashboardPosts']>
+    readonly useDashboardSession: UnwrapRef<typeof import('../../composables/useDashboardSession')['useDashboardSession']>
     readonly useDashboardStats: UnwrapRef<typeof import('../../composables/useDashboardStats')['useDashboardStats']>
     readonly useDashboardUsers: UnwrapRef<typeof import('../../composables/useDashboardUsers')['useDashboardUsers']>
     readonly useDateFormat: UnwrapRef<typeof import('@vueuse/core')['useDateFormat']>

@@ -1,272 +1,267 @@
 <template>
-  <div>
-    <!-- Page header -->
-    <div class="mb-8">
-      <div class="flex items-center space-x-4">
-        <NuxtLink
-          to="/dashboard/posts"
-          class="text-gray-400 hover:text-gray-500"
-        >
-          <ArrowLeftIcon class="h-6 w-6" />
-        </NuxtLink>
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">
-            Crear Nuevo Post
-          </h1>
-          <p class="mt-1 text-sm text-gray-600">
-            Escribe y publica un nuevo artículo para tu blog
-          </p>
-        </div>
+  <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+          Crear Nuevo Post
+        </h1>
+        <p class="text-gray-600 dark:text-gray-400">
+          Crea un nuevo artículo para el blog
+        </p>
       </div>
+      
+      <NuxtLink
+        to="/dashboard/posts"
+        class="btn btn-secondary"
+      >
+        <Icon name="arrow-left" class="w-4 h-4 mr-2" />
+        Volver
+      </NuxtLink>
     </div>
 
     <!-- Form -->
-    <form @submit.prevent="handleSubmit">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Main content -->
+    <form @submit.prevent="savePost" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
         <div class="lg:col-span-2 space-y-6">
           <!-- Title -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <div>
-              <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
-                Título *
-              </label>
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Título *
+            </label>
+            <input
+              v-model="form.title"
+              type="text"
+              required
+              class="input w-full"
+              placeholder="Ingresa el título del post"
+              @input="generateSlug"
+            />
+          </div>
+
+          <!-- Slug -->
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              URL (Slug)
+            </label>
+            <div class="flex">
+              <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm">
+                /posts/
+              </span>
               <input
-                id="title"
-                v-model="form.titulo"
+                v-model="form.slug"
                 type="text"
-                required
-                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="Escribe el título de tu post..."
-                :class="{ 'border-red-300': errors.titulo }"
+                class="input rounded-l-none flex-1"
+                placeholder="url-del-post"
               />
-              <p v-if="errors.titulo" class="mt-1 text-sm text-red-600">
-                {{ errors.titulo }}
-              </p>
             </div>
           </div>
 
           <!-- Content -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <div>
-              <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
-                Contenido *
-              </label>
-              <textarea
-                id="content"
-                v-model="form.contenido"
-                rows="20"
-                required
-                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="Escribe el contenido de tu post..."
-                :class="{ 'border-red-300': errors.contenido }"
-              />
-              <p v-if="errors.contenido" class="mt-1 text-sm text-red-600">
-                {{ errors.contenido }}
-              </p>
-              <p class="mt-2 text-sm text-gray-500">
-                Puedes usar HTML básico para formatear tu contenido.
-              </p>
-            </div>
-          </div>
-
-          <!-- SEO Settings -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">
-              Configuración SEO
-            </h3>
-            <div class="space-y-4">
-              <div>
-                <label for="meta_title" class="block text-sm font-medium text-gray-700 mb-1">
-                  Título SEO
-                </label>
-                <input
-                  id="meta_title"
-                  v-model="form.meta_title"
-                  type="text"
-                  maxlength="60"
-                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="Título optimizado para motores de búsqueda"
-                />
-                <p class="mt-1 text-sm text-gray-500">
-                  {{ form.meta_title?.length || 0 }}/60 caracteres
-                </p>
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Contenido *
+            </label>
+            <div class="border border-gray-300 dark:border-gray-600 rounded-md">
+              <div class="border-b border-gray-300 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-700">
+                <div class="flex space-x-2">
+                  <button
+                    type="button"
+                    @click="togglePreview"
+                    class="btn btn-sm btn-secondary"
+                  >
+                    {{ showPreview ? 'Editar' : 'Vista Previa' }}
+                  </button>
+                </div>
               </div>
               
-              <div>
-                <label for="meta_description" class="block text-sm font-medium text-gray-700 mb-1">
-                  Descripción SEO
-                </label>
+              <div v-if="!showPreview" class="p-4">
                 <textarea
-                  id="meta_description"
-                  v-model="form.meta_description"
-                  rows="3"
-                  maxlength="160"
-                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="Descripción que aparecerá en los resultados de búsqueda"
-                />
-                <p class="mt-1 text-sm text-gray-500">
-                  {{ form.meta_description?.length || 0 }}/160 caracteres
-                </p>
+                  v-model="form.content"
+                  rows="15"
+                  required
+                  class="w-full border-0 resize-none focus:ring-0 text-sm"
+                  placeholder="Escribe el contenido del post en Markdown..."
+                ></textarea>
+              </div>
+              
+              <div v-else class="p-4 prose dark:prose-invert max-w-none">
+                <div v-html="renderedContent"></div>
               </div>
             </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Puedes usar Markdown para formatear el contenido
+            </p>
+          </div>
+
+          <!-- Excerpt -->
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Extracto
+            </label>
+            <textarea
+              v-model="form.excerpt"
+              rows="3"
+              class="input w-full"
+              placeholder="Breve descripción del post (opcional)"
+            ></textarea>
           </div>
         </div>
 
         <!-- Sidebar -->
         <div class="space-y-6">
-          <!-- Publish settings -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">
-              Publicación
+          <!-- Actions -->
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Acciones
             </h3>
-            <div class="space-y-4">
-              <!-- Status -->
+            
+            <div class="space-y-3">
+              <button
+                type="submit"
+                :disabled="loading"
+                class="btn btn-primary w-full"
+              >
+                <Icon v-if="loading" name="loading" class="w-4 h-4 animate-spin mr-2" />
+                {{ loading ? 'Guardando...' : 'Publicar' }}
+              </button>
+              
+              <button
+                type="button"
+                @click="saveDraft"
+                :disabled="loading"
+                class="btn btn-secondary w-full"
+              >
+                Guardar Borrador
+              </button>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Estado
+            </h3>
+            
+            <div class="space-y-3">
               <div>
-                <label for="status" class="block text-sm font-medium text-gray-700 mb-1">
-                  Estado
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Estado de publicación
                 </label>
-                <select
-                  id="status"
-                  v-model="form.status"
-                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                >
+                <select v-model="form.status" class="input w-full">
                   <option value="draft">Borrador</option>
                   <option value="published">Publicado</option>
                   <option value="archived">Archivado</option>
                 </select>
               </div>
 
-              <!-- Featured -->
-              <div class="flex items-center">
-                <input
-                  id="featured"
-                  v-model="form.featured"
-                  type="checkbox"
-                  class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label for="featured" class="ml-2 block text-sm text-gray-900">
-                  Marcar como destacado
-                </label>
-              </div>
-
-              <!-- Publication date -->
               <div>
-                <label for="fecha_publicacion" class="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha de publicación
+                <label class="flex items-center">
+                  <input
+                    v-model="form.featured"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    Post destacado
+                  </span>
                 </label>
-                <input
-                  id="fecha_publicacion"
-                  v-model="form.fecha_publicacion"
-                  type="datetime-local"
-                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
               </div>
             </div>
           </div>
 
           <!-- Category -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
               Categoría
             </h3>
-            <div>
-              <select
-                v-model="form.categoria"
-                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            
+            <select v-model="form.category" class="input w-full" required>
+              <option value="">Seleccionar categoría</option>
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="category.id"
               >
-                <option value="">Seleccionar categoría</option>
-                <option
-                  v-for="category in categories"
-                  :key="category.id"
-                  :value="category.id"
-                >
-                  {{ category.name || category.nombre }}
-                </option>
-              </select>
-            </div>
+                {{ category.name }}
+              </option>
+            </select>
           </div>
 
-          <!-- Featured image -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">
-              Imagen destacada
+          <!-- Tags -->
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Etiquetas
             </h3>
-            <div>
-              <div
-                v-if="imagePreview"
-                class="mb-4"
-              >
-                <img
-                  :src="imagePreview"
-                  alt="Preview"
-                  class="w-full h-48 object-cover rounded-lg"
-                />
-                <button
-                  type="button"
-                  class="mt-2 text-sm text-red-600 hover:text-red-500"
-                  @click="removeImage"
-                >
-                  Eliminar imagen
-                </button>
-              </div>
-              
-              <div
-                v-else
-                class="border-2 border-gray-300 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer"
-                @click="$refs.fileInput.click()"
-                @drop.prevent="handleDrop"
-                @dragover.prevent
-                @dragenter.prevent
-              >
-                <PhotoIcon class="mx-auto h-12 w-12 text-gray-400" />
-                <div class="mt-4">
-                  <p class="text-sm text-gray-600">
-                    Haz clic para subir o arrastra una imagen aquí
-                  </p>
-                  <p class="text-xs text-gray-500 mt-1">
-                    PNG, JPG, GIF hasta 5MB
-                  </p>
-                </div>
-              </div>
-              
+            
+            <div class="space-y-3">
               <input
-                ref="fileInput"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="handleFileSelect"
+                v-model="newTag"
+                type="text"
+                class="input w-full"
+                placeholder="Agregar etiqueta"
+                @keydown.enter.prevent="addTag"
               />
+              
+              <div v-if="form.tags.length > 0" class="flex flex-wrap gap-2">
+                <span
+                  v-for="(tag, index) in form.tags"
+                  :key="index"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200"
+                >
+                  {{ tag }}
+                  <button
+                    type="button"
+                    @click="removeTag(index)"
+                    class="ml-1 text-primary-600 hover:text-primary-800"
+                  >
+                    <Icon name="x" class="w-3 h-3" />
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
 
-          <!-- Actions -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <div class="flex flex-col space-y-3">
+          <!-- Featured Image -->
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Imagen Destacada
+            </h3>
+            
+            <div v-if="form.featured_image" class="mb-4">
+              <img
+                :src="form.featured_image"
+                alt="Imagen destacada"
+                class="w-full h-32 object-cover rounded-md"
+              />
               <button
-                type="submit"
-                :disabled="loading"
-                class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                <span v-if="loading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
-                {{ loading ? 'Guardando...' : (form.status === 'published' ? 'Publicar' : 'Guardar') }}
-              </button>
-              
-              <button
-                v-if="form.status !== 'draft'"
                 type="button"
-                class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                @click="saveAsDraft"
+                @click="form.featured_image = ''"
+                class="mt-2 text-sm text-red-600 hover:text-red-800"
               >
-                Guardar como borrador
+                Eliminar imagen
               </button>
-              
-              <NuxtLink
-                to="/dashboard/posts"
-                class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            </div>
+            
+            <div v-else>
+              <input
+                type="file"
+                ref="imageInput"
+                accept="image/*"
+                @change="handleImageUpload"
+                class="hidden"
+              />
+              <button
+                type="button"
+                @click="$refs.imageInput.click()"
+                class="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md p-4 text-center hover:border-primary-500 transition-colors"
               >
-                Cancelar
-              </NuxtLink>
+                <Icon name="image" class="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <span class="text-sm text-gray-600 dark:text-gray-400">
+                  Subir imagen
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -275,169 +270,143 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import {
-  ArrowLeftIcon,
-  PhotoIcon
-} from '@heroicons/vue/24/outline'
-
-// Layout
+<script setup>
 definePageMeta({
-  layout: 'dashboard'
+  layout: 'dashboard',
+  middleware: 'dashboard-auth'
 })
 
 // Composables
-const { createPost } = useDashboardPosts()
-const { success, error: showError } = useToast()
+const { handleSuccess, handleError } = useErrorHandler()
+const router = useRouter()
 
 // State
 const loading = ref(false)
+const showPreview = ref(false)
 const categories = ref([])
-const imagePreview = ref<string | null>(null)
-const fileInput = ref<HTMLInputElement>()
+const newTag = ref('')
 
-// Form data
 const form = reactive({
-  titulo: '',
-  contenido: '',
+  title: '',
+  slug: '',
+  content: '',
+  excerpt: '',
   status: 'draft',
+  category: '',
+  tags: [],
   featured: false,
-  categoria: '',
-  fecha_publicacion: '',
-  meta_title: '',
-  meta_description: '',
-  imagen: null as File | null
+  featured_image: ''
 })
 
-// Validation errors
-const errors = reactive({
-  titulo: '',
-  contenido: ''
+// Computed
+const renderedContent = computed(() => {
+  // Simple markdown to HTML conversion (you might want to use a proper markdown library)
+  return form.content
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>')
 })
 
 // Methods
-const validateForm = () => {
-  errors.titulo = ''
-  errors.contenido = ''
-  
-  let isValid = true
-  
-  if (!form.titulo.trim()) {
-    errors.titulo = 'El título es requerido'
-    isValid = false
-  } else if (form.titulo.length < 5) {
-    errors.titulo = 'El título debe tener al menos 5 caracteres'
-    isValid = false
+const generateSlug = () => {
+  if (!form.slug) {
+    form.slug = form.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim()
   }
-  
-  if (!form.contenido.trim()) {
-    errors.contenido = 'El contenido es requerido'
-    isValid = false
-  } else if (form.contenido.length < 20) {
-    errors.contenido = 'El contenido debe tener al menos 20 caracteres'
-    isValid = false
-  }
-  
-  return isValid
 }
 
-const handleSubmit = async () => {
-  if (!validateForm()) return
-  
-  loading.value = true
-  
+const togglePreview = () => {
+  showPreview.value = !showPreview.value
+}
+
+const addTag = () => {
+  if (newTag.value.trim() && !form.tags.includes(newTag.value.trim())) {
+    form.tags.push(newTag.value.trim())
+    newTag.value = ''
+  }
+}
+
+const removeTag = (index) => {
+  form.tags.splice(index, 1)
+}
+
+const handleImageUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
   try {
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const response = await $fetch('/api/v1/media/upload/', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${useDashboardAuth().getAccessToken()}`
+      }
+    })
+
+    form.featured_image = response.url
+    handleSuccess('Imagen subida exitosamente')
+
+  } catch (error) {
+    handleError(error, 'handleImageUpload')
+  }
+}
+
+const savePost = async () => {
+  await submitPost('published')
+}
+
+const saveDraft = async () => {
+  await submitPost('draft')
+}
+
+const submitPost = async (status) => {
+  try {
+    loading.value = true
+
     const postData = {
       ...form,
-      categoria: form.categoria || null,
-      fecha_publicacion: form.fecha_publicacion || new Date().toISOString()
+      status,
+      tags: form.tags.join(',')
     }
-    
-    const newPost = await createPost(postData)
-    
-    if (newPost) {
-      success(
-        'Post creado',
-        `El post "${form.titulo}" ha sido ${form.status === 'published' ? 'publicado' : 'guardado'} exitosamente`
-      )
-      
-      // Redirect to posts list
-      await navigateTo('/dashboard/posts')
-    }
-  } catch (err: any) {
-    showError('Error', err.message || 'No se pudo crear el post')
+
+    await $fetch('/api/v1/dashboard/posts/', {
+      method: 'POST',
+      body: postData,
+      headers: {
+        'Authorization': `Bearer ${useDashboardAuth().getAccessToken()}`
+      }
+    })
+
+    handleSuccess(`Post ${status === 'published' ? 'publicado' : 'guardado como borrador'} exitosamente`)
+    router.push('/dashboard/posts')
+
+  } catch (error) {
+    handleError(error, 'submitPost')
   } finally {
     loading.value = false
   }
 }
 
-const saveAsDraft = async () => {
-  const originalStatus = form.status
-  form.status = 'draft'
-  await handleSubmit()
-  form.status = originalStatus
-}
-
-const handleFileSelect = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  
-  if (file) {
-    handleFile(file)
-  }
-}
-
-const handleDrop = (event: DragEvent) => {
-  const file = event.dataTransfer?.files[0]
-  
-  if (file) {
-    handleFile(file)
-  }
-}
-
-const handleFile = (file: File) => {
-  // Validate file type
-  if (!file.type.startsWith('image/')) {
-    showError('Error', 'Por favor selecciona un archivo de imagen válido')
-    return
-  }
-  
-  // Validate file size (5MB)
-  if (file.size > 5 * 1024 * 1024) {
-    showError('Error', 'La imagen debe ser menor a 5MB')
-    return
-  }
-  
-  form.imagen = file
-  
-  // Create preview
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    imagePreview.value = e.target?.result as string
-  }
-  reader.readAsDataURL(file)
-}
-
-const removeImage = () => {
-  form.imagen = null
-  imagePreview.value = null
-  if (fileInput.value) {
-    fileInput.value.value = ''
-  }
-}
-
-// Load categories on mount
-onMounted(async () => {
+const fetchCategories = async () => {
   try {
     const response = await $fetch('/api/v1/categories/')
-    categories.value = response || []
-  } catch (err) {
-    console.error('Error loading categories:', err)
+    categories.value = response
+  } catch (error) {
+    console.error('Error fetching categories:', error)
   }
-  
-  // Set default publication date to now
-  const now = new Date()
-  form.fecha_publicacion = now.toISOString().slice(0, 16)
+}
+
+// Initialize
+onMounted(() => {
+  fetchCategories()
 })
 
 // SEO

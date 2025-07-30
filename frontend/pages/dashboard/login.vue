@@ -175,10 +175,13 @@ const handleLogin = async () => {
     if (response.error) {
       error.value = response.message
       
-      // Focus on username field for retry
+      // Focus on password field for retry if username exists
       nextTick(() => {
-        const usernameInput = document.getElementById('username')
-        if (usernameInput) usernameInput.focus()
+        const passwordInput = document.getElementById('password')
+        if (passwordInput) {
+          passwordInput.focus()
+          passwordInput.select()
+        }
       })
     } else {
       // Handle remember me
@@ -191,13 +194,26 @@ const handleLogin = async () => {
       // Show success message briefly before redirect
       error.value = null
       
+      // Small delay to show success state
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Redirect to dashboard or intended page
       const redirectTo = route.query.redirect as string || '/dashboard'
       await navigateTo(redirectTo)
     }
   } catch (err: any) {
-    error.value = 'Error de conexión. Verifica tu conexión a internet.'
     console.error('Login error:', err)
+    
+    // Handle different types of errors
+    if (err.status === 401 || err.statusCode === 401) {
+      error.value = 'Credenciales incorrectas. Verifica tu usuario y contraseña.'
+    } else if (err.status === 429 || err.statusCode === 429) {
+      error.value = 'Demasiados intentos de login. Espera unos minutos antes de intentar de nuevo.'
+    } else if (err.status >= 500) {
+      error.value = 'Error del servidor. Inténtalo de nuevo más tarde.'
+    } else {
+      error.value = 'Error de conexión. Verifica tu conexión a internet.'
+    }
   } finally {
     loading.value = false
   }

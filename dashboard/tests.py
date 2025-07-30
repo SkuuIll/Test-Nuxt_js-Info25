@@ -1,5 +1,7 @@
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 from .models import DashboardPermission, ActivityLog
 from .utils import log_activity, get_dashboard_stats, create_dashboard_admin_user
 

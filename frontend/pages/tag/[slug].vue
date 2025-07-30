@@ -191,13 +191,20 @@ useHead({
 })
 
 // Structured data
-useJsonld({
-  '@context': 'https://schema.org',
-  '@type': 'CollectionPage',
-  name: `Tag: ${tagName}`,
-  description: `Artículos relacionados con ${tagName}`,
-  url: `https://tu-sitio.com/tag/${tagSlug}`,
-  inLanguage: 'es-ES'
+useHead({
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: `Tag: ${tagName}`,
+        description: `Artículos relacionados con ${tagName}`,
+        url: `https://tu-sitio.com/tag/${tagSlug}`,
+        inLanguage: 'es-ES'
+      })
+    }
+  ]
 })
 
 // Fetch posts for tag

@@ -192,18 +192,25 @@ useHead({
 })
 
 // Structured data para SEO
-useJsonld({
-  '@context': 'https://schema.org',
-  '@type': 'WebPage',
-  name: 'Política de Privacidad',
-  description: 'Información sobre cómo recopilamos, usamos y protegemos tus datos personales',
-  url: 'https://tu-sitio.com/privacy',
-  inLanguage: 'es-ES',
-  isPartOf: {
-    '@type': 'WebSite',
-    name: 'Blog de Noticias',
-    url: 'https://tu-sitio.com'
-  }
+useHead({
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: 'Política de Privacidad',
+        description: 'Información sobre cómo recopilamos, usamos y protegemos tus datos personales',
+        url: 'https://tu-sitio.com/privacy',
+        inLanguage: 'es-ES',
+        isPartOf: {
+          '@type': 'WebSite',
+          name: 'Blog de Noticias',
+          url: 'https://tu-sitio.com'
+        }
+      })
+    }
+  ]
 })
 </script>
 

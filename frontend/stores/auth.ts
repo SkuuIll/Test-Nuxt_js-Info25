@@ -42,12 +42,16 @@ export const useAuthStore = defineStore('auth', () => {
         console.log('💾 Tokens guardados en localStorage')
       }
 
-      // Fetch user profile
-      console.log('👤 Obteniendo perfil de usuario...')
-      await fetchProfile()
-
+      // Set user data directly from login response
+      user.value = response.user
       isAuthenticated.value = true
+
       console.log('🎉 Autenticación completada exitosamente')
+      console.log('👤 Usuario logueado:', {
+        username: user.value?.username,
+        isStaff: user.value?.is_staff,
+        email: user.value?.email
+      })
 
       return response
     } catch (err: any) {
@@ -113,8 +117,16 @@ export const useAuthStore = defineStore('auth', () => {
       })
     } catch (err: any) {
       console.error('❌ Error obteniendo perfil:', err)
-      // If profile fetch fails, user might not be authenticated
-      await logout()
+
+      // Only logout if it's an authentication error (401)
+      if (err.status === 401 || err.statusCode === 401) {
+        console.log('🔒 Token inválido, cerrando sesión...')
+        await logout()
+      } else {
+        // For other errors, just log but don't logout
+        console.warn('⚠️ Error temporal obteniendo perfil, manteniendo sesión')
+        throw err
+      }
     }
   }
 
@@ -191,22 +203,38 @@ export const useAuthStore = defineStore('auth', () => {
       if (tokens) {
         const parsedTokens = JSON.parse(tokens)
         if (parsedTokens.access) {
-          await fetchProfile()
+          console.log('🔄 Inicializando autenticación con token existente...')
+
+          // Try to fetch profile to validate token
+          try {
+            await fetchProfile()
+            console.log('✅ Autenticación inicializada correctamente')
+          } catch (profileError) {
+            console.warn('⚠️ Error obteniendo perfil durante inicialización:', profileError)
+            // If profile fetch fails, still consider user authenticated if we have tokens
+            // The profile will be fetched later when needed
+            isAuthenticated.value = true
+          }
         }
+      } else {
+        console.log('ℹ️ No hay tokens guardados, usuario no autenticado')
+        isAuthenticated.value = false
       }
     } catch (err) {
-      console.error('Error initializing auth:', err)
+      console.error('❌ Error inicializando autenticación:', err)
       // Clear invalid tokens
       localStorage.removeItem('auth_tokens')
+      isAuthenticated.value = false
+      user.value = null
     }
   }
 
   return {
     // State
-    user: readonly(user),
-    isAuthenticated: readonly(isAuthenticated),
-    loading: readonly(loading),
-    error: readonly(error),
+    user,
+    isAuthenticated,
+    loading,
+    error,
 
     // Getters
     isAdmin,

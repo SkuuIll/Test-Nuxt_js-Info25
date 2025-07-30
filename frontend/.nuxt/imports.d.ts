@@ -35,6 +35,7 @@ export { useDashboardAuth } from '../composables/useDashboardAuth';
 export { useDashboardComments } from '../composables/useDashboardComments';
 export { useDashboardNotifications } from '../composables/useDashboardNotifications';
 export { useDashboardPosts } from '../composables/useDashboardPosts';
+export { useDashboardSession } from '../composables/useDashboardSession';
 export { useDashboardStats } from '../composables/useDashboardStats';
 export { useDashboardUsers } from '../composables/useDashboardUsers';
 export { useErrorHandler } from '../composables/useErrorHandler';

@@ -34,14 +34,15 @@ useHead({
 
 // Initialize theme and other UI features after hydration
 onMounted(() => {
-  const { initializeTheme, initializeWindowSize, initializeScroll } = useTheme()
+  const { initializeTheme } = useTheme()
+  const uiStore = useUIStore()
   
   // El tema ya se inicializó en el plugin, pero sincronizamos el store
   initializeTheme()
   
   // Inicializar otras funcionalidades de UI
-  initializeWindowSize()
-  initializeScroll()
+  uiStore.initializeWindowSize()
+  uiStore.initializeScroll()
 })
 </script>
 
