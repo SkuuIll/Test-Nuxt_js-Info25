@@ -4,11 +4,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
-
-User = get_user_model()
 from django.utils import timezone
 from django.db.models import Q, Count
 from django.core.exceptions import ValidationError
@@ -21,6 +20,9 @@ from .serializers import (
     DashboardUserSerializer, DashboardPostCreateUpdateSerializer
 )
 from .utils import log_activity, get_client_ip, get_dashboard_stats, get_top_performing_content
+from .api_utils import DashboardResponse
+
+User = get_user_model()
 
 
 class DashboardTokenObtainPairView(TokenObtainPairView):
@@ -42,16 +44,10 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
         user = authenticate(username=username, password=password)
         
         if not user:
-            return Response({
-                'error': True,
-                'message': 'Credenciales inválidas'
-            }, status=status.HTTP_401_UNAUTHORIZED)
+            return DashboardResponse.unauthorized('Credenciales inválidas')
         
         if not user.is_active:
-            return Response({
-                'error': True,
-                'message': 'Usuario desactivado'
-            }, status=status.HTTP_401_UNAUTHORIZED)
+            return DashboardResponse.unauthorized('Usuario desactivado')
         
         # Verificar permisos de dashboard
         try:
@@ -65,16 +61,10 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
             )
             
             if not has_dashboard_access:
-                return Response({
-                    'error': True,
-                    'message': 'No tienes permisos para acceder al dashboard'
-                }, status=status.HTTP_403_FORBIDDEN)
+                return DashboardResponse.permission_denied('No tienes permisos para acceder al dashboard')
                 
         except DashboardPermission.DoesNotExist:
-            return Response({
-                'error': True,
-                'message': 'No tienes permisos para acceder al dashboard'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return DashboardResponse.permission_denied('No tienes permisos para acceder al dashboard')
         
         # Generar tokens
         refresh = RefreshToken.for_user(user)
@@ -92,23 +82,19 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
             request=request
         )
         
-        return Response({
-            'error': False,
-            'message': 'Login exitoso',
-            'data': {
-                'access': str(access_token),
-                'refresh': str(refresh),
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'is_superuser': user.is_superuser,
-                    'permissions': DashboardPermissionSerializer(dashboard_permission).data
-                }
+        return DashboardResponse.success({
+            'access': str(access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'is_superuser': user.is_superuser,
+                'permissions': DashboardPermissionSerializer(dashboard_permission).data
             }
-        }, status=status.HTTP_200_OK)
+        }, message='Login exitoso')
 
 
 class DashboardTokenRefreshView(TokenRefreshView):
@@ -163,16 +149,10 @@ class DashboardLogoutView(APIView):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': 'Logout exitoso'
-            }, status=status.HTTP_200_OK)
+            return DashboardResponse.success(message='Logout exitoso')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al cerrar sesión: {str(e)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardResponse.error(f'Error al cerrar sesión: {str(e)}')
 
 
 class DashboardUserProfileView(APIView):
@@ -187,25 +167,19 @@ class DashboardUserProfileView(APIView):
         try:
             dashboard_permission = user.dashboard_permission
         except DashboardPermission.DoesNotExist:
-            return Response({
-                'error': True,
-                'message': 'Permisos de dashboard no encontrados'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return DashboardResponse.not_found('Permisos de dashboard no encontrados')
         
-        return Response({
-            'error': False,
-            'data': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'is_superuser': user.is_superuser,
-                'last_login': user.last_login,
-                'date_joined': user.date_joined,
-                'permissions': DashboardPermissionSerializer(dashboard_permission).data
-            }
-        }, status=status.HTTP_200_OK)
+        return DashboardResponse.success({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'is_superuser': user.is_superuser,
+            'last_login': user.last_login,
+            'date_joined': user.date_joined,
+            'permissions': DashboardPermissionSerializer(dashboard_permission).data
+        })
 
 
 @api_view(['POST'])
