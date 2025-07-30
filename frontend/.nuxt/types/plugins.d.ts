@@ -24,7 +24,10 @@ type NuxtAppInjections =
   InjectionType<typeof import("../../plugins/api-interceptor.client")> &
   InjectionType<typeof import("../../plugins/axios.client")> &
   InjectionType<typeof import("../../plugins/dashboard-auth.client")> &
+  InjectionType<typeof import("../../plugins/logger.client")> &
   InjectionType<typeof import("../../plugins/pinia.client")> &
+  InjectionType<typeof import("../../plugins/route-logger.client")> &
+  InjectionType<typeof import("../../plugins/theme-init.client")> &
   InjectionType<typeof import("../../plugins/toast.client")>
 
 declare module '#app' {

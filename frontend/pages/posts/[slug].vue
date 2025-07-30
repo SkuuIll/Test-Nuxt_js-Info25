@@ -330,6 +330,17 @@ const fetchPost = async () => {
     const api = useApi()
     const slug = route.params.slug as string
     
+    // Debug logging
+    console.log('🔍 Fetching post with slug:', slug)
+    console.log('📍 Route params:', route.params)
+    console.log('🛣️ Full route path:', route.fullPath)
+    
+    // Validate slug
+    if (!slug || slug === 'undefined' || slug === 'null') {
+      console.error('❌ Invalid slug detected:', slug)
+      throw new Error('Slug de post inválido')
+    }
+    
     post.value = await api.getPost(slug)
     
     // Fetch comments

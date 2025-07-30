@@ -1,11 +1,11 @@
-import type { 
-  Post, 
-  Category, 
-  Comment, 
-  User, 
-  ApiResponse, 
-  LoginCredentials, 
-  RegisterData, 
+import type {
+  Post,
+  Category,
+  Comment,
+  User,
+  ApiResponse,
+  LoginCredentials,
+  RegisterData,
   AuthTokens,
   PostsParams,
   CommentParams,
@@ -15,7 +15,7 @@ import type {
 
 export const useApi = () => {
   const config = useRuntimeConfig()
-  
+
   // Token management functions
   const getTokens = () => {
     if (process.client) {
@@ -49,7 +49,7 @@ export const useApi = () => {
     headers: {
       'Content-Type': 'application/json'
     },
-    onRequest({ options }) {
+    onRequest({ request, options }) {
       // Add JWT token to requests
       const tokens = getTokens()
       if (tokens?.access) {
@@ -58,8 +58,33 @@ export const useApi = () => {
           'Authorization': `Bearer ${tokens.access}`
         } as Record<string, string>
       }
+
+      // Log API requests in development
+      if (process.dev) {
+        try {
+          const { $logger } = useNuxtApp()
+          $logger.api(options.method || 'GET', request.toString(), options.body)
+        } catch (e) {
+          console.log('🔗 API Request:', options.method || 'GET', request.toString(), options.body)
+        }
+      }
     },
-    async onResponseError({ response }) {
+    async onResponseError({ request, response }) {
+      // Log API errors in development
+      if (process.dev) {
+        try {
+          const { $logger } = useNuxtApp()
+          $logger.error('API Error', {
+            url: request.toString(),
+            status: response.status,
+            statusText: response.statusText,
+            data: response._data
+          })
+        } catch (e) {
+          console.error('🚨 API Error:', response.status, response.statusText, request.toString(), response._data)
+        }
+      }
+
       // Handle token refresh on 401
       if (response.status === 401) {
         const tokens = getTokens()
@@ -237,7 +262,7 @@ export const useApi = () => {
   const uploadImage = async (file: File): Promise<{ url: string }> => {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     return await api('/media/upload/', {
       method: 'POST',
       body: formData,
@@ -280,32 +305,32 @@ export const useApi = () => {
     changePassword,
     requestPasswordReset,
     resetPassword,
-    
+
     // Posts
     getPosts,
     getPost,
     searchPosts,
     getFeaturedPosts,
-    
+
     // Categories
     getCategories,
     getCategory,
     getCategoryPosts,
-    
+
     // Tags
     getTags,
     getTag,
     getTagPosts,
-    
+
     // Comments
     getComments,
     createComment,
     updateComment,
     deleteComment,
-    
+
     // Media
     uploadImage,
-    
+
     // Other
     subscribeNewsletter,
     sendContactMessage

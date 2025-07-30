@@ -7,25 +7,34 @@
   html {
     scroll-behavior: smooth;
   }
-  
+
   body {
     @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  }
+
+  /* Aplicar transiciones solo después de la carga inicial */
+  body.transitions-enabled {
     @apply transition-colors duration-300;
   }
-  
+
+  /* Prevenir transiciones durante la carga inicial */
+  .preload * {
+    transition: none !important;
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     @apply w-2;
   }
-  
+
   ::-webkit-scrollbar-track {
     @apply bg-gray-100 dark:bg-gray-800;
   }
-  
+
   ::-webkit-scrollbar-thumb {
     @apply bg-gray-300 dark:bg-gray-600 rounded-full;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-gray-400 dark:bg-gray-500;
   }
@@ -38,34 +47,34 @@
     @apply transition-all duration-200 ease-in-out;
     @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
-  
+
   .btn-primary {
     @apply bg-primary-600 text-white hover:bg-primary-700;
     @apply focus:ring-primary-500 dark:focus:ring-offset-gray-900;
   }
-  
+
   .btn-secondary {
     @apply bg-gray-200 text-gray-900 hover:bg-gray-300;
     @apply dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600;
     @apply focus:ring-gray-500 dark:focus:ring-offset-gray-900;
   }
-  
+
   .btn-ghost {
     @apply bg-transparent text-gray-700 hover:bg-gray-100;
     @apply dark:text-gray-300 dark:hover:bg-gray-800;
     @apply focus:ring-gray-500 dark:focus:ring-offset-gray-900;
   }
-  
+
   .card {
     @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm;
     @apply border border-gray-200 dark:border-gray-700;
     @apply transition-all duration-200 ease-in-out;
   }
-  
+
   .card:hover {
     @apply shadow-md transform -translate-y-1;
   }
-  
+
   .input {
     @apply block w-full px-3 py-2 text-sm;
     @apply bg-white dark:bg-gray-800;
@@ -75,7 +84,7 @@
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
     @apply transition-colors duration-200;
   }
-  
+
   .navbar-blur {
     @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-md;
     @apply border-b border-gray-200/50 dark:border-gray-700/50;
@@ -87,15 +96,15 @@
   .text-balance {
     text-wrap: balance;
   }
-  
+
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.5s ease-out;
   }
-  
+
   .animate-scale-in {
     animation: scaleIn 0.3s ease-out;
   }
@@ -106,6 +115,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -116,6 +126,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -127,6 +138,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);

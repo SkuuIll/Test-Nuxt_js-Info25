@@ -340,3 +340,475 @@ def bulk_reject_comments(comment_ids, user):
     )
     
     return updated_count
+
+
+# ============================================================================
+# POSTS MANAGEMENT UTILITIES
+# ============================================================================
+
+def bulk_update_post_status(post_ids, new_status, user):
+    """
+    Actualizar el estado de múltiples posts
+    """
+    from posts.models import Post
+    
+    posts = Post.objects.filter(id__in=post_ids)
+    updated_count = 0
+    
+    for post in posts:
+        post.status = new_status
+        post.save()
+        updated_count += 1
+        
+        # Registrar actividad para cada post
+        log_activity(
+            user=user,
+            action='updated_post',
+            target_model='Post',
+            target_id=post.id,
+            description=f'Estado cambiado a {new_status}: {post.titulo}',
+            request=None
+        )
+    
+    return updated_count
+
+
+def get_posts_statistics():
+    """
+    Obtener estadísticas detalladas de posts
+    """
+    from posts.models import Post
+    from django.db.models import Count, Q
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    now = timezone.now()
+    thirty_days_ago = now - timedelta(days=30)
+    
+    stats = {
+        'total_posts': Post.objects.count(),
+        'published_posts': Post.objects.filter(status='published').count(),
+        'draft_posts': Post.objects.filter(status='draft').count(),
+        'archived_posts': Post.objects.filter(status='archived').count(),
+        'featured_posts': Post.objects.filter(featured=True).count(),
+        'posts_last_30_days': Post.objects.filter(
+            fecha_creacion__gte=thirty_days_ago
+        ).count(),
+        'posts_by_status': {
+            'published': Post.objects.filter(status='published').count(),
+            'draft': Post.objects.filter(status='draft').count(),
+            'archived': Post.objects.filter(status='archived').count(),
+        },
+        'posts_by_author': list(
+            Post.objects.values('autor__username')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        ),
+        'posts_by_category': list(
+            Post.objects.filter(categoria__isnull=False)
+            .values('categoria__nombre')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        )
+    }
+    
+    return stats
+
+
+def get_post_engagement_stats(post_id):
+    """
+    Obtener estadísticas de engagement de un post específico
+    """
+    from posts.models import Post
+    from django.db.models import Count
+    
+    try:
+        post = Post.objects.get(id=post_id)
+        
+        stats = {
+            'comments_count': post.comentarios.count(),
+            'approved_comments': post.comentarios.filter(approved=True).count(),
+            'pending_comments': post.comentarios.filter(approved=False).count(),
+            'unique_commenters': post.comentarios.values('usuario').distinct().count(),
+            'reading_time': max(1, round(len(post.contenido.split()) / 200)),
+            'word_count': len(post.contenido.split()),
+            'character_count': len(post.contenido),
+        }
+        
+        return stats
+        
+    except Post.DoesNotExist:
+        return None
+
+
+def duplicate_post(original_post_id, user):
+    """
+    Duplicar un post existente
+    """
+    from posts.models import Post
+    
+    try:
+        original = Post.objects.get(id=original_post_id)
+        
+        # Crear copia
+        duplicate = Post.objects.create(
+            titulo=f"Copia de {original.titulo}",
+            contenido=original.contenido,
+            categoria=original.categoria,
+            autor=user,
+            status='draft',
+            featured=False,
+            meta_title=original.meta_title,
+            meta_description=original.meta_description
+        )
+        
+        # Registrar actividad
+        log_activity(
+            user=user,
+            action='created_post',
+            target_model='Post',
+            target_id=duplicate.id,
+            description=f'Post duplicado: {duplicate.titulo}',
+            request=None
+        )
+        
+        return duplicate
+        
+    except Post.DoesNotExist:
+        return None
+
+
+def get_post_performance_metrics():
+    """
+    Obtener métricas de rendimiento de posts
+    """
+    from posts.models import Post
+    from django.db.models import Count, Avg
+    
+    # Posts más comentados
+    most_commented = Post.objects.annotate(
+        comments_count=Count('comentarios')
+    ).filter(
+        status='published',
+        comments_count__gt=0
+    ).order_by('-comments_count')[:10]
+    
+    # Posts sin comentarios
+    no_comments = Post.objects.annotate(
+        comments_count=Count('comentarios')
+    ).filter(
+        status='published',
+        comments_count=0
+    ).count()
+    
+    # Promedio de comentarios por post
+    avg_comments = Post.objects.filter(
+        status='published'
+    ).annotate(
+        comments_count=Count('comentarios')
+    ).aggregate(
+        avg_comments=Avg('comments_count')
+    )['avg_comments'] or 0
+    
+    return {
+        'most_commented_posts': [
+            {
+                'id': post.id,
+                'title': post.titulo,
+                'comments_count': post.comments_count,
+                'author': post.autor.username,
+                'published_date': post.fecha_publicacion.strftime('%d/%m/%Y')
+            }
+            for post in most_commented
+        ],
+        'posts_without_comments': no_comments,
+        'average_comments_per_post': round(avg_comments, 2)
+    }
+
+
+# ============================================================================
+# COMMENTS MANAGEMENT UTILITIES
+# ============================================================================
+
+def get_comments_statistics():
+    """
+    Obtener estadísticas detalladas de comentarios
+    """
+    from posts.models import Comentario
+    from django.db.models import Count, Q
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    now = timezone.now()
+    thirty_days_ago = now - timedelta(days=30)
+    seven_days_ago = now - timedelta(days=7)
+    
+    stats = {
+        'total_comments': Comentario.objects.count(),
+        'approved_comments': Comentario.objects.filter(approved=True).count(),
+        'pending_comments': Comentario.objects.filter(approved=False).count(),
+        'comments_last_30_days': Comentario.objects.filter(
+            fecha_creacion__gte=thirty_days_ago
+        ).count(),
+        'comments_last_7_days': Comentario.objects.filter(
+            fecha_creacion__gte=seven_days_ago
+        ).count(),
+        'comments_today': Comentario.objects.filter(
+            fecha_creacion__date=now.date()
+        ).count(),
+        'comments_by_status': {
+            'approved': Comentario.objects.filter(approved=True).count(),
+            'pending': Comentario.objects.filter(approved=False).count(),
+        },
+        'top_commenters': list(
+            Comentario.objects.values('usuario__username', 'usuario__email')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        ),
+        'most_commented_posts': list(
+            Comentario.objects.values('post__titulo', 'post__id')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        ),
+        'comments_with_replies': Comentario.objects.filter(
+            replies__isnull=False
+        ).distinct().count(),
+        'orphan_comments': Comentario.objects.filter(
+            parent__isnull=True
+        ).count()
+    }
+    
+    return stats
+
+
+def detect_spam_comments():
+    """
+    Detectar posibles comentarios spam usando heurísticas simples
+    """
+    from posts.models import Comentario
+    from django.db.models import Q
+    
+    # Palabras clave comunes en spam
+    spam_keywords = [
+        'viagra', 'casino', 'lottery', 'winner', 'congratulations',
+        'click here', 'free money', 'make money', 'work from home',
+        'buy now', 'limited time', 'act now', 'guaranteed',
+        'no risk', 'amazing deal', 'incredible offer'
+    ]
+    
+    # Patrones sospechosos
+    suspicious_patterns = [
+        r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+',  # URLs
+        r'[A-Z]{5,}',  # Texto en mayúsculas
+        r'(.)\1{4,}',  # Caracteres repetidos
+    ]
+    
+    spam_comments = []
+    
+    # Buscar por palabras clave
+    for keyword in spam_keywords:
+        comments = Comentario.objects.filter(
+            contenido__icontains=keyword,
+            approved=False
+        )
+        spam_comments.extend(comments)
+    
+    # Buscar comentarios muy cortos o muy largos
+    short_comments = Comentario.objects.filter(
+        Q(contenido__length__lt=10) | Q(contenido__length__gt=1000),
+        approved=False
+    )
+    spam_comments.extend(short_comments)
+    
+    # Eliminar duplicados
+    spam_comments = list(set(spam_comments))
+    
+    return spam_comments
+
+
+def get_comment_moderation_queue():
+    """
+    Obtener cola de moderación de comentarios
+    """
+    from posts.models import Comentario
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    now = timezone.now()
+    
+    # Comentarios pendientes ordenados por prioridad
+    pending_comments = Comentario.objects.filter(approved=False).select_related(
+        'usuario', 'post'
+    ).order_by('-fecha_creacion')
+    
+    # Categorizar comentarios
+    categorized = {
+        'urgent': [],  # Comentarios de hace más de 24 horas
+        'recent': [],  # Comentarios de las últimas 24 horas
+        'spam_likely': []  # Posibles spam
+    }
+    
+    twenty_four_hours_ago = now - timedelta(hours=24)
+    
+    for comment in pending_comments:
+        if comment.fecha_creacion < twenty_four_hours_ago:
+            categorized['urgent'].append(comment)
+        else:
+            categorized['recent'].append(comment)
+    
+    # Detectar spam
+    spam_comments = detect_spam_comments()
+    categorized['spam_likely'] = spam_comments
+    
+    return categorized
+
+
+def bulk_moderate_comments(comment_ids, action, user):
+    """
+    Moderar múltiples comentarios de una vez
+    """
+    from posts.models import Comentario
+    
+    if action not in ['approve', 'reject', 'delete']:
+        raise ValueError('Acción inválida. Debe ser: approve, reject, delete')
+    
+    comments = Comentario.objects.filter(id__in=comment_ids)
+    processed_count = 0
+    
+    for comment in comments:
+        if action == 'approve':
+            comment.approved = True
+            comment.save()
+            action_text = 'aprobado'
+        elif action == 'reject':
+            comment.approved = False
+            comment.save()
+            action_text = 'rechazado'
+        elif action == 'delete':
+            comment.delete()
+            action_text = 'eliminado'
+        
+        processed_count += 1
+        
+        # Registrar actividad
+        if action != 'delete':
+            log_activity(
+                user=user,
+                action=f'{action}d_comment',
+                target_model='Comentario',
+                target_id=comment.id,
+                description=f'Comentario {action_text} (lote): {comment.contenido[:50]}...',
+                request=None
+            )
+    
+    return processed_count
+
+
+def get_comment_engagement_metrics():
+    """
+    Obtener métricas de engagement de comentarios
+    """
+    from posts.models import Comentario, Post
+    from django.db.models import Count, Avg
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    now = timezone.now()
+    thirty_days_ago = now - timedelta(days=30)
+    
+    # Métricas básicas
+    total_comments = Comentario.objects.count()
+    approved_comments = Comentario.objects.filter(approved=True).count()
+    
+    # Tasa de aprobación
+    approval_rate = (approved_comments / total_comments * 100) if total_comments > 0 else 0
+    
+    # Comentarios por día (últimos 30 días)
+    daily_comments = []
+    for i in range(30):
+        date = (now - timedelta(days=i)).date()
+        count = Comentario.objects.filter(fecha_creacion__date=date).count()
+        daily_comments.append({
+            'date': date.strftime('%Y-%m-%d'),
+            'count': count
+        })
+    
+    # Posts con más comentarios
+    top_posts = Post.objects.annotate(
+        comments_count=Count('comentarios')
+    ).filter(
+        comments_count__gt=0
+    ).order_by('-comments_count')[:10]
+    
+    # Usuarios más activos en comentarios
+    top_commenters = Comentario.objects.values(
+        'usuario__username', 'usuario__email'
+    ).annotate(
+        count=Count('id')
+    ).order_by('-count')[:10]
+    
+    # Promedio de comentarios por post
+    avg_comments_per_post = Post.objects.annotate(
+        comments_count=Count('comentarios')
+    ).aggregate(
+        avg_comments=Avg('comments_count')
+    )['avg_comments'] or 0
+    
+    return {
+        'total_comments': total_comments,
+        'approved_comments': approved_comments,
+        'pending_comments': total_comments - approved_comments,
+        'approval_rate': round(approval_rate, 2),
+        'daily_comments': daily_comments,
+        'top_commented_posts': [
+            {
+                'id': post.id,
+                'title': post.titulo,
+                'comments_count': post.comments_count
+            }
+            for post in top_posts
+        ],
+        'top_commenters': top_commenters,
+        'average_comments_per_post': round(avg_comments_per_post, 2)
+    }
+
+
+def auto_moderate_comments():
+    """
+    Moderación automática de comentarios basada en reglas
+    """
+    from posts.models import Comentario
+    
+    # Reglas de auto-moderación
+    auto_approved = 0
+    auto_rejected = 0
+    
+    # Auto-aprobar comentarios de usuarios confiables
+    trusted_users = Comentario.objects.filter(
+        approved=True
+    ).values('usuario').annotate(
+        approved_count=Count('id')
+    ).filter(approved_count__gte=5).values_list('usuario', flat=True)
+    
+    pending_from_trusted = Comentario.objects.filter(
+        approved=False,
+        usuario__in=trusted_users
+    )
+    
+    for comment in pending_from_trusted:
+        comment.approved = True
+        comment.save()
+        auto_approved += 1
+    
+    # Auto-rechazar comentarios con contenido sospechoso
+    spam_comments = detect_spam_comments()
+    for comment in spam_comments:
+        if not comment.approved:
+            comment.approved = False
+            comment.save()
+            auto_rejected += 1
+    
+    return {
+        'auto_approved': auto_approved,
+        'auto_rejected': auto_rejected
+    }

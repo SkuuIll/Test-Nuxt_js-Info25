@@ -1,17 +1,22 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  devtools: { enabled: true },
+  devtools: {
+    enabled: true,
+    timeline: {
+      enabled: true
+    }
+  },
   compatibilityDate: '2025-07-28',
-  
+
   // TypeScript configuration
   typescript: {
     strict: true,
     typeCheck: false // Disable for now to avoid build issues
   },
-  
+
   // CSS framework
   css: ['~/assets/css/main.css'],
-  
+
   // Modules
   modules: [
     '@nuxtjs/tailwindcss',
@@ -19,7 +24,7 @@ export default defineNuxtConfig({
     '@nuxt/image',
     '@vueuse/nuxt'
   ],
-  
+
   // Tailwind CSS configuration
   tailwindcss: {
     cssPath: '~/assets/css/main.css',
@@ -27,7 +32,7 @@ export default defineNuxtConfig({
     exposeConfig: false,
     viewer: true,
   },
-  
+
   // Runtime config
   runtimeConfig: {
     public: {
@@ -35,7 +40,7 @@ export default defineNuxtConfig({
       siteUrl: process.env.SITE_URL || 'http://localhost:3000'
     }
   },
-  
+
   // App configuration
   app: {
     head: {
@@ -47,15 +52,46 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+      ],
+      script: [
+        {
+          innerHTML: `
+            (function() {
+              try {
+                // Prevenir transiciones durante la carga inicial
+                document.documentElement.classList.add('preload');
+                
+                var theme = localStorage.getItem('theme') || 'system';
+                var isDark = false;
+                
+                if (theme === 'system') {
+                  isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                  isDark = theme === 'dark';
+                }
+                
+                if (isDark) {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+              } catch (e) {
+                // Fallback: tema claro por defecto
+                document.documentElement.classList.remove('dark');
+              }
+            })();
+          `,
+          type: 'text/javascript'
+        }
       ]
     }
   },
-  
+
   // Build configuration
   build: {
     transpile: ['vue-toastification']
   },
-  
+
   // Nitro configuration for API routes
   nitro: {
     experimental: {

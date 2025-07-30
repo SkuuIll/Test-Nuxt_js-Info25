@@ -44,9 +44,6 @@
       "h3": [
         "../node_modules/h3"
       ],
-      "consola": [
-        "../node_modules/consola"
-      ],
       "ofetch": [
         "../node_modules/ofetch"
       ],

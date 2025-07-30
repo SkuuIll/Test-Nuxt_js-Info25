@@ -22,28 +22,36 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      
+
+      console.log('🔐 Iniciando login con:', { username: credentials.username })
+
       const api = useApi()
       const response = await api.login(credentials)
-      
+
+      console.log('✅ Login exitoso, respuesta recibida:', response)
+
       // Store tokens
       const tokens = {
         access: response.access,
         refresh: response.refresh
       }
-      
+
       // Save tokens to localStorage
       if (process.client) {
         localStorage.setItem('auth_tokens', JSON.stringify(tokens))
+        console.log('💾 Tokens guardados en localStorage')
       }
-      
+
       // Fetch user profile
+      console.log('👤 Obteniendo perfil de usuario...')
       await fetchProfile()
-      
+
       isAuthenticated.value = true
-      
+      console.log('🎉 Autenticación completada exitosamente')
+
       return response
     } catch (err: any) {
+      console.error('❌ Error en login:', err)
       error.value = err.message || 'Login failed'
       throw err
     } finally {
@@ -55,10 +63,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       const response = await api.register(data)
-      
+
       return response
     } catch (err: any) {
       error.value = err.message || 'Registration failed'
@@ -71,20 +79,20 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = async () => {
     try {
       loading.value = true
-      
+
       // Clear tokens from localStorage
       if (process.client) {
         localStorage.removeItem('auth_tokens')
       }
-      
+
       // Reset state
       user.value = null
       isAuthenticated.value = false
       error.value = null
-      
+
       // Redirect to home
       await navigateTo('/')
-      
+
     } catch (err: any) {
       console.error('Logout error:', err)
     } finally {
@@ -94,11 +102,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   const fetchProfile = async () => {
     try {
+      console.log('📡 Obteniendo perfil de usuario...')
       const api = useApi()
       user.value = await api.getProfile()
       isAuthenticated.value = true
+      console.log('✅ Perfil obtenido:', {
+        username: user.value?.username,
+        isStaff: user.value?.is_staff,
+        email: user.value?.email
+      })
     } catch (err: any) {
-      console.error('Error fetching profile:', err)
+      console.error('❌ Error obteniendo perfil:', err)
       // If profile fetch fails, user might not be authenticated
       await logout()
     }
@@ -108,10 +122,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       user.value = await api.updateProfile(data)
-      
+
       return user.value
     } catch (err: any) {
       error.value = err.message || 'Profile update failed'
@@ -125,10 +139,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       await api.changePassword(currentPassword, newPassword)
-      
+
     } catch (err: any) {
       error.value = err.message || 'Password change failed'
       throw err
@@ -141,10 +155,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       await api.requestPasswordReset(email)
-      
+
     } catch (err: any) {
       error.value = err.message || 'Password reset request failed'
       throw err
@@ -157,10 +171,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       await api.resetPassword(token, newPassword)
-      
+
     } catch (err: any) {
       error.value = err.message || 'Password reset failed'
       throw err
@@ -171,7 +185,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const initializeAuth = async () => {
     if (!process.client) return
-    
+
     try {
       const tokens = localStorage.getItem('auth_tokens')
       if (tokens) {
@@ -193,11 +207,11 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated: readonly(isAuthenticated),
     loading: readonly(loading),
     error: readonly(error),
-    
+
     // Getters
     isAdmin,
     userInitials,
-    
+
     // Actions
     login,
     register,

@@ -51,7 +51,7 @@
       <!-- Title -->
       <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200">
         <NuxtLink
-          :to="`/posts/${post.slug}`"
+          :to="createPostUrl(post)"
           class="hover:underline"
         >
           {{ post.title }}
@@ -136,6 +136,7 @@
 
 <script setup lang="ts">
 import type { Post } from '~/types'
+import { createPostUrl } from '~/utils/validation'
 
 interface Props {
   post: Post

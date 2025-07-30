@@ -135,6 +135,10 @@ const emit = defineEmits<Emits>()
 const infiniteScrollTrigger = ref<HTMLElement>()
 
 const navigateToPost = (slug: string) => {
+  if (!slug || slug === 'undefined' || slug === 'null') {
+    console.error('❌ Intento de navegación con slug inválido:', slug)
+    return
+  }
   navigateTo(`/posts/${slug}`)
 }
 

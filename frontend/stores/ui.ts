@@ -26,11 +26,20 @@ export const useUIStore = defineStore('ui', () => {
 
   // Actions
   const setTheme = (newTheme: 'light' | 'dark' | 'system') => {
+    const oldTheme = theme.value
     theme.value = newTheme
-    
+
     if (process.client) {
       localStorage.setItem('theme', newTheme)
       updateDarkMode()
+
+      // Log theme change
+      try {
+        const { $logger } = useNuxtApp()
+        $logger.theme(`${oldTheme} → ${newTheme}`)
+      } catch (e) {
+        console.log('Theme changed:', oldTheme, '→', newTheme)
+      }
     }
   }
 
@@ -46,13 +55,13 @@ export const useUIStore = defineStore('ui', () => {
 
   const updateDarkMode = () => {
     if (!process.client) return
-    
+
     if (theme.value === 'system') {
       isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
     } else {
       isDark.value = theme.value === 'dark'
     }
-    
+
     // Update document class
     if (isDark.value) {
       document.documentElement.classList.add('dark')
@@ -63,15 +72,15 @@ export const useUIStore = defineStore('ui', () => {
 
   const initializeTheme = () => {
     if (!process.client) return
-    
+
     // Get saved theme or default to system
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' || 'system'
     theme.value = savedTheme
-    
+
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     mediaQuery.addEventListener('change', updateDarkMode)
-    
+
     // Initial update
     updateDarkMode()
   }
@@ -116,16 +125,16 @@ export const useUIStore = defineStore('ui', () => {
       duration: 5000,
       ...notification
     }
-    
+
     notifications.value.push(newNotification)
-    
+
     // Auto remove after duration
     if (newNotification.duration > 0) {
       setTimeout(() => {
         removeNotification(id)
       }, newNotification.duration)
     }
-    
+
     return id
   }
 
@@ -165,7 +174,7 @@ export const useUIStore = defineStore('ui', () => {
 
   const initializeWindowSize = () => {
     if (!process.client) return
-    
+
     updateWindowSize()
     window.addEventListener('resize', updateWindowSize)
   }
@@ -182,7 +191,7 @@ export const useUIStore = defineStore('ui', () => {
 
   const initializeScroll = () => {
     if (!process.client) return
-    
+
     updateScrollPosition()
     window.addEventListener('scroll', updateScrollPosition, { passive: true })
   }
@@ -205,14 +214,14 @@ export const useUIStore = defineStore('ui', () => {
     windowWidth: readonly(windowWidth),
     windowHeight: readonly(windowHeight),
     scrollY: readonly(scrollY),
-    
+
     // Getters
     currentTheme,
     isMobile,
     isTablet,
     isDesktop,
     isScrolled,
-    
+
     // Actions
     setTheme,
     toggleTheme,

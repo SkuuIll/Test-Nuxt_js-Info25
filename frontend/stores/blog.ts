@@ -8,10 +8,10 @@ export const useBlogStore = defineStore('blog', () => {
   const categories = ref<Category[]>([])
   const tags = ref<Tag[]>([])
   const featuredPosts = ref<Post[]>([])
-  
+
   const loading = ref(false)
   const error = ref<string | null>(null)
-  
+
   const pagination = ref({
     page: 1,
     hasNext: false,
@@ -24,7 +24,7 @@ export const useBlogStore = defineStore('blog', () => {
   const activeFilters = ref<SearchFilters>({})
 
   // Getters
-  const publishedPosts = computed(() => 
+  const publishedPosts = computed(() =>
     posts.value.filter(post => post.status === 'published')
   )
 
@@ -40,7 +40,7 @@ export const useBlogStore = defineStore('blog', () => {
     return grouped
   })
 
-  const recentPosts = computed(() => 
+  const recentPosts = computed(() =>
     publishedPosts.value
       .sort((a, b) => new Date(b.published_at || b.created_at).getTime() - new Date(a.published_at || a.created_at).getTime())
       .slice(0, 5)
@@ -51,22 +51,22 @@ export const useBlogStore = defineStore('blog', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       const { handleError } = useErrorHandler()
-      
+
       const response: ApiResponse<Post> = await api.getPosts({
         page_size: pagination.value.pageSize,
         ...params
       })
-      
+
       if (params.page === 1 || !params.page) {
         posts.value = response.results
       } else {
         // Append for infinite scroll
         posts.value.push(...response.results)
       }
-      
+
       // Update pagination
       pagination.value = {
         ...pagination.value,
@@ -75,7 +75,7 @@ export const useBlogStore = defineStore('blog', () => {
         hasPrevious: !!response.previous,
         total: response.count
       }
-      
+
     } catch (err: any) {
       const errorInfo = handleError(err, 'fetchPosts')
       error.value = errorInfo.message
@@ -89,12 +89,20 @@ export const useBlogStore = defineStore('blog', () => {
     try {
       loading.value = true
       error.value = null
-      
+
+      // Validate slug
+      if (!slug || slug === 'undefined' || slug === 'null') {
+        console.error('❌ Intento de fetch con slug inválido:', slug)
+        throw new Error('Slug de post inválido')
+      }
+
+      console.log('📖 Fetching post from store with slug:', slug)
+
       const api = useApi()
       const { handleError } = useErrorHandler()
-      
+
       currentPost.value = await api.getPost(slug)
-      
+
     } catch (err: any) {
       const errorInfo = handleError(err, 'fetchPost')
       error.value = errorInfo.message
@@ -109,7 +117,7 @@ export const useBlogStore = defineStore('blog', () => {
     try {
       const api = useApi()
       const { handleError } = useErrorHandler()
-      
+
       categories.value = await api.getCategories()
     } catch (err: any) {
       handleError(err, 'fetchCategories')
@@ -121,7 +129,7 @@ export const useBlogStore = defineStore('blog', () => {
     try {
       const api = useApi()
       const { handleError } = useErrorHandler()
-      
+
       featuredPosts.value = await api.getFeaturedPosts()
     } catch (err: any) {
       handleError(err, 'fetchFeaturedPosts')
@@ -135,12 +143,12 @@ export const useBlogStore = defineStore('blog', () => {
       error.value = null
       searchQuery.value = query
       activeFilters.value = filters
-      
+
       const api = useApi()
       const { handleError } = useErrorHandler()
-      
+
       const response: ApiResponse<Post> = await api.searchPosts(query, filters)
-      
+
       posts.value = response.results
       pagination.value = {
         ...pagination.value,
@@ -149,7 +157,7 @@ export const useBlogStore = defineStore('blog', () => {
         hasPrevious: false,
         total: response.count
       }
-      
+
     } catch (err: any) {
       const errorInfo = handleError(err, 'searchPosts')
       error.value = errorInfo.message
@@ -163,19 +171,19 @@ export const useBlogStore = defineStore('blog', () => {
     try {
       loading.value = true
       error.value = null
-      
+
       const api = useApi()
       const response: ApiResponse<Post> = await api.getCategoryPosts(categorySlug, {
         page_size: pagination.value.pageSize,
         ...params
       })
-      
+
       if (params.page === 1 || !params.page) {
         posts.value = response.results
       } else {
         posts.value.push(...response.results)
       }
-      
+
       pagination.value = {
         ...pagination.value,
         page: params.page || 1,
@@ -183,7 +191,7 @@ export const useBlogStore = defineStore('blog', () => {
         hasPrevious: !!response.previous,
         total: response.count
       }
-      
+
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch category posts'
       console.error('Error fetching category posts:', err)
@@ -194,9 +202,9 @@ export const useBlogStore = defineStore('blog', () => {
 
   const loadMorePosts = async () => {
     if (!pagination.value.hasNext || loading.value) return
-    
+
     const nextPage = pagination.value.page + 1
-    
+
     if (searchQuery.value) {
       // Continue search with next page
       await searchPosts(searchQuery.value, { ...activeFilters.value })
@@ -240,12 +248,12 @@ export const useBlogStore = defineStore('blog', () => {
     pagination: readonly(pagination),
     searchQuery: readonly(searchQuery),
     activeFilters: readonly(activeFilters),
-    
+
     // Getters
     publishedPosts,
     postsByCategory,
     recentPosts,
-    
+
     // Actions
     fetchPosts,
     fetchPost,

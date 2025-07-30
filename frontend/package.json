@@ -24,6 +24,7 @@
     "@tailwindcss/typography": "^0.5.10",
     "@types/node": "^20.10.0",
     "@vue/test-utils": "^2.4.6",
+    "consola": "^3.4.2",
     "eslint": "^8.55.0",
     "happy-dom": "^18.0.1",
     "nuxt": "^3.8.0",

@@ -32,6 +32,7 @@ interface _GlobalComponents {
     'DashboardStatCard': typeof import("../components/Dashboard/StatCard.vue")['default']
     'DashboardToast': typeof import("../components/Dashboard/Toast.vue")['default']
     'DashboardUserMenu': typeof import("../components/Dashboard/UserMenu.vue")['default']
+    'DebugPanel': typeof import("../components/DebugPanel.vue")['default']
     'HeroSection': typeof import("../components/HeroSection.vue")['default']
     'Icon': typeof import("../components/Icon.vue")['default']
     'PostCard': typeof import("../components/PostCard.vue")['default']
@@ -86,6 +87,7 @@ interface _GlobalComponents {
     'LazyDashboardStatCard': LazyComponent<typeof import("../components/Dashboard/StatCard.vue")['default']>
     'LazyDashboardToast': LazyComponent<typeof import("../components/Dashboard/Toast.vue")['default']>
     'LazyDashboardUserMenu': LazyComponent<typeof import("../components/Dashboard/UserMenu.vue")['default']>
+    'LazyDebugPanel': LazyComponent<typeof import("../components/DebugPanel.vue")['default']>
     'LazyHeroSection': LazyComponent<typeof import("../components/HeroSection.vue")['default']>
     'LazyIcon': LazyComponent<typeof import("../components/Icon.vue")['default']>
     'LazyPostCard': LazyComponent<typeof import("../components/PostCard.vue")['default']>
@@ -146,6 +148,7 @@ export const DashboardSidebarSection: typeof import("../components/Dashboard/Sid
 export const DashboardStatCard: typeof import("../components/Dashboard/StatCard.vue")['default']
 export const DashboardToast: typeof import("../components/Dashboard/Toast.vue")['default']
 export const DashboardUserMenu: typeof import("../components/Dashboard/UserMenu.vue")['default']
+export const DebugPanel: typeof import("../components/DebugPanel.vue")['default']
 export const HeroSection: typeof import("../components/HeroSection.vue")['default']
 export const Icon: typeof import("../components/Icon.vue")['default']
 export const PostCard: typeof import("../components/PostCard.vue")['default']
@@ -200,6 +203,7 @@ export const LazyDashboardSidebarSection: LazyComponent<typeof import("../compon
 export const LazyDashboardStatCard: LazyComponent<typeof import("../components/Dashboard/StatCard.vue")['default']>
 export const LazyDashboardToast: LazyComponent<typeof import("../components/Dashboard/Toast.vue")['default']>
 export const LazyDashboardUserMenu: LazyComponent<typeof import("../components/Dashboard/UserMenu.vue")['default']>
+export const LazyDebugPanel: LazyComponent<typeof import("../components/DebugPanel.vue")['default']>
 export const LazyHeroSection: LazyComponent<typeof import("../components/HeroSection.vue")['default']>
 export const LazyIcon: LazyComponent<typeof import("../components/Icon.vue")['default']>
 export const LazyPostCard: LazyComponent<typeof import("../components/PostCard.vue")['default']>
