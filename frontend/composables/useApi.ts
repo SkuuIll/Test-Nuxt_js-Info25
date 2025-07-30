@@ -16,6 +16,17 @@ import type {
 export const useApi = () => {
   const config = useRuntimeConfig()
 
+  // Helper function to clean undefined/null params
+  const cleanParams = (params: Record<string, any>) => {
+    const cleaned: Record<string, any> = {}
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== '') {
+        cleaned[key] = value
+      }
+    }
+    return cleaned
+  }
+
   // Token management functions
   const getTokens = () => {
     if (process.client) {
@@ -69,6 +80,26 @@ export const useApi = () => {
         }
       }
     },
+    onResponse({ response }) {
+      // Handle standardized API responses
+      if (response._data && typeof response._data === 'object') {
+        // Check if it's a standardized response format
+        if ('success' in response._data) {
+          // If success is false, throw an error to trigger onResponseError
+          if (!response._data.success) {
+            throw createError({
+              statusCode: response.status,
+              statusMessage: response._data.error || response._data.message || 'API Error',
+              data: response._data
+            })
+          }
+          // For successful responses, return the data field if it exists
+          if ('data' in response._data) {
+            response._data = response._data.data
+          }
+        }
+      }
+    },
     async onResponseError({ request, response }) {
       // Log API errors in development
       if (process.dev) {
@@ -87,9 +118,9 @@ export const useApi = () => {
 
       // Handle token refresh on 401 (but not for login/register/refresh endpoints)
       if (response.status === 401 &&
-        !request.toString().includes('/auth/login') &&
-        !request.toString().includes('/auth/register') &&
-        !request.toString().includes('/auth/refresh')) {
+        !request.toString().includes('/users/auth/login') &&
+        !request.toString().includes('/users/auth/register') &&
+        !request.toString().includes('/users/auth/refresh')) {
 
         const tokens = getTokens()
         if (tokens?.refresh) {
@@ -98,15 +129,14 @@ export const useApi = () => {
             const newTokens = await refreshTokens(tokens.refresh)
             setTokens(newTokens)
             console.log('✅ Token renovado exitosamente')
-            // Don't throw error here - let the request retry with new token
+            // Retry the original request with new token
             return
           } catch (error) {
             console.error('❌ Error renovando token:', error)
-            // Refresh failed, clear tokens and stop the loop
+            // Refresh failed, clear tokens and redirect to login
             clearTokens()
-            // Force logout to prevent infinite loops
             if (process.client) {
-              window.location.href = '/login'
+              await navigateTo('/login')
             }
             throw error
           }
@@ -114,33 +144,50 @@ export const useApi = () => {
           console.log('🚫 No hay refresh token disponible')
           clearTokens()
           if (process.client) {
-            window.location.href = '/login'
+            await navigateTo('/login')
           }
         }
       }
+
+      // Enhance error with standardized format
+      const errorData = response._data
+      let errorMessage = 'Unknown error'
+
+      if (errorData && typeof errorData === 'object') {
+        errorMessage = errorData.error || errorData.message || errorData.detail || errorMessage
+      }
+
+      throw createError({
+        statusCode: response.status,
+        statusMessage: errorMessage,
+        data: errorData
+      })
     }
   })
 
   // Auth endpoints
   const login = async (credentials: LoginCredentials): Promise<AuthTokens> => {
-    return await api('/users/auth/login/', {
+    const response = await api('/users/auth/login/', {
       method: 'POST',
       body: credentials
     })
+    return response
   }
 
   const register = async (userData: RegisterData): Promise<AuthTokens> => {
-    return await api('/users/auth/register/', {
+    const response = await api('/users/auth/register/', {
       method: 'POST',
       body: userData
     })
+    return response
   }
 
   const refreshTokens = async (refreshToken: string): Promise<AuthTokens> => {
-    return await api('/users/auth/refresh/', {
+    const response = await api('/users/auth/refresh/', {
       method: 'POST',
       body: { refresh: refreshToken }
     })
+    return response
   }
 
   const logout = async (): Promise<void> => {
@@ -203,16 +250,19 @@ export const useApi = () => {
 
   // Posts endpoints
   const getPosts = async (params?: PostsParams): Promise<ApiResponse<Post>> => {
-    return await api('/posts/', { params })
+    return await api('/posts/', {
+      params: params ? cleanParams(params) : undefined
+    })
   }
 
-  const getPost = async (slug: string): Promise<Post> => {
-    return await api(`/posts/${slug}/`)
+  const getPost = async (id: string | number): Promise<Post> => {
+    return await api(`/posts/${id}/`)
   }
 
   const searchPosts = async (query: string, filters?: SearchFilters): Promise<ApiResponse<Post>> => {
+    const searchParams = { q: query, ...filters }
     return await api('/posts/search/', {
-      params: { q: query, ...filters }
+      params: cleanParams(searchParams)
     })
   }
 
@@ -220,30 +270,30 @@ export const useApi = () => {
     return await api('/posts/featured/')
   }
 
+  const getSearchSuggestions = async (query: string): Promise<any[]> => {
+    return await api('/search/suggestions/', {
+      params: { q: query }
+    })
+  }
+
   // Categories endpoints
   const getCategories = async (): Promise<Category[]> => {
     return await api('/categories/')
   }
 
-  const getCategory = async (slug: string): Promise<Category> => {
-    return await api(`/categories/${slug}/`)
+  const getCategory = async (id: string | number): Promise<Category> => {
+    return await api(`/categories/${id}/`)
   }
 
-  const getCategoryPosts = async (slug: string, params?: PostsParams): Promise<ApiResponse<Post>> => {
-    return await api(`/categories/${slug}/posts/`, { params })
+  const getCategoryPosts = async (id: string | number, params?: PostsParams): Promise<ApiResponse<Post>> => {
+    return await api(`/categories/${id}/posts/`, {
+      params: params ? cleanParams(params) : undefined
+    })
   }
 
   // Tags endpoints
   const getTags = async (): Promise<any[]> => {
     return await api('/tags/')
-  }
-
-  const getTag = async (slug: string): Promise<any> => {
-    return await api(`/tags/${slug}/`)
-  }
-
-  const getTagPosts = async (slug: string, params?: PostsParams): Promise<ApiResponse<Post>> => {
-    return await api(`/tags/${slug}/posts/`, { params })
   }
 
   // Comments endpoints
@@ -261,7 +311,7 @@ export const useApi = () => {
   const updateComment = async (commentId: number, content: string): Promise<Comment> => {
     return await api(`/comments/${commentId}/`, {
       method: 'PATCH',
-      body: { content }
+      body: { contenido: content }
     })
   }
 
@@ -324,6 +374,7 @@ export const useApi = () => {
     getPost,
     searchPosts,
     getFeaturedPosts,
+    getSearchSuggestions,
 
     // Categories
     getCategories,
@@ -332,8 +383,6 @@ export const useApi = () => {
 
     // Tags
     getTags,
-    getTag,
-    getTagPosts,
 
     // Comments
     getComments,
@@ -346,6 +395,9 @@ export const useApi = () => {
 
     // Other
     subscribeNewsletter,
-    sendContactMessage
+    sendContactMessage,
+
+    // Utils
+    cleanParams
   }
 }

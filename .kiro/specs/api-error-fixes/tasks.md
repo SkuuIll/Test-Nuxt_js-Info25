@@ -44,15 +44,28 @@
   - _Requirements: 2.4_
 
 
+
 - [ ] 5. Update Backend Serializers for Consistency
   - Fix PostSerializer to include all necessary fields (author, category, dates, comments_count)
   - Update UserSerializer to include permission information when needed
   - Implement consistent pagination response format
   - Add proper field validation in serializers
+
+
+
+
+
   - _Requirements: 6.1, 6.2, 6.3_
 
+
 - [ ] 6. Fix Backend Search and Filtering
+
+
+
   - Complete the incomplete posts/api_views.py file (field mapping is cut off)
+
+
+
   - Implement proper search functionality in posts
   - Fix category and author filtering
   - Add proper ordering options

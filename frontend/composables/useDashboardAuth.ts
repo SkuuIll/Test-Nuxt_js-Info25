@@ -80,12 +80,13 @@ export const useDashboardAuth = () => {
     // Login function
     const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
         try {
-            const response = await $fetch<LoginResponse>(`${apiBase}/api/v1/dashboard/auth/login/`, {
+            const response = await $fetch<any>(`${apiBase}/api/v1/dashboard/auth/login/`, {
                 method: 'POST',
                 body: credentials
             })
 
-            if (!response.error && response.data) {
+            // Handle standardized response format
+            if (response.success && response.data) {
                 // Store user data and tokens
                 user.value = response.data.user
                 permissions.value = response.data.user.permissions
@@ -98,14 +99,35 @@ export const useDashboardAuth = () => {
                     localStorage.setItem('dashboard_access_token', response.data.access)
                     localStorage.setItem('dashboard_refresh_token', response.data.refresh)
                 }
-            }
 
-            return response
+                return {
+                    error: false,
+                    message: response.message || 'Login successful',
+                    data: response.data
+                }
+            } else {
+                return {
+                    error: true,
+                    message: response.message || response.error || 'Login failed'
+                }
+            }
         } catch (error: any) {
             console.error('Login error:', error)
+
+            let errorMessage = 'Error de conexión'
+            if (error.data) {
+                if (error.data.error) {
+                    errorMessage = error.data.error
+                } else if (error.data.message) {
+                    errorMessage = error.data.message
+                }
+            } else if (error.message) {
+                errorMessage = error.message
+            }
+
             return {
                 error: true,
-                message: error.data?.message || 'Error de conexión'
+                message: errorMessage
             }
         }
     }
@@ -153,25 +175,39 @@ export const useDashboardAuth = () => {
         if (!refreshToken.value) return false
 
         try {
-            const response = await $fetch<{ access: string }>(`${apiBase}/api/v1/dashboard/auth/refresh/`, {
+            const response = await $fetch<any>(`${apiBase}/api/v1/dashboard/auth/refresh/`, {
                 method: 'POST',
                 body: {
                     refresh: refreshToken.value
                 }
             })
 
-            if (response.access) {
+            // Handle standardized response format
+            if (response.success && response.data && response.data.access) {
+                accessToken.value = response.data.access
+
+                if (process.client) {
+                    localStorage.setItem('dashboard_access_token', response.data.access)
+                }
+
+                console.log('✅ Dashboard token refreshed successfully')
+                return true
+            } else if (response.access) {
+                // Handle direct access token response (fallback)
                 accessToken.value = response.access
 
                 if (process.client) {
                     localStorage.setItem('dashboard_access_token', response.access)
                 }
 
+                console.log('✅ Dashboard token refreshed successfully (fallback)')
                 return true
             }
-        } catch (error) {
-            console.error('Token refresh error:', error)
-            await logout()
+        } catch (error: any) {
+            console.error('❌ Dashboard token refresh error:', error)
+
+            // If refresh fails, logout user
+            await logout(false)
         }
 
         return false
@@ -191,22 +227,40 @@ export const useDashboardAuth = () => {
         if (!accessToken.value) return
 
         try {
-            const response = await $fetch<{ error: boolean; data: DashboardUser }>(`${apiBase}/api/v1/dashboard/auth/profile/`, {
+            const response = await $fetch<any>(`${apiBase}/api/v1/dashboard/auth/profile/`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken.value}`
                 }
             })
 
-            if (!response.error) {
+            // Handle standardized response format
+            if (response.success && response.data) {
                 user.value = response.data
                 permissions.value = response.data.permissions
 
                 if (process.client) {
                     localStorage.setItem('dashboard_user', JSON.stringify(response.data))
                 }
+
+                console.log('✅ Dashboard profile fetched successfully')
+            } else if (response.data && !response.error) {
+                // Handle direct data response (fallback)
+                user.value = response.data
+                permissions.value = response.data.permissions
+
+                if (process.client) {
+                    localStorage.setItem('dashboard_user', JSON.stringify(response.data))
+                }
+
+                console.log('✅ Dashboard profile fetched successfully (fallback)')
             }
-        } catch (error) {
-            console.error('Profile fetch error:', error)
+        } catch (error: any) {
+            console.error('❌ Dashboard profile fetch error:', error)
+
+            // If it's a 401, the token is invalid
+            if (error.status === 401 || error.statusCode === 401) {
+                await logout(false)
+            }
         }
     }
 
@@ -238,15 +292,47 @@ export const useDashboardAuth = () => {
                 throw new Error('No access token available')
             }
 
-            return await makeRequest(accessToken.value)
+            const response = await makeRequest(accessToken.value)
+
+            // Handle standardized response format
+            if (response && typeof response === 'object' && 'success' in response) {
+                if (!response.success) {
+                    throw createError({
+                        statusCode: 400,
+                        statusMessage: response.error || response.message || 'API Error',
+                        data: response
+                    })
+                }
+                // Return the data field if it exists
+                return response.data !== undefined ? response.data : response
+            }
+
+            return response
         } catch (error: any) {
             // If 401 error, try to refresh token
             if (error.status === 401 || error.statusCode === 401) {
+                console.log('🔄 Dashboard token expired, trying to refresh...')
                 const refreshed = await refreshAccessToken()
                 if (refreshed && accessToken.value) {
-                    return await makeRequest(accessToken.value)
+                    console.log('✅ Dashboard token refreshed, retrying request...')
+                    const response = await makeRequest(accessToken.value)
+
+                    // Handle standardized response format for retry
+                    if (response && typeof response === 'object' && 'success' in response) {
+                        if (!response.success) {
+                            throw createError({
+                                statusCode: 400,
+                                statusMessage: response.error || response.message || 'API Error',
+                                data: response
+                            })
+                        }
+                        return response.data !== undefined ? response.data : response
+                    }
+
+                    return response
                 } else {
                     // Refresh failed, redirect to login
+                    console.log('❌ Dashboard token refresh failed, redirecting to login')
                     await logout(false)
                     await navigateTo('/dashboard/login')
                     throw error
