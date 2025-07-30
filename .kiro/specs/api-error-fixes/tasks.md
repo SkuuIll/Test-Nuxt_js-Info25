@@ -12,6 +12,9 @@
 
 
 
+
+
+
 - [ ] 2. Implement Backend API Error Handling and Response Format
   - Create base API view class with standardized success/error response methods
   - Update all API views to inherit from the base class and use standard response format
@@ -19,14 +22,21 @@
 
   - Implement proper HTTP status codes for different scenarios
   - Add comprehensive error handling for validation, not found, and permission errors
+
+
+
   - _Requirements: 6.4, 3.1_
 
 - [x] 3. Fix Backend Authentication System
 
 
 
+
+
+
   - Complete the incomplete users/api_views.py file (register function is cut off)
   - Fix JWT token generation and validation in authentication endpoints
+
   - Implement proper token refresh mechanism in backend
   - Add proper logout functionality that blacklists refresh tokens
 
@@ -58,6 +68,7 @@
   - _Requirements: 6.1, 6.2, 6.3_
 
 
+
 - [ ] 6. Fix Backend Search and Filtering
 
 
@@ -66,29 +77,48 @@
 
 
 
+
+
+
   - Implement proper search functionality in posts
+
+
+
   - Fix category and author filtering
   - Add proper ordering options
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+
 
 - [ ] 7. Update Frontend API Client (useApi.ts)
   - Fix API base URL configuration and endpoint paths
   - Implement proper error handling in API requests
   - Fix token refresh mechanism to prevent infinite loops
   - Add proper request/response logging for development
+
+
   - _Requirements: 2.2, 2.3, 3.1, 3.3_
 
 - [ ] 8. Fix Frontend Authentication Composables
   - Update useAuth.ts to handle authentication errors properly
   - Fix token storage and retrieval mechanisms
+
+
+
   - Implement proper logout functionality
   - Add authentication state management
   - _Requirements: 2.1, 2.5, 3.2_
+
+
+
 
 - [ ] 9. Fix Dashboard Authentication Frontend
   - Update useDashboardAuth.ts to handle dashboard-specific authentication
   - Fix token refresh mechanism for dashboard
   - Implement proper permission checking
+
+
+
   - Add dashboard session management
   - _Requirements: 2.4, 3.2_
 

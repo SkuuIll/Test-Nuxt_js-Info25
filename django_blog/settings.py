@@ -60,6 +60,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_blog.middleware.RequestLoggingMiddleware',
+    'django_blog.middleware.APIErrorHandlingMiddleware',
 ]
 
 ROOT_URLCONF = 'django_blog.urls'
@@ -133,8 +135,16 @@ STATICFILES_DIRS = [
 ]
 
 # Media files (User uploaded content)
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Maximum file size for uploads (10MB)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
+# Allowed file extensions for uploads
+ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+ALLOWED_DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt']
 
 # Login/Logout URLs
 LOGIN_URL = 'users:login'
@@ -190,9 +200,10 @@ TINYMCE_DEFAULT_CONFIG = {
     'contextmenu': 'link image imagetools table',
     
     # Image handling
-    'images_upload_url': '/tinymce/upload/',
+    'images_upload_url': '/api/v1/tinymce/upload/',
     'images_upload_base_path': '/media/',
     'images_upload_credentials': True,
+    'images_file_types': 'jpeg,jpg,png,gif,webp',
     'file_picker_types': 'image',
     'file_picker_callback': '''function (cb, value, meta) {
         var input = document.createElement('input');
@@ -246,7 +257,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'django_blog.api_utils.StandardPagination',
     'PAGE_SIZE': 12,
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -256,6 +267,7 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
     ],
+    'EXCEPTION_HANDLER': 'django_blog.middleware.custom_exception_handler',
 }
 
 # JWT Configuration
@@ -272,10 +284,120 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Nuxt.js development server
     "http://127.0.0.1:3000",
+    "http://localhost:8080",  # Alternative frontend port
+    "http://127.0.0.1:8080",
 ]
 
+# Allow credentials (cookies, authorization headers)
 CORS_ALLOW_CREDENTIALS = True
+
+# Headers that can be sent during the actual request
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Methods allowed during the actual request
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Headers that can be exposed to the browser
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-csrftoken',
+]
+
+# Preflight request cache time (in seconds)
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 # Allow all origins in development (remove in production)
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
+    # Additional development settings
+    CORS_REPLACE_HTTPS_REFERER = True
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'django.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'api_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'api.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django_blog.middleware': {
+            'handlers': ['api_file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'django_blog.api_utils': {
+            'handlers': ['api_file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'posts.api_views': {
+            'handlers': ['api_file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'users.api_views': {
+            'handlers': ['api_file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'dashboard.views': {
+            'handlers': ['api_file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Create logs directory if it doesn't exist
+import os
+logs_dir = BASE_DIR / 'logs'
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)

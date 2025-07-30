@@ -3,20 +3,28 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Q, Count
+from django.utils import timezone
 from .models import Post, Category, Comment
-from .serializers import PostSerializer, CategorySerializer, CommentSerializer
+from .serializers import (
+    PostSerializer, PostListSerializer, PostDetailSerializer,
+    CategorySerializer, CommentSerializer, PostSearchSerializer
+)
 from .permissions import IsStaffOrReadOnly, IsAuthorOrReadOnly
 from .api_utils import StandardResponse, StandardPagination, BaseAPIView
+from .filters import PostFilter, CategoryFilter, CommentFilter, AdvancedSearchFilter
 
 # Use the standardized pagination class
 PostPagination = StandardPagination
 
 class PostListAPIView(BaseAPIView, generics.ListCreateAPIView):
-    queryset = Post.objects.filter(status='published').order_by('-fecha_publicacion')
-    serializer_class = PostSerializer
+    queryset = Post.objects.filter(status='published').select_related('autor', 'categoria').order_by('-fecha_publicacion')
+    serializer_class = PostListSerializer
     pagination_class = PostPagination
     permission_classes = [IsStaffOrReadOnly]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = PostFilter
     
     def perform_create(self, serializer):
         serializer.save(autor=self.request.user)
@@ -32,119 +40,50 @@ class PostListAPIView(BaseAPIView, generics.ListCreateAPIView):
             )
         return self.validation_error_response(serializer.errors)
     
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Filter by category (support both ID and name)
-        category = self.request.query_params.get('category')
-        if category:
-            if category.isdigit():
-                queryset = queryset.filter(categoria_id=category)
-            else:
-                queryset = queryset.filter(categoria__nombre__icontains=category)
-        
-        # Filter by category ID specifically
-        category_id = self.request.query_params.get('category_id')
-        if category_id:
-            queryset = queryset.filter(categoria_id=category_id)
-        
-        # Filter by search (improved search across multiple fields)
-        search = self.request.query_params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(titulo__icontains=search) |
-                Q(contenido__icontains=search) |
-                Q(excerpt__icontains=search) |
-                Q(categoria__nombre__icontains=search) |
-                Q(autor__username__icontains=search) |
-                Q(autor__first_name__icontains=search) |
-                Q(autor__last_name__icontains=search)
-            )
-        
-        # Filter by author (support both username and ID)
-        author = self.request.query_params.get('author')
-        if author:
-            if author.isdigit():
-                queryset = queryset.filter(autor_id=author)
-            else:
-                queryset = queryset.filter(autor__username__icontains=author)
-        
-        # Filter by author ID specifically
-        author_id = self.request.query_params.get('author_id')
-        if author_id:
-            queryset = queryset.filter(autor_id=author_id)
-        
-        # Filter by featured status
-        featured = self.request.query_params.get('featured')
-        if featured is not None:
-            featured_bool = featured.lower() in ['true', '1', 'yes']
-            queryset = queryset.filter(featured=featured_bool)
-        
-        # Filter by date range
-        date_from = self.request.query_params.get('date_from')
-        if date_from:
-            try:
-                from django.utils.dateparse import parse_date
-                date_obj = parse_date(date_from)
-                if date_obj:
-                    queryset = queryset.filter(fecha_publicacion__gte=date_obj)
-            except ValueError:
-                pass
-        
-        date_to = self.request.query_params.get('date_to')
-        if date_to:
-            try:
-                from django.utils.dateparse import parse_date
-                date_obj = parse_date(date_to)
-                if date_obj:
-                    queryset = queryset.filter(fecha_publicacion__lte=date_obj)
-            except ValueError:
-                pass
-        
-        # Ordering with improved field mapping
-        ordering = self.request.query_params.get('ordering', '-fecha_publicacion')
-        if ordering:
-            # Map API field names to model field names
-            field_mapping = {
-                '-published_at': '-fecha_publicacion',
-                'published_at': 'fecha_publicacion',
-                '-created_at': '-fecha_creacion',
-                'created_at': 'fecha_creacion',
-                '-updated_at': '-fecha_actualizacion',
-                'updated_at': 'fecha_actualizacion',
-                '-title': '-titulo',
-                'title': 'titulo',
-                '-author': '-autor__username',
-                'author': 'autor__username',
-                '-category': '-categoria__nombre',
-                'category': 'categoria__nombre',
-                'featured': 'featured',
-                '-featured': '-featured'
+    def get_serializer_class(self):
+        """Usar diferentes serializadores según la acción"""
+        if self.action == 'list':
+            return PostListSerializer
+        elif self.action == 'retrieve':
+            return PostDetailSerializer
+        return PostSerializer
+    
+    def list(self, request, *args, **kwargs):
+        """Lista de posts con metadatos adicionales"""
+        try:
+            queryset = self.filter_queryset(self.get_queryset())
+            
+            # Agregar metadatos de filtros aplicados
+            filter_params = {
+                key: value for key, value in request.query_params.items()
+                if value and key not in ['page', 'page_size']
             }
-            ordering = field_mapping.get(ordering, ordering)
             
-            # Validate ordering field exists
-            valid_fields = [
-                'fecha_publicacion', '-fecha_publicacion',
-                'fecha_creacion', '-fecha_creacion',
-                'fecha_actualizacion', '-fecha_actualizacion',
-                'titulo', '-titulo',
-                'autor__username', '-autor__username',
-                'categoria__nombre', '-categoria__nombre',
-                'featured', '-featured'
-            ]
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                response = self.get_paginated_response(serializer.data)
+                
+                # Agregar metadatos
+                response.data['filters'] = filter_params
+                response.data['total_results'] = queryset.count()
+                
+                return response
             
-            if ordering in valid_fields:
-                queryset = queryset.order_by(ordering)
-            else:
-                queryset = queryset.order_by('-fecha_publicacion')
-        
-        return queryset
+            serializer = self.get_serializer(queryset, many=True)
+            return self.success_response({
+                'results': serializer.data,
+                'filters': filter_params,
+                'total_results': queryset.count()
+            })
+            
+        except Exception as e:
+            return self.error_response(f"Error al obtener posts: {str(e)}")
 
 class PostDetailAPIView(BaseAPIView, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Post.objects.filter(status='published')
-    serializer_class = PostSerializer
-    lookup_field = 'pk'  # Use primary key instead of slug
+    queryset = Post.objects.filter(status='published').select_related('autor', 'categoria').prefetch_related('comentarios')
+    serializer_class = PostDetailSerializer
+    lookup_field = 'pk'
     permission_classes = [IsAuthorOrReadOnly]
     
     def retrieve(self, request, *args, **kwargs):
@@ -180,6 +119,8 @@ class PostDetailAPIView(BaseAPIView, generics.RetrieveUpdateDestroyAPIView):
 class CategoryListAPIView(BaseAPIView, generics.ListAPIView):
     queryset = Category.objects.all().order_by('nombre')
     serializer_class = CategorySerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = CategoryFilter
     
     def list(self, request, *args, **kwargs):
         try:
@@ -282,119 +223,269 @@ def featured_posts(request):
 
 @api_view(['GET'])
 def search_posts(request):
-    """Search posts with advanced filtering"""
+    """Búsqueda avanzada de posts con scoring de relevancia"""
     try:
         query = request.GET.get('q', '').strip()
-        category = request.GET.get('category', '').strip()
-        author = request.GET.get('author', '').strip()
-        featured = request.GET.get('featured', '').strip()
-        date_from = request.GET.get('date_from', '').strip()
-        date_to = request.GET.get('date_to', '').strip()
-        ordering = request.GET.get('ordering', '-fecha_publicacion')
         
-        # Start with published posts
-        posts = Post.objects.filter(status='published').select_related('autor', 'categoria')
+        if not query:
+            return StandardResponse.error('Parámetro de búsqueda "q" es requerido')
         
-        # Apply search query
-        if query:
-            posts = posts.filter(
-                Q(titulo__icontains=query) |
-                Q(contenido__icontains=query) |
-                Q(excerpt__icontains=query) |
-                Q(categoria__nombre__icontains=query) |
-                Q(autor__username__icontains=query) |
-                Q(autor__first_name__icontains=query) |
-                Q(autor__last_name__icontains=query)
-            )
-        
-        # Apply category filter
-        if category:
-            if category.isdigit():
-                posts = posts.filter(categoria_id=category)
-            else:
-                posts = posts.filter(categoria__nombre__icontains=category)
-        
-        # Apply author filter
-        if author:
-            if author.isdigit():
-                posts = posts.filter(autor_id=author)
-            else:
-                posts = posts.filter(autor__username__icontains=author)
-        
-        # Apply featured filter
-        if featured:
-            featured_bool = featured.lower() in ['true', '1', 'yes']
-            posts = posts.filter(featured=featured_bool)
-        
-        # Apply date filters
-        if date_from:
-            try:
-                from django.utils.dateparse import parse_date
-                date_obj = parse_date(date_from)
-                if date_obj:
-                    posts = posts.filter(fecha_publicacion__gte=date_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            try:
-                from django.utils.dateparse import parse_date
-                date_obj = parse_date(date_to)
-                if date_obj:
-                    posts = posts.filter(fecha_publicacion__lte=date_obj)
-            except ValueError:
-                pass
-        
-        # Apply ordering
-        field_mapping = {
-            '-published_at': '-fecha_publicacion',
-            'published_at': 'fecha_publicacion',
-            '-created_at': '-fecha_creacion',
-            'created_at': 'fecha_creacion',
-            '-title': '-titulo',
-            'title': 'titulo',
-            '-author': '-autor__username',
-            'author': 'autor__username',
-            '-category': '-categoria__nombre',
-            'category': 'categoria__nombre',
-            'relevance': '-fecha_publicacion'  # Default for relevance
+        # Obtener filtros adicionales
+        filters = {
+            key: value for key, value in request.GET.items()
+            if key not in ['q', 'page', 'page_size'] and value
         }
         
-        ordering = field_mapping.get(ordering, ordering)
-        posts = posts.order_by(ordering)
+        # Realizar búsqueda con relevancia
+        base_queryset = Post.objects.filter(status='published').select_related('autor', 'categoria')
+        posts, metadata = AdvancedSearchFilter.search_posts_with_relevance(
+            base_queryset, query, filters
+        )
         
-        # Add search metadata
-        search_metadata = {
-            'query': query,
-            'filters': {
-                'category': category,
-                'author': author,
-                'featured': featured,
-                'date_from': date_from,
-                'date_to': date_to
-            },
-            'total_results': posts.count()
-        }
-        
-        # Pagination
+        # Paginación
         paginator = StandardPagination()
         page = paginator.paginate_queryset(posts, request)
         
         if page is not None:
-            serializer = PostSerializer(page, many=True, context={'request': request})
-            response_data = paginator.get_paginated_response(serializer.data)
-            # Add search metadata to response
-            response_data.data['search_metadata'] = search_metadata
-            return response_data
+            serializer = PostListSerializer(page, many=True, context={'request': request})
+            response = paginator.get_paginated_response(serializer.data)
+            response.data['search_metadata'] = metadata
+            return response
         
-        serializer = PostSerializer(posts, many=True, context={'request': request})
+        serializer = PostListSerializer(posts, many=True, context={'request': request})
         return StandardResponse.success({
             'results': serializer.data,
-            'search_metadata': search_metadata
+            'search_metadata': metadata
         })
         
     except Exception as e:
-        return StandardResponse.error(f"Error searching posts: {str(e)}")
+        return StandardResponse.error(f"Error en búsqueda: {str(e)}")
+
+
+@api_view(['GET'])
+def search_suggestions(request):
+    """Obtener sugerencias de búsqueda"""
+    try:
+        query = request.GET.get('q', '').strip()
+        limit = int(request.GET.get('limit', 10))
+        
+        suggestions = AdvancedSearchFilter.get_search_suggestions(query, limit)
+        
+        return StandardResponse.success({
+            'suggestions': suggestions,
+            'query': query
+        })
+        
+    except Exception as e:
+        return StandardResponse.error(f"Error obteniendo sugerencias: {str(e)}")
+
+
+@api_view(['GET'])
+def popular_searches(request):
+    """Obtener búsquedas populares"""
+    try:
+        limit = int(request.GET.get('limit', 10))
+        popular = AdvancedSearchFilter.get_popular_searches(limit)
+        
+        return StandardResponse.success({
+            'popular_searches': popular
+        })
+        
+    except Exception as e:
+        return StandardResponse.error(f"Error obteniendo búsquedas populares: {str(e)}")
+
+
+@api_view(['GET'])
+def search_filters(request):
+    """Obtener opciones disponibles para filtros"""
+    try:
+        # Obtener categorías disponibles
+        categories = Category.objects.annotate(
+            posts_count=Count('post', filter=Q(post__status='published'))
+        ).filter(posts_count__gt=0).order_by('nombre')
+        
+        # Obtener autores con posts publicados
+        authors = User.objects.annotate(
+            posts_count=Count('post', filter=Q(post__status='published'))
+        ).filter(posts_count__gt=0).order_by('username')
+        
+        # Obtener años disponibles
+        years = Post.objects.filter(
+            status='published',
+            fecha_publicacion__isnull=False
+        ).dates('fecha_publicacion', 'year', order='DESC')
+        
+        filter_options = {
+            'categories': [
+                {
+                    'id': cat.id,
+                    'name': cat.nombre,
+                    'posts_count': cat.posts_count
+                }
+                for cat in categories
+            ],
+            'authors': [
+                {
+                    'id': author.id,
+                    'username': author.username,
+                    'full_name': f"{author.first_name} {author.last_name}".strip() or author.username,
+                    'posts_count': author.posts_count
+                }
+                for author in authors
+            ],
+            'years': [year.year for year in years],
+            'status_options': [
+                {'value': 'published', 'label': 'Publicado'},
+                {'value': 'draft', 'label': 'Borrador'},
+                {'value': 'archived', 'label': 'Archivado'}
+            ],
+            'time_ranges': [
+                {'value': 'today', 'label': 'Hoy'},
+                {'value': 'week', 'label': 'Esta semana'},
+                {'value': 'month', 'label': 'Este mes'},
+                {'value': 'year', 'label': 'Este año'},
+                {'value': 'last_week', 'label': 'Semana pasada'},
+                {'value': 'last_month', 'label': 'Mes pasado'}
+            ],
+            'ordering_options': [
+                {'value': '-fecha_publicacion', 'label': 'Más recientes'},
+                {'value': 'fecha_publicacion', 'label': 'Más antiguos'},
+                {'value': '-titulo', 'label': 'Título (Z-A)'},
+                {'value': 'titulo', 'label': 'Título (A-Z)'},
+                {'value': '-autor__username', 'label': 'Autor (Z-A)'},
+                {'value': 'autor__username', 'label': 'Autor (A-Z)'},
+                {'value': '-categoria__nombre', 'label': 'Categoría (Z-A)'},
+                {'value': 'categoria__nombre', 'label': 'Categoría (A-Z)'}
+            ]
+        }
+        
+        return StandardResponse.success(filter_options)
+        
+    except Exception as e:
+        return StandardResponse.error(f"Error obteniendo filtros: {str(e)}")
+
+
+@api_view(['GET'])
+def search_stats(request):
+    """Obtener estadísticas de búsqueda y contenido"""
+    try:
+        # Estadísticas generales
+        total_posts = Post.objects.filter(status='published').count()
+        total_categories = Category.objects.count()
+        total_authors = User.objects.annotate(
+            posts_count=Count('post', filter=Q(post__status='published'))
+        ).filter(posts_count__gt=0).count()
+        
+        # Posts más comentados
+        most_commented = Post.objects.filter(status='published').annotate(
+            comments_count=Count('comentarios', filter=Q(comentarios__approved=True))
+        ).order_by('-comments_count')[:5]
+        
+        # Categorías más populares
+        popular_categories = Category.objects.annotate(
+            posts_count=Count('post', filter=Q(post__status='published'))
+        ).filter(posts_count__gt=0).order_by('-posts_count')[:5]
+        
+        # Autores más activos
+        active_authors = User.objects.annotate(
+            posts_count=Count('post', filter=Q(post__status='published'))
+        ).filter(posts_count__gt=0).order_by('-posts_count')[:5]
+        
+        stats = {
+            'totals': {
+                'posts': total_posts,
+                'categories': total_categories,
+                'authors': total_authors
+            },
+            'most_commented_posts': [
+                {
+                    'id': post.id,
+                    'title': post.titulo,
+                    'comments_count': post.comments_count,
+                    'author': post.autor.username
+                }
+                for post in most_commented
+            ],
+            'popular_categories': [
+                {
+                    'id': cat.id,
+                    'name': cat.nombre,
+                    'posts_count': cat.posts_count
+                }
+                for cat in popular_categories
+            ],
+            'active_authors': [
+                {
+                    'id': author.id,
+                    'username': author.username,
+                    'full_name': f"{author.first_name} {author.last_name}".strip() or author.username,
+                    'posts_count': author.posts_count
+                }
+                for author in active_authors
+            ]
+        }
+        
+        return StandardResponse.success(stats)
+        
+    except Exception as e:
+        return StandardResponse.error(f"Error obteniendo estadísticas: {str(e)}")
+
+
+class AdvancedSearchAPIView(BaseAPIView, generics.ListAPIView):
+    """
+    Vista avanzada de búsqueda con filtros completos
+    """
+    serializer_class = PostListSerializer
+    pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = PostFilter
+    
+    def get_queryset(self):
+        """Obtener queryset base para búsqueda"""
+        return Post.objects.filter(status='published').select_related('autor', 'categoria')
+    
+    def list(self, request, *args, **kwargs):
+        """Lista con metadatos de búsqueda mejorados"""
+        try:
+            # Obtener parámetros de búsqueda
+            search_query = request.query_params.get('search') or request.query_params.get('q')
+            
+            # Si hay query de búsqueda, usar búsqueda con relevancia
+            if search_query:
+                filters = {
+                    key: value for key, value in request.query_params.items()
+                    if key not in ['search', 'q', 'page', 'page_size'] and value
+                }
+                
+                queryset, search_metadata = AdvancedSearchFilter.search_posts_with_relevance(
+                    self.get_queryset(), search_query, filters
+                )
+            else:
+                # Usar filtros normales
+                queryset = self.filter_queryset(self.get_queryset())
+                search_metadata = {
+                    'query': None,
+                    'total_results': queryset.count(),
+                    'search_time': timezone.now().isoformat(),
+                    'filters_applied': bool(request.query_params)
+                }
+            
+            # Paginación
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                response = self.get_paginated_response(serializer.data)
+                response.data['search_metadata'] = search_metadata
+                return response
+            
+            serializer = self.get_serializer(queryset, many=True)
+            return self.success_response({
+                'results': serializer.data,
+                'search_metadata': search_metadata
+            })
+            
+        except Exception as e:
+            return self.error_response(f"Error en búsqueda avanzada: {str(e)}")
 
 @api_view(['GET'])
 def post_comments(request, post_id):

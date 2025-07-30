@@ -54,7 +54,7 @@ interface DashboardSummary {
 export const useDashboardStats = () => {
     const config = useRuntimeConfig()
     const apiBase = config.public.apiBase
-    const { accessToken } = useDashboardAuth()
+    const { apiCall, isAuthenticated } = useDashboardAuth()
 
     // State
     const stats = ref<DashboardStats | null>(null)
@@ -69,26 +69,23 @@ export const useDashboardStats = () => {
 
     // Fetch dashboard stats
     const fetchStats = async () => {
-        if (!accessToken.value) return
+        if (!isAuthenticated()) return
 
         loading.value = true
         error.value = null
 
         try {
-            const response = await $fetch<{ error: boolean; data: DashboardStats }>(`${apiBase}/api/v1/dashboard/stats/`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken.value}`
-                }
-            })
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/`)
 
-            if (!response.error) {
-                stats.value = response.data
+            if (response) {
+                stats.value = response
+                console.log('✅ Dashboard stats loaded successfully')
             } else {
                 error.value = 'Error al cargar estadísticas'
             }
         } catch (err: any) {
             console.error('Stats fetch error:', err)
-            error.value = err.data?.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error de conexión'
         } finally {
             loading.value = false
         }
@@ -96,35 +93,28 @@ export const useDashboardStats = () => {
 
     // Fetch dashboard summary
     const fetchSummary = async () => {
-        if (!accessToken.value) return
+        if (!isAuthenticated()) return
 
         try {
-            const response = await $fetch<{ error: boolean; data: DashboardSummary }>(`${apiBase}/api/v1/dashboard/stats/summary/`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken.value}`
-                }
-            })
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/summary/`)
 
-            if (!response.error) {
-                summary.value = response.data
+            if (response) {
+                summary.value = response
+                console.log('✅ Dashboard summary loaded successfully')
             }
         } catch (err: any) {
             console.error('Summary fetch error:', err)
+            // Don't set error for summary as it's not critical
         }
     }
 
     // Fetch growth stats
     const fetchGrowthStats = async () => {
-        if (!accessToken.value) return
+        if (!isAuthenticated()) return null
 
         try {
-            const response = await $fetch(`${apiBase}/api/v1/dashboard/stats/growth/`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken.value}`
-                }
-            })
-
-            return response.data
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/growth/`)
+            return response || null
         } catch (err: any) {
             console.error('Growth stats fetch error:', err)
             return null
@@ -133,16 +123,11 @@ export const useDashboardStats = () => {
 
     // Fetch user stats
     const fetchUserStats = async () => {
-        if (!accessToken.value) return
+        if (!isAuthenticated()) return null
 
         try {
-            const response = await $fetch(`${apiBase}/api/v1/dashboard/stats/users/`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken.value}`
-                }
-            })
-
-            return response.data
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/users/`)
+            return response || null
         } catch (err: any) {
             console.error('User stats fetch error:', err)
             return null
@@ -151,18 +136,52 @@ export const useDashboardStats = () => {
 
     // Fetch content stats
     const fetchContentStats = async () => {
-        if (!accessToken.value) return
+        if (!isAuthenticated()) return null
 
         try {
-            const response = await $fetch(`${apiBase}/api/v1/dashboard/stats/content/`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken.value}`
-                }
-            })
-
-            return response.data
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/content/`)
+            return response || null
         } catch (err: any) {
             console.error('Content stats fetch error:', err)
+            return null
+        }
+    }
+
+    // Fetch popular posts
+    const fetchPopularPosts = async (limit: number = 10) => {
+        if (!isAuthenticated()) return null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/popular-posts/?limit=${limit}`)
+            return response || null
+        } catch (err: any) {
+            console.error('Popular posts fetch error:', err)
+            return null
+        }
+    }
+
+    // Fetch recent activity
+    const fetchRecentActivity = async (limit: number = 20) => {
+        if (!isAuthenticated()) return null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/recent-activity/?limit=${limit}`)
+            return response || null
+        } catch (err: any) {
+            console.error('Recent activity fetch error:', err)
+            return null
+        }
+    }
+
+    // Fetch monthly stats
+    const fetchMonthlyStats = async () => {
+        if (!isAuthenticated()) return null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/stats/monthly/`)
+            return response || null
+        } catch (err: any) {
+            console.error('Monthly stats fetch error:', err)
             return null
         }
     }
@@ -192,6 +211,29 @@ export const useDashboardStats = () => {
         stopAutoRefresh()
     })
 
+    // Load all dashboard data
+    const loadDashboardData = async () => {
+        if (!isAuthenticated()) return
+
+        loading.value = true
+        error.value = null
+
+        try {
+            // Load main stats and summary in parallel
+            await Promise.all([
+                fetchStats(),
+                fetchSummary()
+            ])
+
+            console.log('✅ Dashboard data loaded successfully')
+        } catch (err: any) {
+            console.error('Dashboard data load error:', err)
+            error.value = 'Error cargando datos del dashboard'
+        } finally {
+            loading.value = false
+        }
+    }
+
     return {
         stats: readonly(stats),
         summary: readonly(summary),
@@ -203,6 +245,10 @@ export const useDashboardStats = () => {
         fetchGrowthStats,
         fetchUserStats,
         fetchContentStats,
+        fetchPopularPosts,
+        fetchRecentActivity,
+        fetchMonthlyStats,
+        loadDashboardData,
         startAutoRefresh,
         stopAutoRefresh
     }

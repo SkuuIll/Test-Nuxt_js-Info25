@@ -27,17 +27,134 @@ def log_activity(user, action, target_model=None, target_id=None, description=''
     
     if request:
         ip_address = get_client_ip(request)
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]  # Limitar longitud
     
-    ActivityLog.objects.create(
-        user=user,
-        action=action,
-        target_model=target_model or '',
-        target_id=target_id,
-        description=description,
-        ip_address=ip_address,
-        user_agent=user_agent
-    )
+    try:
+        ActivityLog.objects.create(
+            user=user,
+            action=action,
+            target_model=target_model or '',
+            target_id=target_id,
+            description=description[:1000],  # Limitar longitud de descripción
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    except Exception as e:
+        # Si falla el logging, no debe interrumpir la operación principal
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error logging activity: {str(e)}")
+
+
+def validate_dashboard_access(user):
+    """
+    Validar que un usuario tenga acceso al dashboard
+    """
+    if not user or not user.is_authenticated:
+        return False, "Usuario no autenticado"
+    
+    if not user.is_active:
+        return False, "Usuario desactivado"
+    
+    if user.is_superuser:
+        return True, "Superusuario"
+    
+    try:
+        dashboard_permission = user.dashboard_permission
+        has_access = (
+            dashboard_permission.can_view_stats or
+            dashboard_permission.can_manage_posts or
+            dashboard_permission.can_manage_users or
+            dashboard_permission.can_manage_comments
+        )
+        
+        if has_access:
+            return True, "Usuario con permisos de dashboard"
+        else:
+            return False, "Sin permisos de dashboard"
+            
+    except Exception:
+        return False, "Permisos de dashboard no encontrados"
+
+
+def check_specific_permission(user, permission_type):
+    """
+    Verificar un permiso específico del dashboard
+    """
+    if not user or not user.is_authenticated:
+        return False
+    
+    if user.is_superuser:
+        return True
+    
+    try:
+        dashboard_permission = user.dashboard_permission
+        permission_map = {
+            'manage_posts': dashboard_permission.can_manage_posts,
+            'manage_users': dashboard_permission.can_manage_users,
+            'manage_comments': dashboard_permission.can_manage_comments,
+            'view_stats': dashboard_permission.can_view_stats,
+        }
+        
+        return permission_map.get(permission_type, False)
+        
+    except Exception:
+        return False
+
+
+def get_user_dashboard_permissions(user):
+    """
+    Obtener todos los permisos de dashboard de un usuario
+    """
+    if not user or not user.is_authenticated:
+        return None
+    
+    if user.is_superuser:
+        return {
+            'manage_posts': True,
+            'manage_users': True,
+            'manage_comments': True,
+            'view_stats': True,
+            'is_superuser': True
+        }
+    
+    try:
+        dashboard_permission = user.dashboard_permission
+        return {
+            'manage_posts': dashboard_permission.can_manage_posts,
+            'manage_users': dashboard_permission.can_manage_users,
+            'manage_comments': dashboard_permission.can_manage_comments,
+            'view_stats': dashboard_permission.can_view_stats,
+            'is_superuser': False
+        }
+    except Exception:
+        return None
+
+
+def validate_password_strength(password):
+    """
+    Validar la fortaleza de una contraseña
+    """
+    errors = []
+    
+    if len(password) < 8:
+        errors.append("La contraseña debe tener al menos 8 caracteres")
+    
+    if not any(c.isupper() for c in password):
+        errors.append("La contraseña debe contener al menos una letra mayúscula")
+    
+    if not any(c.islower() for c in password):
+        errors.append("La contraseña debe contener al menos una letra minúscula")
+    
+    if not any(c.isdigit() for c in password):
+        errors.append("La contraseña debe contener al menos un número")
+    
+    # Verificar caracteres especiales
+    special_chars = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+    if not any(c in special_chars for c in password):
+        errors.append("La contraseña debe contener al menos un carácter especial")
+    
+    return len(errors) == 0, errors
 
 
 def get_dashboard_stats():

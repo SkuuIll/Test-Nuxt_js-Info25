@@ -15,6 +15,7 @@ import type {
 
 export const useApi = () => {
   const config = useRuntimeConfig()
+  const { handleApiError, handleAuthError, handleNetworkError } = useErrorHandler()
 
   // Helper function to clean undefined/null params
   const cleanParams = (params: Record<string, any>) => {
@@ -57,6 +58,7 @@ export const useApi = () => {
   // Create base API instance
   const api = $fetch.create({
     baseURL: config.public.apiBase + '/api/v1',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json'
     },
@@ -116,12 +118,11 @@ export const useApi = () => {
         }
       }
 
-      // Handle token refresh on 401 (but not for login/register/refresh endpoints)
-      if (response.status === 401 &&
-        !request.toString().includes('/users/auth/login') &&
-        !request.toString().includes('/users/auth/register') &&
-        !request.toString().includes('/users/auth/refresh')) {
+      const url = request.toString()
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')
 
+      // Handle token refresh on 401 (but not for auth endpoints)
+      if (response.status === 401 && !isAuthEndpoint) {
         const tokens = getTokens()
         if (tokens?.refresh) {
           try {
@@ -129,39 +130,46 @@ export const useApi = () => {
             const newTokens = await refreshTokens(tokens.refresh)
             setTokens(newTokens)
             console.log('✅ Token renovado exitosamente')
-            // Retry the original request with new token
+            // Let the request retry with new token
             return
           } catch (error) {
             console.error('❌ Error renovando token:', error)
-            // Refresh failed, clear tokens and redirect to login
+            // Refresh failed, handle as auth error
             clearTokens()
-            if (process.client) {
-              await navigateTo('/login')
-            }
+            handleAuthError(error, 'Token Refresh Failed')
             throw error
           }
         } else {
           console.log('🚫 No hay refresh token disponible')
           clearTokens()
-          if (process.client) {
-            await navigateTo('/login')
-          }
+          const authError = createError({
+            statusCode: 401,
+            statusMessage: 'Sesión expirada',
+            data: response._data
+          })
+          handleAuthError(authError, 'No Refresh Token')
+          throw authError
         }
       }
 
-      // Enhance error with standardized format
+      // Create enhanced error object
       const errorData = response._data
-      let errorMessage = 'Unknown error'
-
-      if (errorData && typeof errorData === 'object') {
-        errorMessage = errorData.error || errorData.message || errorData.detail || errorMessage
-      }
-
-      throw createError({
+      const enhancedError = createError({
         statusCode: response.status,
-        statusMessage: errorMessage,
+        statusMessage: errorData?.error || errorData?.message || response.statusText,
         data: errorData
       })
+
+      // Handle different types of errors
+      if (response.status === 401) {
+        handleAuthError(enhancedError, 'API Authentication Error')
+      } else if (response.status >= 500) {
+        handleNetworkError(enhancedError, 'API Server Error')
+      } else {
+        handleApiError(enhancedError, 'API Error')
+      }
+
+      throw enhancedError
     }
   })
 
@@ -324,14 +332,23 @@ export const useApi = () => {
   // Media endpoints
   const uploadImage = async (file: File): Promise<{ url: string }> => {
     const formData = new FormData()
-    formData.append('image', file)
+    formData.append('file', file)
+
+    return await api('/api/media/upload/', {
+      method: 'POST',
+      body: formData
+      // Don't set Content-Type header - let browser set it with boundary
+    })
+  }
+
+  const uploadFile = async (file: File, type: 'image' | 'document' = 'image'): Promise<any> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('type', type)
 
     return await api('/media/upload/', {
       method: 'POST',
-      body: formData,
-      headers: {
-        // Remove Content-Type header to let browser set it with boundary
-      }
+      body: formData
     })
   }
 
@@ -392,6 +409,7 @@ export const useApi = () => {
 
     // Media
     uploadImage,
+    uploadFile,
 
     // Other
     subscribeNewsletter,

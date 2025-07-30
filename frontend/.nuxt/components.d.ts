@@ -38,11 +38,13 @@ interface _GlobalComponents {
     'DebugPanel': typeof import("../components/DebugPanel.vue")['default']
     'HeroSection': typeof import("../components/HeroSection.vue")['default']
     'Icon': typeof import("../components/Icon.vue")['default']
+    'LoadingIndicator': typeof import("../components/LoadingIndicator.vue")['default']
     'PostCard': typeof import("../components/PostCard.vue")['default']
     'PostCardSkeleton': typeof import("../components/PostCardSkeleton.vue")['default']
     'PostGrid': typeof import("../components/PostGrid.vue")['default']
     'ReadingProgress': typeof import("../components/ReadingProgress.vue")['default']
     'SearchBar': typeof import("../components/SearchBar.vue")['default']
+    'SkeletonLoader': typeof import("../components/SkeletonLoader.vue")['default']
     'SocialShare': typeof import("../components/SocialShare.vue")['default']
     'TableOfContents': typeof import("../components/TableOfContents.vue")['default']
     'ThemeToggle': typeof import("../components/ThemeToggle.vue")['default']
@@ -96,11 +98,13 @@ interface _GlobalComponents {
     'LazyDebugPanel': LazyComponent<typeof import("../components/DebugPanel.vue")['default']>
     'LazyHeroSection': LazyComponent<typeof import("../components/HeroSection.vue")['default']>
     'LazyIcon': LazyComponent<typeof import("../components/Icon.vue")['default']>
+    'LazyLoadingIndicator': LazyComponent<typeof import("../components/LoadingIndicator.vue")['default']>
     'LazyPostCard': LazyComponent<typeof import("../components/PostCard.vue")['default']>
     'LazyPostCardSkeleton': LazyComponent<typeof import("../components/PostCardSkeleton.vue")['default']>
     'LazyPostGrid': LazyComponent<typeof import("../components/PostGrid.vue")['default']>
     'LazyReadingProgress': LazyComponent<typeof import("../components/ReadingProgress.vue")['default']>
     'LazySearchBar': LazyComponent<typeof import("../components/SearchBar.vue")['default']>
+    'LazySkeletonLoader': LazyComponent<typeof import("../components/SkeletonLoader.vue")['default']>
     'LazySocialShare': LazyComponent<typeof import("../components/SocialShare.vue")['default']>
     'LazyTableOfContents': LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
     'LazyThemeToggle': LazyComponent<typeof import("../components/ThemeToggle.vue")['default']>
@@ -160,11 +164,13 @@ export const DashboardUserMenu: typeof import("../components/Dashboard/UserMenu.
 export const DebugPanel: typeof import("../components/DebugPanel.vue")['default']
 export const HeroSection: typeof import("../components/HeroSection.vue")['default']
 export const Icon: typeof import("../components/Icon.vue")['default']
+export const LoadingIndicator: typeof import("../components/LoadingIndicator.vue")['default']
 export const PostCard: typeof import("../components/PostCard.vue")['default']
 export const PostCardSkeleton: typeof import("../components/PostCardSkeleton.vue")['default']
 export const PostGrid: typeof import("../components/PostGrid.vue")['default']
 export const ReadingProgress: typeof import("../components/ReadingProgress.vue")['default']
 export const SearchBar: typeof import("../components/SearchBar.vue")['default']
+export const SkeletonLoader: typeof import("../components/SkeletonLoader.vue")['default']
 export const SocialShare: typeof import("../components/SocialShare.vue")['default']
 export const TableOfContents: typeof import("../components/TableOfContents.vue")['default']
 export const ThemeToggle: typeof import("../components/ThemeToggle.vue")['default']
@@ -218,11 +224,13 @@ export const LazyDashboardUserMenu: LazyComponent<typeof import("../components/D
 export const LazyDebugPanel: LazyComponent<typeof import("../components/DebugPanel.vue")['default']>
 export const LazyHeroSection: LazyComponent<typeof import("../components/HeroSection.vue")['default']>
 export const LazyIcon: LazyComponent<typeof import("../components/Icon.vue")['default']>
+export const LazyLoadingIndicator: LazyComponent<typeof import("../components/LoadingIndicator.vue")['default']>
 export const LazyPostCard: LazyComponent<typeof import("../components/PostCard.vue")['default']>
 export const LazyPostCardSkeleton: LazyComponent<typeof import("../components/PostCardSkeleton.vue")['default']>
 export const LazyPostGrid: LazyComponent<typeof import("../components/PostGrid.vue")['default']>
 export const LazyReadingProgress: LazyComponent<typeof import("../components/ReadingProgress.vue")['default']>
 export const LazySearchBar: LazyComponent<typeof import("../components/SearchBar.vue")['default']>
+export const LazySkeletonLoader: LazyComponent<typeof import("../components/SkeletonLoader.vue")['default']>
 export const LazySocialShare: LazyComponent<typeof import("../components/SocialShare.vue")['default']>
 export const LazyTableOfContents: LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
 export const LazyThemeToggle: LazyComponent<typeof import("../components/ThemeToggle.vue")['default']>

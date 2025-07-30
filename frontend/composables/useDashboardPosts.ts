@@ -35,12 +35,17 @@ interface PostResponse {
 export const useDashboardPosts = () => {
     const config = useRuntimeConfig()
     const apiBase = config.public.apiBase
-    const { accessToken } = useDashboardAuth()
+    const { apiCall, isAuthenticated } = useDashboardAuth()
+    const { createLoadingWrapper } = useLoading()
+    const { handleApiError } = useErrorHandler()
+
+    // Create loading wrapper for posts operations
+    const postsLoading = createLoadingWrapper('dashboard-posts', false)
 
     // State
     const posts = ref<DashboardPost[]>([])
     const currentPost = ref<DashboardPost | null>(null)
-    const loading = ref(false)
+    const loading = computed(() => postsLoading.loading.value)
     const error = ref<string | null>(null)
     const totalCount = ref(0)
 
@@ -68,19 +73,20 @@ export const useDashboardPosts = () => {
             if (params.autor) queryParams.append('autor', params.autor)
             if (params.ordering) queryParams.append('ordering', params.ordering)
 
-            // Use the public posts API for now
-            const url = `${apiBase}/api/v1/posts/?${queryParams.toString()}`
+            // Use the dashboard posts API
+            const url = `${apiBase}/api/v1/dashboard/api/posts/?${queryParams.toString()}`
 
-            const response = await $fetch<PostsResponse>(url, {
-                headers: accessToken.value ? {
-                    'Authorization': `Bearer ${accessToken.value}`
-                } : {}
-            })
+            const response = await apiCall(url)
 
-            if (response.results) {
+            if (response && response.results) {
                 posts.value = response.results
                 totalCount.value = response.count || 0
                 return response
+            } else if (response && Array.isArray(response)) {
+                // Handle direct array response
+                posts.value = response
+                totalCount.value = response.length
+                return { results: response, count: response.length }
             } else {
                 error.value = 'Error al cargar posts'
             }
@@ -100,11 +106,7 @@ export const useDashboardPosts = () => {
         error.value = null
 
         try {
-            const response = await $fetch<DashboardPost>(`${apiBase}/api/v1/posts/${id}/`, {
-                headers: accessToken.value ? {
-                    'Authorization': `Bearer ${accessToken.value}`
-                } : {}
-            })
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/posts/${id}/`)
 
             if (response) {
                 currentPost.value = response
@@ -120,43 +122,34 @@ export const useDashboardPosts = () => {
         }
     }
 
-    // Create post (placeholder - needs dashboard API implementation)
+    // Create post
     const createPost = async (postData: Partial<DashboardPost>) => {
         loading.value = true
         error.value = null
 
         try {
-            // For now, simulate post creation
-            const newPost = {
-                id: Date.now(),
-                titulo: postData.titulo || '',
-                contenido: postData.contenido || '',
-                status: postData.status || 'draft',
-                featured: postData.featured || false,
-                fecha_creacion: new Date().toISOString(),
-                fecha_publicacion: new Date().toISOString(),
-                fecha_actualizacion: new Date().toISOString(),
-                comments_count: 0,
-                autor: {
-                    id: 1,
-                    username: 'admin',
-                    email: 'admin@example.com'
-                }
-            } as DashboardPost
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/posts/`, {
+                method: 'POST',
+                body: postData
+            })
 
-            // Add to posts list
-            posts.value.unshift(newPost)
-            return newPost
+            if (response) {
+                // Add to posts list
+                posts.value.unshift(response)
+                return response
+            } else {
+                throw new Error('No response data')
+            }
         } catch (err: any) {
             console.error('Post create error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error creando post'
             throw err
         } finally {
             loading.value = false
         }
     }
 
-    // Update post (placeholder - needs dashboard API implementation)
+    // Update post
     const updatePost = async (id: number, postData: Partial<DashboardPost>) => {
         if (!id) return
 
@@ -164,79 +157,107 @@ export const useDashboardPosts = () => {
         error.value = null
 
         try {
-            // For now, simulate post update
-            const index = posts.value.findIndex(p => p.id === id)
-            if (index !== -1) {
-                posts.value[index] = {
-                    ...posts.value[index],
-                    ...postData,
-                    fecha_actualizacion: new Date().toISOString()
-                }
-                currentPost.value = posts.value[index]
-                return posts.value[index]
-            }
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/posts/${id}/`, {
+                method: 'PATCH',
+                body: postData
+            })
 
-            throw new Error('Post no encontrado')
+            if (response) {
+                // Update in posts list
+                const index = posts.value.findIndex(p => p.id === id)
+                if (index !== -1) {
+                    posts.value[index] = response
+                }
+                currentPost.value = response
+                return response
+            } else {
+                throw new Error('No response data')
+            }
         } catch (err: any) {
             console.error('Post update error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error actualizando post'
             throw err
         } finally {
             loading.value = false
         }
     }
 
-    // Delete post (placeholder - needs dashboard API implementation)
+    // Delete post
     const deletePost = async (id: number) => {
-        if (!id) return
+        if (!id) return false
 
         try {
-            // For now, simulate post deletion
+            await apiCall(`${apiBase}/api/v1/dashboard/api/posts/${id}/`, {
+                method: 'DELETE'
+            })
+
+            // Remove from posts list
             posts.value = posts.value.filter(p => p.id !== id)
+
+            // Clear current post if it was deleted
+            if (currentPost.value?.id === id) {
+                currentPost.value = null
+            }
+
             return true
         } catch (err: any) {
             console.error('Post delete error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error eliminando post'
             return false
         }
     }
 
-    // Toggle featured status (placeholder - needs dashboard API implementation)
+    // Toggle featured status
     const toggleFeatured = async (id: number) => {
         if (!id) return
 
         try {
-            // For now, simulate toggle featured
-            const index = posts.value.findIndex(p => p.id === id)
-            if (index !== -1) {
-                posts.value[index].featured = !posts.value[index].featured
-                return posts.value[index].featured
+            const post = posts.value.find(p => p.id === id)
+            if (!post) return
+
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/posts/${id}/`, {
+                method: 'PATCH',
+                body: { featured: !post.featured }
+            })
+
+            if (response) {
+                // Update in posts list
+                const index = posts.value.findIndex(p => p.id === id)
+                if (index !== -1) {
+                    posts.value[index] = response
+                }
+                return response.featured
             }
         } catch (err: any) {
             console.error('Toggle featured error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error cambiando estado destacado'
         }
     }
 
-    // Bulk update status (placeholder - needs dashboard API implementation)
+    // Bulk update status
     const bulkUpdateStatus = async (postIds: number[], status: string) => {
-        if (!postIds.length) return
+        if (!postIds.length) return 0
 
         try {
-            // For now, simulate bulk update
-            let updatedCount = 0
-            postIds.forEach(id => {
-                const index = posts.value.findIndex(p => p.id === id)
-                if (index !== -1) {
-                    posts.value[index].status = status as any
-                    updatedCount++
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/posts/bulk-action/`, {
+                method: 'POST',
+                body: {
+                    post_ids: postIds,
+                    action: status
                 }
             })
 
-            return updatedCount
+            if (response && response.updated_count !== undefined) {
+                // Refresh posts list to get updated data
+                await fetchPosts()
+                return response.updated_count
+            }
+
+            return 0
         } catch (err: any) {
             console.error('Bulk update error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error en actualización masiva'
+            return 0
         }
     }
 

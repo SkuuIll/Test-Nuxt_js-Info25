@@ -1,107 +1,275 @@
-interface ApiError {
+interface ErrorInfo {
   message: string
-  status?: number
-  data?: any
+  code?: string | number
+  details?: any
+  timestamp: Date
+  context?: string
+}
+
+interface ErrorHandlerOptions {
+  showToast?: boolean
+  logToConsole?: boolean
+  reportToService?: boolean
+  fallbackMessage?: string
 }
 
 export const useErrorHandler = () => {
-  const { $toast } = useNuxtApp()
+  const errors = ref<ErrorInfo[]>([])
+  const lastError = ref<ErrorInfo | null>(null)
 
-  const handleError = (error: any, context?: string) => {
-    console.error(`Error${context ? ` in ${context}` : ''}:`, error)
+  // Default options
+  const defaultOptions: ErrorHandlerOptions = {
+    showToast: true,
+    logToConsole: true,
+    reportToService: false,
+    fallbackMessage: 'Ha ocurrido un error inesperado'
+  }
 
-    let message = 'Ha ocurrido un error inesperado'
-    let title = 'Error'
+  // Handle different types of errors
+  const handleError = (error: any, context?: string, options: ErrorHandlerOptions = {}) => {
+    const opts = { ...defaultOptions, ...options }
 
-    // Handle different error types
-    if (error?.data?.detail) {
-      message = error.data.detail
-    } else if (error?.data?.message) {
-      message = error.data.message
-    } else if (error?.message) {
-      message = error.message
-    } else if (typeof error === 'string') {
-      message = error
+    const errorInfo: ErrorInfo = {
+      message: extractErrorMessage(error),
+      code: extractErrorCode(error),
+      details: error,
+      timestamp: new Date(),
+      context
     }
 
-    // Handle specific HTTP status codes
-    if (error?.status || error?.response?.status) {
-      const status = error.status || error.response.status
-      
-      switch (status) {
-        case 400:
-          title = 'Solicitud inválida'
-          break
-        case 401:
-          title = 'No autorizado'
-          message = 'Debes iniciar sesión para continuar'
-          break
-        case 403:
-          title = 'Acceso denegado'
-          message = 'No tienes permisos para realizar esta acción'
-          break
-        case 404:
-          title = 'No encontrado'
-          message = 'El recurso solicitado no existe'
-          break
-        case 422:
-          title = 'Datos inválidos'
-          // Handle validation errors
-          if (error?.data?.errors) {
-            const errors = Object.values(error.data.errors).flat()
-            message = errors.join(', ')
-          }
-          break
-        case 429:
-          title = 'Demasiadas solicitudes'
-          message = 'Has excedido el límite de solicitudes. Intenta más tarde'
-          break
-        case 500:
-          title = 'Error del servidor'
-          message = 'Error interno del servidor. Intenta más tarde'
-          break
-        case 503:
-          title = 'Servicio no disponible'
-          message = 'El servicio está temporalmente no disponible'
-          break
+    // Store error
+    errors.value.unshift(errorInfo)
+    lastError.value = errorInfo
+
+    // Keep only last 50 errors
+    if (errors.value.length > 50) {
+      errors.value = errors.value.slice(0, 50)
+    }
+
+    // Log to console if enabled
+    if (opts.logToConsole) {
+      console.error(`[${context || 'Error'}]`, errorInfo)
+    }
+
+    // Show toast notification if enabled
+    if (opts.showToast) {
+      showErrorToast(errorInfo, opts.fallbackMessage)
+    }
+
+    // Report to error service if enabled
+    if (opts.reportToService) {
+      reportError(errorInfo)
+    }
+
+    return errorInfo
+  }
+
+  // Extract user-friendly error message
+  const extractErrorMessage = (error: any): string => {
+    // Handle different error formats
+    if (typeof error === 'string') {
+      return error
+    }
+
+    if (error?.data?.error) {
+      return error.data.error
+    }
+
+    if (error?.data?.message) {
+      return error.data.message
+    }
+
+    if (error?.message) {
+      return error.message
+    }
+
+    if (error?.statusMessage) {
+      return error.statusMessage
+    }
+
+    // Handle validation errors
+    if (error?.data?.errors) {
+      const errors = error.data.errors
+      if (typeof errors === 'object') {
+        const errorMessages = Object.values(errors).flat()
+        return errorMessages.join(', ')
       }
     }
 
-    // Show toast notification
-    if ($toast) {
-      $toast.error(message)
+    // Handle HTTP status codes
+    if (error?.status || error?.statusCode) {
+      const status = error.status || error.statusCode
+      return getHttpErrorMessage(status)
     }
 
-    return {
-      title,
-      message,
-      status: error?.status || error?.response?.status,
-      originalError: error
+    return 'Error desconocido'
+  }
+
+  // Extract error code
+  const extractErrorCode = (error: any): string | number | undefined => {
+    return error?.status || error?.statusCode || error?.code
+  }
+
+  // Get user-friendly HTTP error messages
+  const getHttpErrorMessage = (status: number): string => {
+    const messages: Record<number, string> = {
+      400: 'Solicitud inválida',
+      401: 'No autorizado - Por favor inicia sesión',
+      403: 'Sin permisos para realizar esta acción',
+      404: 'Recurso no encontrado',
+      408: 'Tiempo de espera agotado',
+      409: 'Conflicto en la solicitud',
+      422: 'Datos de entrada inválidos',
+      429: 'Demasiadas solicitudes - Intenta más tarde',
+      500: 'Error interno del servidor',
+      502: 'Error de conexión con el servidor',
+      503: 'Servicio no disponible temporalmente',
+      504: 'Tiempo de espera del servidor agotado'
+    }
+
+    return messages[status] || `Error del servidor (${status})`
+  }
+
+  // Show error toast notification
+  const showErrorToast = (errorInfo: ErrorInfo, fallbackMessage?: string) => {
+    try {
+      const { error: showToast } = useToast()
+      const message = errorInfo.message || fallbackMessage || 'Error desconocido'
+
+      // Customize title based on error code
+      let title = 'Error'
+      if (errorInfo.code === 401) {
+        title = 'Autenticación requerida'
+      } else if (errorInfo.code === 403) {
+        title = 'Sin permisos'
+      } else if (errorInfo.code === 404) {
+        title = 'No encontrado'
+      } else if (errorInfo.code && errorInfo.code >= 500) {
+        title = 'Error del servidor'
+      }
+
+      showToast(title, message)
+    } catch (e) {
+      console.error('Error showing toast:', e)
     }
   }
 
-  const handleSuccess = (message: string, title = 'Éxito') => {
-    if ($toast) {
-      $toast.success(message)
+  // Report error to external service (placeholder)
+  const reportError = async (errorInfo: ErrorInfo) => {
+    try {
+      // Here you would send the error to your error reporting service
+      // like Sentry, LogRocket, etc.
+      console.log('Reporting error to service:', errorInfo)
+    } catch (e) {
+      console.error('Failed to report error:', e)
     }
   }
 
-  const handleWarning = (message: string, title = 'Advertencia') => {
-    if ($toast) {
-      $toast.warning(message)
+  // Handle API errors specifically
+  const handleApiError = (error: any, context?: string) => {
+    return handleError(error, context || 'API Error', {
+      showToast: true,
+      logToConsole: true,
+      reportToService: true
+    })
+  }
+
+  // Handle authentication errors
+  const handleAuthError = (error: any, context?: string) => {
+    const errorInfo = handleError(error, context || 'Auth Error', {
+      showToast: true,
+      logToConsole: true,
+      reportToService: false // Don't report auth errors
+    })
+
+    // Redirect to login if unauthorized
+    if (errorInfo.code === 401) {
+      setTimeout(() => {
+        navigateTo('/login')
+      }, 2000)
+    }
+
+    return errorInfo
+  }
+
+  // Handle validation errors
+  const handleValidationError = (error: any, context?: string) => {
+    return handleError(error, context || 'Validation Error', {
+      showToast: true,
+      logToConsole: false, // Don't log validation errors
+      reportToService: false
+    })
+  }
+
+  // Handle network errors
+  const handleNetworkError = (error: any, context?: string) => {
+    return handleError(error, context || 'Network Error', {
+      showToast: true,
+      logToConsole: true,
+      reportToService: true,
+      fallbackMessage: 'Error de conexión - Verifica tu conexión a internet'
+    })
+  }
+
+  // Clear errors
+  const clearErrors = () => {
+    errors.value = []
+    lastError.value = null
+  }
+
+  // Clear specific error
+  const clearError = (index: number) => {
+    if (index >= 0 && index < errors.value.length) {
+      errors.value.splice(index, 1)
     }
   }
 
-  const handleInfo = (message: string, title = 'Información') => {
-    if ($toast) {
-      $toast.info(message)
+  // Check if error is retryable
+  const isRetryableError = (error: any): boolean => {
+    const code = extractErrorCode(error)
+    return [408, 429, 500, 502, 503, 504].includes(Number(code))
+  }
+
+  // Retry function with exponential backoff
+  const retryWithBackoff = async (
+    fn: () => Promise<any>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<any> => {
+    let lastError: any
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn()
+      } catch (error) {
+        lastError = error
+
+        if (attempt === maxRetries || !isRetryableError(error)) {
+          throw error
+        }
+
+        // Exponential backoff
+        const delay = baseDelay * Math.pow(2, attempt)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
     }
+
+    throw lastError
   }
 
   return {
+    errors: readonly(errors),
+    lastError: readonly(lastError),
     handleError,
-    handleSuccess,
-    handleWarning,
-    handleInfo
+    handleApiError,
+    handleAuthError,
+    handleValidationError,
+    handleNetworkError,
+    clearErrors,
+    clearError,
+    isRetryableError,
+    retryWithBackoff,
+    extractErrorMessage,
+    getHttpErrorMessage
   }
 }

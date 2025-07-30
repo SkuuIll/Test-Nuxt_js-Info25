@@ -2,10 +2,13 @@ import { defineStore } from 'pinia'
 import type { User, LoginCredentials, RegisterData } from '~/types'
 
 export const useAuthStore = defineStore('auth', () => {
+  const { handleAuthError, handleValidationError } = useErrorHandler()
+  const { authLoading } = useLoading()
+
   // State
   const user = ref<User | null>(null)
   const isAuthenticated = ref(false)
-  const loading = ref(false)
+  const loading = computed(() => authLoading.loading.value)
   const error = ref<string | null>(null)
 
   // Getters
@@ -19,65 +22,55 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Actions
   const login = async (credentials: LoginCredentials) => {
-    try {
-      loading.value = true
-      error.value = null
+    return await authLoading.withLoading(async () => {
+      try {
+        error.value = null
+        console.log('🔐 Iniciando login con:', { username: credentials.username })
 
-      console.log('🔐 Iniciando login con:', { username: credentials.username })
+        const api = useApi()
+        const response = await api.login(credentials)
 
-      const api = useApi()
-      const response = await api.login(credentials)
+        console.log('✅ Login exitoso, respuesta recibida:', response)
 
-      console.log('✅ Login exitoso, respuesta recibida:', response)
+        // Store tokens
+        const tokens = {
+          access: response.access,
+          refresh: response.refresh,
+          expires_in: response.expires_in || 3600
+        }
 
-      // Store tokens
-      const tokens = {
-        access: response.access,
-        refresh: response.refresh,
-        expires_in: response.expires_in || 3600
+        // Save tokens to localStorage
+        if (process.client) {
+          localStorage.setItem('auth_tokens', JSON.stringify(tokens))
+          console.log('💾 Tokens guardados en localStorage')
+        }
+
+        // Set user data directly from login response
+        user.value = response.user
+        isAuthenticated.value = true
+
+        console.log('🎉 Autenticación completada exitosamente')
+        console.log('👤 Usuario logueado:', {
+          username: user.value?.username,
+          isStaff: user.value?.is_staff,
+          email: user.value?.email
+        })
+
+        return response
+      } catch (err: any) {
+        console.error('❌ Error en login:', err)
+
+        // Handle auth error with new error handler
+        const errorInfo = handleAuthError(err, 'Login Failed')
+        error.value = errorInfo.message
+
+        // Clear any existing auth state
+        user.value = null
+        isAuthenticated.value = false
+
+        throw err
       }
-
-      // Save tokens to localStorage
-      if (process.client) {
-        localStorage.setItem('auth_tokens', JSON.stringify(tokens))
-        console.log('💾 Tokens guardados en localStorage')
-      }
-
-      // Set user data directly from login response
-      user.value = response.user
-      isAuthenticated.value = true
-
-      console.log('🎉 Autenticación completada exitosamente')
-      console.log('👤 Usuario logueado:', {
-        username: user.value?.username,
-        isStaff: user.value?.is_staff,
-        email: user.value?.email
-      })
-
-      return response
-    } catch (err: any) {
-      console.error('❌ Error en login:', err)
-
-      // Handle different error formats
-      let errorMessage = 'Login failed'
-      if (err.data && err.data.error) {
-        errorMessage = err.data.error
-      } else if (err.data && err.data.message) {
-        errorMessage = err.data.message
-      } else if (err.message) {
-        errorMessage = err.message
-      }
-
-      error.value = errorMessage
-
-      // Clear any existing auth state
-      user.value = null
-      isAuthenticated.value = false
-
-      throw new Error(errorMessage)
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   const register = async (data: RegisterData) => {

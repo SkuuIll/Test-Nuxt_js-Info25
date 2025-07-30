@@ -46,7 +46,7 @@ interface CommentsResponse {
 export const useDashboardComments = () => {
     const config = useRuntimeConfig()
     const apiBase = config.public.apiBase
-    const { accessToken } = useDashboardAuth()
+    const { apiCall, isAuthenticated } = useDashboardAuth()
 
     // State
     const comments = ref<DashboardComment[]>([])
@@ -55,7 +55,7 @@ export const useDashboardComments = () => {
     const error = ref<string | null>(null)
     const totalCount = ref(0)
 
-    // Fetch comments list (using mock data for now)
+    // Fetch comments list
     const fetchComments = async (params: {
         page?: number
         page_size?: number
@@ -68,234 +68,198 @@ export const useDashboardComments = () => {
         error.value = null
 
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500))
+            const queryParams = new URLSearchParams()
 
-            // Mock comments data
-            const mockComments: DashboardComment[] = [
-                {
-                    id: 1,
-                    contenido: 'Excelente artículo, muy informativo y bien explicado. Me ayudó mucho a entender el tema.',
-                    approved: true,
-                    fecha_creacion: '2024-07-29T10:30:00Z',
-                    fecha_actualizacion: '2024-07-29T10:30:00Z',
-                    usuario: {
-                        id: 3,
-                        username: 'usuario1',
-                        email: 'usuario1@ejemplo.com',
-                        first_name: 'Juan',
-                        last_name: 'Pérez'
-                    },
-                    post: {
-                        id: 1,
-                        titulo: 'Guía completa de Django REST Framework'
-                    },
-                    replies_count: 2
-                },
-                {
-                    id: 2,
-                    contenido: 'No estoy de acuerdo con algunos puntos del artículo. Creo que falta más profundidad en ciertos aspectos.',
-                    approved: false,
-                    fecha_creacion: '2024-07-29T09:15:00Z',
-                    fecha_actualizacion: '2024-07-29T09:15:00Z',
-                    usuario: {
-                        id: 4,
-                        username: 'maria_garcia',
-                        email: 'maria@ejemplo.com',
-                        first_name: 'María',
-                        last_name: 'García'
-                    },
-                    post: {
-                        id: 2,
-                        titulo: 'Festival de arte contemporáneo'
-                    },
-                    replies_count: 0
-                },
-                {
-                    id: 3,
-                    contenido: 'Gracias por compartir esta información. ¿Podrías agregar más ejemplos prácticos?',
-                    approved: true,
-                    fecha_creacion: '2024-07-28T16:45:00Z',
-                    fecha_actualizacion: '2024-07-28T16:45:00Z',
-                    usuario: {
-                        id: 5,
-                        username: 'carlos_inactive',
-                        email: 'carlos@ejemplo.com',
-                        first_name: 'Carlos',
-                        last_name: 'López'
-                    },
-                    post: {
-                        id: 1,
-                        titulo: 'Guía completa de Django REST Framework'
-                    },
-                    parent: {
-                        id: 1,
-                        contenido: 'Excelente artículo...',
-                        usuario: {
-                            username: 'usuario1'
-                        }
-                    },
-                    replies_count: 0
-                },
-                {
-                    id: 4,
-                    contenido: 'Spam comment with promotional content. This should be moderated.',
-                    approved: false,
-                    fecha_creacion: '2024-07-28T14:20:00Z',
-                    fecha_actualizacion: '2024-07-28T14:20:00Z',
-                    usuario: {
-                        id: 6,
-                        username: 'spammer',
-                        email: 'spam@example.com',
-                        first_name: 'Spam',
-                        last_name: 'User'
-                    },
-                    post: {
-                        id: 3,
-                        titulo: 'Resultados del campeonato mundial'
-                    },
-                    replies_count: 0
-                },
-                {
-                    id: 5,
-                    contenido: '¡Me encantó este post! Muy bien estructurado y fácil de seguir.',
-                    approved: true,
-                    fecha_creacion: '2024-07-27T11:10:00Z',
-                    fecha_actualizacion: '2024-07-27T11:10:00Z',
-                    usuario: {
-                        id: 7,
-                        username: 'reader123',
-                        email: 'reader@ejemplo.com',
-                        first_name: 'Ana',
-                        last_name: 'Martínez'
-                    },
-                    post: {
-                        id: 2,
-                        titulo: 'Festival de arte contemporáneo'
-                    },
-                    replies_count: 1
-                }
-            ]
+            if (params.page) queryParams.append('page', params.page.toString())
+            if (params.page_size) queryParams.append('page_size', params.page_size.toString())
+            if (params.search) queryParams.append('search', params.search)
+            if (params.approved !== undefined) queryParams.append('approved', params.approved.toString())
+            if (params.post) queryParams.append('post', params.post.toString())
+            if (params.ordering) queryParams.append('ordering', params.ordering)
 
-            // Apply filters
-            let filteredComments = [...mockComments]
+            const url = `${apiBase}/api/v1/dashboard/api/comments/?${queryParams.toString()}`
+            const response = await apiCall(url)
 
-            if (params.search) {
-                const search = params.search.toLowerCase()
-                filteredComments = filteredComments.filter(comment =>
-                    comment.contenido.toLowerCase().includes(search) ||
-                    comment.usuario.username.toLowerCase().includes(search) ||
-                    comment.post.titulo.toLowerCase().includes(search)
-                )
-            }
-
-            if (params.approved !== undefined) {
-                filteredComments = filteredComments.filter(comment => comment.approved === params.approved)
-            }
-
-            if (params.post) {
-                filteredComments = filteredComments.filter(comment => comment.post.id === params.post)
-            }
-
-            // Apply ordering
-            if (params.ordering) {
-                const [direction, field] = params.ordering.startsWith('-')
-                    ? ['desc', params.ordering.slice(1)]
-                    : ['asc', params.ordering]
-
-                filteredComments.sort((a, b) => {
-                    let aVal = a[field as keyof DashboardComment]
-                    let bVal = b[field as keyof DashboardComment]
-
-                    if (typeof aVal === 'string') aVal = aVal.toLowerCase()
-                    if (typeof bVal === 'string') bVal = bVal.toLowerCase()
-
-                    if (direction === 'desc') {
-                        return aVal < bVal ? 1 : -1
-                    }
-                    return aVal > bVal ? 1 : -1
-                })
-            }
-
-            // Apply pagination
-            const pageSize = params.page_size || 10
-            const page = params.page || 1
-            const startIndex = (page - 1) * pageSize
-            const endIndex = startIndex + pageSize
-            const paginatedComments = filteredComments.slice(startIndex, endIndex)
-
-            comments.value = paginatedComments
-            totalCount.value = filteredComments.length
-
-            return {
-                count: filteredComments.length,
-                next: endIndex < filteredComments.length ? 'next' : null,
-                previous: startIndex > 0 ? 'prev' : null,
-                results: paginatedComments
+            if (response && response.results) {
+                comments.value = response.results
+                totalCount.value = response.count || 0
+                return response
+            } else if (response && Array.isArray(response)) {
+                // Handle direct array response
+                comments.value = response
+                totalCount.value = response.length
+                return { results: response, count: response.length }
+            } else {
+                error.value = 'Error al cargar comentarios'
             }
         } catch (err: any) {
             console.error('Comments fetch error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error de conexión'
         } finally {
             loading.value = false
         }
     }
 
-    // Approve comment (placeholder)
+    // Fetch single comment
+    const fetchComment = async (id: number) => {
+        if (!id) return
+
+        loading.value = true
+        error.value = null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/comments/${id}/`)
+
+            if (response) {
+                currentComment.value = response
+                return response
+            } else {
+                error.value = 'Error al cargar comentario'
+            }
+        } catch (err: any) {
+            console.error('Comment fetch error:', err)
+            error.value = err.statusMessage || err.message || 'Error de conexión'
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Approve comment
     const approveComment = async (id: number) => {
         try {
-            const index = comments.value.findIndex(c => c.id === id)
-            if (index !== -1) {
-                comments.value[index].approved = true
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/comments/${id}/`, {
+                method: 'PATCH',
+                body: { approved: true }
+            })
+
+            if (response) {
+                // Update in comments list
+                const index = comments.value.findIndex(c => c.id === id)
+                if (index !== -1) {
+                    comments.value[index] = response
+                }
                 return true
             }
         } catch (err: any) {
             console.error('Approve comment error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error aprobando comentario'
         }
     }
 
-    // Reject comment (placeholder)
+    // Reject comment
     const rejectComment = async (id: number) => {
         try {
-            const index = comments.value.findIndex(c => c.id === id)
-            if (index !== -1) {
-                comments.value[index].approved = false
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/comments/${id}/`, {
+                method: 'PATCH',
+                body: { approved: false }
+            })
+
+            if (response) {
+                // Update in comments list
+                const index = comments.value.findIndex(c => c.id === id)
+                if (index !== -1) {
+                    comments.value[index] = response
+                }
                 return true
             }
         } catch (err: any) {
             console.error('Reject comment error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error rechazando comentario'
         }
     }
 
-    // Delete comment (placeholder)
+    // Delete comment
     const deleteComment = async (id: number) => {
         try {
+            await apiCall(`${apiBase}/api/v1/dashboard/api/comments/${id}/`, {
+                method: 'DELETE'
+            })
+
+            // Remove from comments list
             comments.value = comments.value.filter(c => c.id !== id)
+
+            // Clear current comment if it was deleted
+            if (currentComment.value?.id === id) {
+                currentComment.value = null
+            }
+
             return true
         } catch (err: any) {
             console.error('Delete comment error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error eliminando comentario'
             return false
         }
     }
 
-    // Bulk approve comments (placeholder)
-    const bulkApproveComments = async (commentIds: number[]) => {
+    // Update comment
+    const updateComment = async (id: number, commentData: Partial<DashboardComment>) => {
+        if (!id) return
+
+        loading.value = true
+        error.value = null
+
         try {
-            let approvedCount = 0
-            commentIds.forEach(id => {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/comments/${id}/`, {
+                method: 'PATCH',
+                body: commentData
+            })
+
+            if (response) {
+                // Update in comments list
                 const index = comments.value.findIndex(c => c.id === id)
                 if (index !== -1) {
-                    comments.value[index].approved = true
-                    approvedCount++
+                    comments.value[index] = response
+                }
+                currentComment.value = response
+                return response
+            } else {
+                throw new Error('No response data')
+            }
+        } catch (err: any) {
+            console.error('Comment update error:', err)
+            error.value = err.statusMessage || err.message || 'Error actualizando comentario'
+            throw err
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Bulk moderate comments
+    const bulkModerateComments = async (commentIds: number[], action: string) => {
+        if (!commentIds.length) return 0
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/comments/bulk-action/`, {
+                method: 'POST',
+                body: {
+                    comment_ids: commentIds,
+                    action: action
                 }
             })
-            return approvedCount
+
+            if (response && response.updated_count !== undefined) {
+                // Refresh comments list to get updated data
+                await fetchComments()
+                return response.updated_count
+            }
+
+            return 0
         } catch (err: any) {
-            console.error('Bulk approve error:', err)
-            error.value = err.message || 'Error de conexión'
+            console.error('Bulk moderate error:', err)
+            error.value = err.statusMessage || err.message || 'Error en moderación masiva'
+            return 0
+        }
+    }
+
+    // Get moderation queue
+    const getModerationQueue = async () => {
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/comments/moderation-queue/`)
+            return response || []
+        } catch (err: any) {
+            console.error('Moderation queue error:', err)
+            error.value = err.statusMessage || err.message || 'Error obteniendo cola de moderación'
+            return []
         }
     }
 
@@ -306,9 +270,12 @@ export const useDashboardComments = () => {
         error: readonly(error),
         totalCount: readonly(totalCount),
         fetchComments,
+        fetchComment,
         approveComment,
         rejectComment,
         deleteComment,
-        bulkApproveComments
+        updateComment,
+        bulkModerateComments,
+        getModerationQueue
     }
 }

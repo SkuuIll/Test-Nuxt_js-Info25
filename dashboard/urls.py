@@ -5,6 +5,8 @@ from .views import (
     DashboardTokenRefreshView,
     DashboardLogoutView,
     DashboardUserProfileView,
+    DashboardChangePasswordView,
+    DashboardSessionInfoView,
     check_dashboard_permission,
     DashboardStatsView,
     PopularPostsView,
@@ -46,6 +48,8 @@ urlpatterns = [
     path('auth/refresh/', DashboardTokenRefreshView.as_view(), name='token_refresh'),
     path('auth/logout/', DashboardLogoutView.as_view(), name='logout'),
     path('auth/profile/', DashboardUserProfileView.as_view(), name='profile'),
+    path('auth/change-password/', DashboardChangePasswordView.as_view(), name='change_password'),
+    path('auth/session-info/', DashboardSessionInfoView.as_view(), name='session_info'),
     path('auth/check-permission/', check_dashboard_permission, name='check_permission'),
     
     # Estadísticas

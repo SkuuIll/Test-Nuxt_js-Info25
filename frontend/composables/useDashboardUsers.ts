@@ -29,7 +29,7 @@ interface UsersResponse {
 export const useDashboardUsers = () => {
     const config = useRuntimeConfig()
     const apiBase = config.public.apiBase
-    const { accessToken } = useDashboardAuth()
+    const { apiCall, isAuthenticated } = useDashboardAuth()
 
     // State
     const users = ref<DashboardUser[]>([])
@@ -38,7 +38,7 @@ export const useDashboardUsers = () => {
     const error = ref<string | null>(null)
     const totalCount = ref(0)
 
-    // Fetch users list (using mock data for now)
+    // Fetch users list
     const fetchUsers = async (params: {
         page?: number
         page_size?: number
@@ -51,157 +51,198 @@ export const useDashboardUsers = () => {
         error.value = null
 
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500))
+            const queryParams = new URLSearchParams()
 
-            // Mock users data
-            const mockUsers: DashboardUser[] = [
-                {
-                    id: 1,
-                    username: 'admin',
-                    email: 'admin@blog.com',
-                    first_name: 'Admin',
-                    last_name: 'User',
-                    is_active: true,
-                    is_staff: true,
-                    is_superuser: true,
-                    date_joined: '2024-01-01T00:00:00Z',
-                    last_login: '2024-07-29T10:00:00Z',
-                    posts_count: 15,
-                    comments_count: 25,
-                    permissions: {
-                        can_manage_posts: true,
-                        can_manage_users: true,
-                        can_manage_comments: true,
-                        can_view_stats: true
-                    }
-                },
-                {
-                    id: 2,
-                    username: 'editor',
-                    email: 'editor@blog.com',
-                    first_name: 'Editor',
-                    last_name: 'Blog',
-                    is_active: true,
-                    is_staff: true,
-                    is_superuser: false,
-                    date_joined: '2024-02-15T00:00:00Z',
-                    last_login: '2024-07-28T15:30:00Z',
-                    posts_count: 8,
-                    comments_count: 12,
-                    permissions: {
-                        can_manage_posts: true,
-                        can_manage_users: false,
-                        can_manage_comments: true,
-                        can_view_stats: true
-                    }
-                },
-                {
-                    id: 3,
-                    username: 'usuario1',
-                    email: 'usuario1@ejemplo.com',
-                    first_name: 'Juan',
-                    last_name: 'Pérez',
-                    is_active: true,
-                    is_staff: false,
-                    is_superuser: false,
-                    date_joined: '2024-03-10T00:00:00Z',
-                    last_login: '2024-07-20T09:15:00Z',
-                    posts_count: 3,
-                    comments_count: 18
-                },
-                {
-                    id: 4,
-                    username: 'maria_garcia',
-                    email: 'maria@ejemplo.com',
-                    first_name: 'María',
-                    last_name: 'García',
-                    is_active: true,
-                    is_staff: false,
-                    is_superuser: false,
-                    date_joined: '2024-04-05T00:00:00Z',
-                    last_login: null,
-                    posts_count: 0,
-                    comments_count: 5
-                },
-                {
-                    id: 5,
-                    username: 'carlos_inactive',
-                    email: 'carlos@ejemplo.com',
-                    first_name: 'Carlos',
-                    last_name: 'López',
-                    is_active: false,
-                    is_staff: false,
-                    is_superuser: false,
-                    date_joined: '2024-01-20T00:00:00Z',
-                    last_login: '2024-05-15T12:00:00Z',
-                    posts_count: 2,
-                    comments_count: 8
-                }
-            ]
+            if (params.page) queryParams.append('page', params.page.toString())
+            if (params.page_size) queryParams.append('page_size', params.page_size.toString())
+            if (params.search) queryParams.append('search', params.search)
+            if (params.is_active !== undefined) queryParams.append('is_active', params.is_active.toString())
+            if (params.is_staff !== undefined) queryParams.append('is_staff', params.is_staff.toString())
+            if (params.ordering) queryParams.append('ordering', params.ordering)
 
-            // Apply filters
-            let filteredUsers = [...mockUsers]
+            const url = `${apiBase}/api/v1/dashboard/api/users/?${queryParams.toString()}`
+            const response = await apiCall(url)
 
-            if (params.search) {
-                const search = params.search.toLowerCase()
-                filteredUsers = filteredUsers.filter(user =>
-                    user.username.toLowerCase().includes(search) ||
-                    user.email.toLowerCase().includes(search) ||
-                    user.first_name.toLowerCase().includes(search) ||
-                    user.last_name.toLowerCase().includes(search)
-                )
-            }
-
-            if (params.is_active !== undefined) {
-                filteredUsers = filteredUsers.filter(user => user.is_active === params.is_active)
-            }
-
-            if (params.is_staff !== undefined) {
-                filteredUsers = filteredUsers.filter(user => user.is_staff === params.is_staff)
-            }
-
-            // Apply ordering
-            if (params.ordering) {
-                const [direction, field] = params.ordering.startsWith('-')
-                    ? ['desc', params.ordering.slice(1)]
-                    : ['asc', params.ordering]
-
-                filteredUsers.sort((a, b) => {
-                    let aVal = a[field as keyof DashboardUser]
-                    let bVal = b[field as keyof DashboardUser]
-
-                    if (typeof aVal === 'string') aVal = aVal.toLowerCase()
-                    if (typeof bVal === 'string') bVal = bVal.toLowerCase()
-
-                    if (direction === 'desc') {
-                        return aVal < bVal ? 1 : -1
-                    }
-                    return aVal > bVal ? 1 : -1
-                })
-            }
-
-            // Apply pagination
-            const pageSize = params.page_size || 10
-            const page = params.page || 1
-            const startIndex = (page - 1) * pageSize
-            const endIndex = startIndex + pageSize
-            const paginatedUsers = filteredUsers.slice(startIndex, endIndex)
-
-            users.value = paginatedUsers
-            totalCount.value = filteredUsers.length
-
-            return {
-                count: filteredUsers.length,
-                next: endIndex < filteredUsers.length ? 'next' : null,
-                previous: startIndex > 0 ? 'prev' : null,
-                results: paginatedUsers
+            if (response && response.results) {
+                users.value = response.results
+                totalCount.value = response.count || 0
+                return response
+            } else if (response && Array.isArray(response)) {
+                // Handle direct array response
+                users.value = response
+                totalCount.value = response.length
+                return { results: response, count: response.length }
+            } else {
+                error.value = 'Error al cargar usuarios'
             }
         } catch (err: any) {
             console.error('Users fetch error:', err)
-            error.value = err.message || 'Error de conexión'
+            error.value = err.statusMessage || err.message || 'Error de conexión'
         } finally {
             loading.value = false
+        }
+    }
+
+    // Fetch single user
+    const fetchUser = async (id: number) => {
+        if (!id) return
+
+        loading.value = true
+        error.value = null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/users/${id}/`)
+
+            if (response) {
+                currentUser.value = response
+                return response
+            } else {
+                error.value = 'Error al cargar usuario'
+            }
+        } catch (err: any) {
+            console.error('User fetch error:', err)
+            error.value = err.statusMessage || err.message || 'Error de conexión'
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Create user
+    const createUser = async (userData: Partial<DashboardUser>) => {
+        loading.value = true
+        error.value = null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/users/`, {
+                method: 'POST',
+                body: userData
+            })
+
+            if (response) {
+                // Add to users list
+                users.value.unshift(response)
+                return response
+            } else {
+                throw new Error('No response data')
+            }
+        } catch (err: any) {
+            console.error('User create error:', err)
+            error.value = err.statusMessage || err.message || 'Error creando usuario'
+            throw err
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Update user
+    const updateUser = async (id: number, userData: Partial<DashboardUser>) => {
+        if (!id) return
+
+        loading.value = true
+        error.value = null
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/users/${id}/`, {
+                method: 'PATCH',
+                body: userData
+            })
+
+            if (response) {
+                // Update in users list
+                const index = users.value.findIndex(u => u.id === id)
+                if (index !== -1) {
+                    users.value[index] = response
+                }
+                currentUser.value = response
+                return response
+            } else {
+                throw new Error('No response data')
+            }
+        } catch (err: any) {
+            console.error('User update error:', err)
+            error.value = err.statusMessage || err.message || 'Error actualizando usuario'
+            throw err
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Delete user
+    const deleteUser = async (id: number) => {
+        if (!id) return false
+
+        try {
+            await apiCall(`${apiBase}/api/v1/dashboard/api/users/${id}/`, {
+                method: 'DELETE'
+            })
+
+            // Remove from users list
+            users.value = users.value.filter(u => u.id !== id)
+
+            // Clear current user if it was deleted
+            if (currentUser.value?.id === id) {
+                currentUser.value = null
+            }
+
+            return true
+        } catch (err: any) {
+            console.error('User delete error:', err)
+            error.value = err.statusMessage || err.message || 'Error eliminando usuario'
+            return false
+        }
+    }
+
+    // Toggle user active status
+    const toggleUserActive = async (id: number) => {
+        if (!id) return
+
+        try {
+            const user = users.value.find(u => u.id === id)
+            if (!user) return
+
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/users/${id}/`, {
+                method: 'PATCH',
+                body: { is_active: !user.is_active }
+            })
+
+            if (response) {
+                // Update in users list
+                const index = users.value.findIndex(u => u.id === id)
+                if (index !== -1) {
+                    users.value[index] = response
+                }
+                return response.is_active
+            }
+        } catch (err: any) {
+            console.error('Toggle user active error:', err)
+            error.value = err.statusMessage || err.message || 'Error cambiando estado del usuario'
+        }
+    }
+
+    // Bulk update users
+    const bulkUpdateUsers = async (userIds: number[], action: string) => {
+        if (!userIds.length) return 0
+
+        try {
+            const response = await apiCall(`${apiBase}/api/v1/dashboard/api/users/bulk-action/`, {
+                method: 'POST',
+                body: {
+                    user_ids: userIds,
+                    action: action
+                }
+            })
+
+            if (response && response.updated_count !== undefined) {
+                // Refresh users list to get updated data
+                await fetchUsers()
+                return response.updated_count
+            }
+
+            return 0
+        } catch (err: any) {
+            console.error('Bulk update users error:', err)
+            error.value = err.statusMessage || err.message || 'Error en actualización masiva'
+            return 0
         }
     }
 
@@ -211,6 +252,12 @@ export const useDashboardUsers = () => {
         loading: readonly(loading),
         error: readonly(error),
         totalCount: readonly(totalCount),
-        fetchUsers
+        fetchUsers,
+        fetchUser,
+        createUser,
+        updateUser,
+        deleteUser,
+        toggleUserActive,
+        bulkUpdateUsers
     }
 }

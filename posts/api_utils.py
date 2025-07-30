@@ -1,6 +1,7 @@
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
+from django.utils import timezone
 
 
 class StandardResponse:
@@ -67,12 +68,22 @@ class StandardPagination(PageNumberPagination):
         return Response({
             'success': True,
             'data': data,
-            'count': self.page.paginator.count,
-            'next': self.get_next_link(),
-            'previous': self.get_previous_link(),
-            'page_size': self.page_size,
-            'current_page': self.page.number,
-            'total_pages': self.page.paginator.num_pages
+            'pagination': {
+                'count': self.page.paginator.count,
+                'next': self.get_next_link(),
+                'previous': self.get_previous_link(),
+                'page_size': self.page_size,
+                'current_page': self.page.number,
+                'total_pages': self.page.paginator.num_pages,
+                'has_next': self.page.has_next(),
+                'has_previous': self.page.has_previous(),
+                'start_index': self.page.start_index(),
+                'end_index': self.page.end_index()
+            },
+            'meta': {
+                'timestamp': timezone.now().isoformat(),
+                'version': '1.0'
+            }
         })
 
 

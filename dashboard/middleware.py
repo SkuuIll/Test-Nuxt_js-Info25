@@ -1,151 +1,184 @@
+import logging
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
-from django.contrib.auth.models import AnonymousUser
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from .models import DashboardPermission
-from .utils import log_activity, get_client_ip
-import json
+from django.urls import resolve
+from rest_framework import status
+from .utils import log_activity, get_client_ip, validate_dashboard_access
 
 
-class DashboardAuthMiddleware(MiddlewareMixin):
+logger = logging.getLogger(__name__)
+
+
+class DashboardSecurityMiddleware(MiddlewareMixin):
     """
-    Middleware para manejar autenticación específica del dashboard
+    Middleware de seguridad específico para el dashboard
     """
     
     def __init__(self, get_response):
         self.get_response = get_response
-        self.jwt_auth = JWTAuthentication()
         super().__init__(get_response)
     
     def process_request(self, request):
+        """
+        Procesar peticiones al dashboard
+        """
         # Solo aplicar a rutas del dashboard
-        if not request.path.startswith('/api/v1/dashboard/'):
+        if not request.path.startswith('/dashboard/'):
             return None
         
-        # Permitir endpoints de autenticación sin token
-        auth_endpoints = [
-            '/api/v1/dashboard/auth/login/',
-            '/api/v1/dashboard/auth/refresh/',
-        ]
-        
-        if request.path in auth_endpoints:
-            return None
-        
-        # Intentar autenticar con JWT
-        try:
-            auth_result = self.jwt_auth.authenticate(request)
-            if auth_result:
-                user, token = auth_result
-                request.user = user
-                request.auth = token
-                
-                # Verificar permisos de dashboard
-                if not self._has_dashboard_access(user):
-                    return JsonResponse({
-                        'error': True,
-                        'message': 'No tienes permisos para acceder al dashboard'
-                    }, status=403)
-                    
-        except (InvalidToken, TokenError):
-            return JsonResponse({
-                'error': True,
-                'message': 'Token inválido o expirado'
-            }, status=401)
-        except Exception:
-            return JsonResponse({
-                'error': True,
-                'message': 'Error de autenticación'
-            }, status=401)
+        # Logging de acceso al dashboard
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            logger.info(
+                f"Dashboard access: {request.user.username} - "
+                f"{request.method} {request.path} - "
+                f"IP: {get_client_ip(request)}"
+            )
         
         return None
     
-    def _has_dashboard_access(self, user):
-        """Verificar si el usuario tiene acceso al dashboard"""
-        if user.is_superuser:
-            return True
+    def process_response(self, request, response):
+        """
+        Procesar respuestas del dashboard
+        """
+        # Solo aplicar a rutas del dashboard
+        if not request.path.startswith('/dashboard/'):
+            return response
         
-        try:
-            dashboard_permission = user.dashboard_permission
-            return (dashboard_permission.can_view_stats or
-                   dashboard_permission.can_manage_posts or
-                   dashboard_permission.can_manage_users or
-                   dashboard_permission.can_manage_comments)
-        except DashboardPermission.DoesNotExist:
-            return False
+        # Logging de respuestas de error
+        if response.status_code >= 400:
+            logger.warning(
+                f"Dashboard error response: {response.status_code} - "
+                f"{request.method} {request.path} - "
+                f"User: {getattr(request, 'user', 'Anonymous')} - "
+                f"IP: {get_client_ip(request)}"
+            )
+        
+        return response
+    
+    def process_exception(self, request, exception):
+        """
+        Manejar excepciones en el dashboard
+        """
+        # Solo aplicar a rutas del dashboard
+        if not request.path.startswith('/dashboard/'):
+            return None
+        
+        # Log de la excepción
+        logger.error(
+            f"Dashboard exception: {str(exception)} - "
+            f"{request.method} {request.path} - "
+            f"User: {getattr(request, 'user', 'Anonymous')} - "
+            f"IP: {get_client_ip(request)}",
+            exc_info=True
+        )
+        
+        # Registrar actividad si hay usuario autenticado
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            try:
+                log_activity(
+                    user=request.user,
+                    action='dashboard_error',
+                    description=f'Error en dashboard: {str(exception)}',
+                    request=request
+                )
+            except:
+                pass  # No fallar si no se puede registrar la actividad
+        
+        # Retornar respuesta de error estandarizada para APIs del dashboard
+        if request.path.startswith('/dashboard/api/') or request.path.startswith('/dashboard/auth/'):
+            return JsonResponse({
+                'error': True,
+                'success': False,
+                'message': 'Error interno del servidor'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return None
 
 
-class DashboardActivityLogMiddleware(MiddlewareMixin):
+class DashboardAuthenticationMiddleware(MiddlewareMixin):
     """
-    Middleware para registrar automáticamente actividades del dashboard
+    Middleware para validar autenticación específica del dashboard
     """
+    
+    # Rutas que no requieren autenticación del dashboard
+    EXEMPT_PATHS = [
+        '/dashboard/auth/login/',
+    ]
     
     def __init__(self, get_response):
         self.get_response = get_response
         super().__init__(get_response)
     
-    def process_response(self, request, response):
-        # Solo aplicar a rutas del dashboard API (no auth)
-        if (request.path.startswith('/api/v1/dashboard/api/') and 
-            hasattr(request, 'user') and 
-            not isinstance(request.user, AnonymousUser)):
-            
-            # Registrar actividades según el método HTTP
-            if response.status_code < 400:  # Solo registrar operaciones exitosas
-                self._log_dashboard_activity(request, response)
+    def process_request(self, request):
+        """
+        Validar autenticación para rutas del dashboard
+        """
+        # Solo aplicar a rutas del dashboard (excepto login)
+        if not request.path.startswith('/dashboard/'):
+            return None
         
-        return response
-    
-    def _log_dashboard_activity(self, request, response):
-        """Registrar actividad basada en la ruta y método HTTP"""
-        try:
-            method = request.method
-            path = request.path
-            user = request.user
+        # Permitir rutas exentas
+        if any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
+            return None
+        
+        # Validar acceso al dashboard
+        if hasattr(request, 'user'):
+            has_access, reason = validate_dashboard_access(request.user)
             
-            # Mapear rutas a acciones
-            if 'posts' in path:
-                if method == 'POST':
-                    log_activity(user, 'created_post', 'Post', 
-                               description='Post creado desde dashboard', request=request)
-                elif method == 'PUT' or method == 'PATCH':
-                    log_activity(user, 'updated_post', 'Post',
-                               description='Post actualizado desde dashboard', request=request)
-                elif method == 'DELETE':
-                    log_activity(user, 'deleted_post', 'Post',
-                               description='Post eliminado desde dashboard', request=request)
-            
-            elif 'users' in path:
-                if method == 'POST':
-                    log_activity(user, 'created_user', 'User',
-                               description='Usuario creado desde dashboard', request=request)
-                elif method == 'PUT' or method == 'PATCH':
-                    log_activity(user, 'updated_user', 'User',
-                               description='Usuario actualizado desde dashboard', request=request)
-            
-            elif 'comments' in path:
-                if method == 'PUT' or method == 'PATCH':
-                    log_activity(user, 'updated_comment', 'Comentario',
-                               description='Comentario moderado desde dashboard', request=request)
-                elif method == 'DELETE':
-                    log_activity(user, 'deleted_comment', 'Comentario',
-                               description='Comentario eliminado desde dashboard', request=request)
+            if not has_access:
+                # Log del intento de acceso no autorizado
+                logger.warning(
+                    f"Unauthorized dashboard access attempt: "
+                    f"User: {getattr(request, 'user', 'Anonymous')} - "
+                    f"Reason: {reason} - "
+                    f"Path: {request.path} - "
+                    f"IP: {get_client_ip(request)}"
+                )
+                
+                # Retornar error para APIs
+                if (request.path.startswith('/dashboard/api/') or 
+                    request.path.startswith('/dashboard/auth/') or
+                    request.path.startswith('/dashboard/stats/')):
                     
-        except Exception:
-            # No interrumpir la respuesta si hay error en el logging
-            pass
+                    return JsonResponse({
+                        'error': True,
+                        'success': False,
+                        'message': 'Sin permisos para acceder al dashboard'
+                    }, status=status.HTTP_403_FORBIDDEN)
+        
+        return None
 
 
-class DashboardCORSMiddleware(MiddlewareMixin):
+class DashboardRateLimitMiddleware(MiddlewareMixin):
     """
-    Middleware CORS específico para el dashboard
+    Middleware básico de rate limiting para el dashboard
     """
     
-    def process_response(self, request, response):
-        if request.path.startswith('/api/v1/dashboard/'):
-            response['Access-Control-Allow-Origin'] = 'http://localhost:3000'
-            response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-            response['Access-Control-Allow-Credentials'] = 'true'
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.request_counts = {}  # En producción usar Redis
+        super().__init__(get_response)
+    
+    def process_request(self, request):
+        """
+        Aplicar rate limiting básico
+        """
+        # Solo aplicar a rutas del dashboard
+        if not request.path.startswith('/dashboard/'):
+            return None
         
-        return response
+        # Rate limiting básico por IP
+        client_ip = get_client_ip(request)
+        current_time = timezone.now()
+        
+        # Limpiar contadores antiguos (implementación básica)
+        # En producción usar Redis con TTL
+        
+        # Por ahora solo logear para monitoreo
+        logger.debug(f"Dashboard request from IP: {client_ip} - Path: {request.path}")
+        
+        return None
+
+
+# Importar timezone para el rate limiting
+from django.utils import timezone

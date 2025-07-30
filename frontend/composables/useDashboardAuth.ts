@@ -39,235 +39,230 @@ export const useDashboardAuth = () => {
     const permissions = ref<DashboardPermissions | null>(null)
     const accessToken = ref<string | null>(null)
     const refreshToken = ref<string | null>(null)
+lse)
 
-    // Initialize state
-    const initialized = ref(false)
-
-    // Initialize from localStorage on client side
-    const initializeAuth = async () => {
+    // Initialize from localStorag
+() => {
         if (process.client && !initialized.value) {
-            const storedUser = localStorage.getItem('dashboard_user')
-            const storedAccessToken = localStorage.getItem('dashboard_access_token')
-            const storedRefreshToken = localStorage.getItem('dashboard_refresh_token')
+            try {
+                const storedUser = localStorage.get
+                const storedAccessToken = localStorage.getItem('dashb
+                const storedRefreshToken = localStorage.getItem('dashboard_refresh_t')
 
-            if (storedUser && storedAccessToken) {
-                try {
-                    user.value = JSON.parse(storedUser)
-                    permissions.value = user.value?.permissions || null
+) {
+                    user.value = JSON.parse(storedr)
+                    p
                     accessToken.value = storedAccessToken
                     refreshToken.value = storedRefreshToken
-                } catch (error) {
-                    console.error('Error parsing stored user data:', error)
-                    // Clear corrupted data
-                    localStorage.removeItem('dashboard_user')
-                    localStorage.removeItem('dashboard_access_token')
-                    localStorage.removeItem('dashboard_refresh_token')
-                }
-            }
-            initialized.value = true
+
+                    // Validate token by checking if it's ered
+                    if (isTokenEx {
+                        console.log('⏰ Dashboard token expired, attempting 
+                        if (storedRefreshTon)) {
+                            const refreshed = await refreshAc()
+                            if (!refreshed) {
+                                await logout(false)
+                 
+               } else {
+                            await loe)
+          }
+             }
+   }
+            } catch (error) {
+                console.e
+                await lo(false)
+           }
+rue
         }
     }
 
-    // Initialize immediately if on client
-    if (process.client) {
-        initializeAuth()
+
+    const isTokenExpi=> {
+        try {
+            c
+            const currentTime = Date.now() / 1000
+            return payload.exp e
+        } catch {
+            reue
+
     }
 
+    // Initialize on mount
     onMounted(() => {
         initializeAuth()
     })
 
-    // Login function
-    const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
+
+    const login = async (credentials: Lo{
         try {
             const response = await $fetch<any>(`${apiBase}/api/v1/dashboard/auth/login/`, {
                 method: 'POST',
                 body: credentials
             })
 
-            // Handle standardized response format
-            if (response.success && response.data) {
+            // Handle stse format
+            if (response.success ) {
                 // Store user data and tokens
-                user.value = response.data.user
-                permissions.value = response.data.user.permissions
-                accessToken.value = response.data.access
-                refreshToken.value = response.data.refresh
+                user.value = response.dr
+                p
+                acceccess
+                refreshTesh
 
                 // Store in localStorage
-                if (process.client) {
-                    localStorage.setItem('dashboard_user', JSON.stringify(response.data.user))
-                    localStorage.setItem('dashboard_access_token', response.data.access)
-                    localStorage.setItem('dashboard_refresh_token', response.data.refresh)
-                }
+                it) {
+             user))
+                    localStora.access)
+                    localStorage.setItem('dashbosh)
+       }
+
+                console.log('sful')
 
                 return {
                     error: false,
-                    message: response.message || 'Login successful',
-                    data: response.data
+                    message: response.message || 'Log',
+                 ta
                 }
             } else {
-                return {
-                    error: true,
-                    message: response.message || response.error || 'Login failed'
+             eturn {
+
+                    
                 }
             }
-        } catch (error: any) {
-            console.error('Login error:', error)
+        } cat
+         error)
 
-            let errorMessage = 'Error de conexión'
-            if (error.data) {
+onexión'
+            if (error.a) {
                 if (error.data.error) {
-                    errorMessage = error.data.error
-                } else if (error.data.message) {
+             
+                } else if (error.data{
                     errorMessage = error.data.message
                 }
-            } else if (error.message) {
+            } else if (error.m) {
                 errorMessage = error.message
             }
 
             return {
-                error: true,
-                message: errorMessage
+                error
+                me
             }
         }
     }
 
     // Logout function
-    const logout = async (showNotification = true) => {
+    const logout = async (sho) => {
         try {
-            if (refreshToken.value) {
-                await $fetch(`${apiBase}/api/v1/dashboard/auth/logout/`, {
-                    method: 'POST',
+            if (refreshToken.value) 
+                await $fetch(`${apiBa{
+POST',
                     headers: {
-                        'Authorization': `Bearer ${accessToken.value}`
+                        'Authoriz
                     },
                     body: {
                         refresh: refreshToken.value
-                    }
+    }
                 })
             }
         } catch (error) {
-            console.error('Logout error:', error)
-        } finally {
-            // Clear state
-            user.value = null
-            permissions.value = null
-            accessToken.value = null
-            refreshToken.value = null
+            console.error('Dashboard logout error:', error)
+        } finally
+            /e
+          null
+     l
+
+            refreshToken.valu
 
             // Clear localStorage
-            if (process.client) {
-                localStorage.removeItem('dashboard_user')
+) {
+             rd_user')
                 localStorage.removeItem('dashboard_access_token')
-                localStorage.removeItem('dashboard_refresh_token')
+                localStorage.re_token')
 
                 // Show logout notification
-                if (showNotification) {
-                    const { success } = useToast()
-                    success('Sesión cerrada', 'Has cerrado sesión exitosamente')
+                iion) {
+              
+nte')
                 }
             }
+
+)
         }
     }
 
-    // Refresh token function
+
     const refreshAccessToken = async (): Promise<boolean> => {
-        if (!refreshToken.value) return false
+        if (!refreshToken.vlse
 
         try {
-            const response = await $fetch<any>(`${apiBase}/api/v1/dashboard/auth/refresh/`, {
-                method: 'POST',
+            const response = await $fetch<any>(`${a, {
+,
                 body: {
                     refresh: refreshToken.value
                 }
-            })
+  })
 
-            // Handle standardized response format
-            if (response.success && response.data && response.data.access) {
-                accessToken.value = response.data.access
+            // Handle standrmat
+            iess) {
+                accessToken.vaaccess
 
-                if (process.client) {
-                    localStorage.setItem('dashboard_access_token', response.data.access)
+ {
+                    localStorage.setItem('das)
                 }
 
-                console.log('✅ Dashboard token refreshed successfully')
-                return true
-            } else if (response.access) {
-                // Handle direct access token response (fallback)
-                accessToken.value = response.access
+)
+                retutrue
+     
+llback)
+                accessToken.value = re.access
 
                 if (process.client) {
-                    localStorage.setItem('dashboard_access_token', response.access)
+                    localStorage.setItem('dashboardccess)
                 }
 
-                console.log('✅ Dashboard token refreshed successfully (fallback)')
-                return true
-            }
-        } catch (error: any) {
-            console.error('❌ Dashboard token refresh error:', error)
-
-            // If refresh fails, logout user
-            await logout(false)
+                console.log('✅ Dashboard token ref)')
+     true
+   }
+        } catch (error:
+            console.error('❌ Dashboard tok
+            // If refresh fails, logou user
+out(false)
         }
 
         return false
     }
 
-    // Check if user is authenticated
-    const isAuthenticated = (): boolean => {
-        // Ensure we're initialized on client side
+    // Check icated
+n => {
         if (process.client && !initialized.value) {
             initializeAuth()
         }
         return !!(user.value && accessToken.value)
-    }
+ }
 
     // Get user profile
-    const fetchUserProfile = async () => {
-        if (!accessToken.value) return
+    const fetchUs
+
 
         try {
-            const response = await $fetch<any>(`${apiBase}/api/v1/dashboard/auth/profile/`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken.value}`
+            const response = await apiCall(`${apiBase}/ap/`)
+
+            if (response) {
+
+                permissions.value = rns
+
+                ient) {
+
                 }
-            })
-
-            // Handle standardized response format
-            if (response.success && response.data) {
-                user.value = response.data
-                permissions.value = response.data.permissions
-
-                if (process.client) {
-                    localStorage.setItem('dashboard_user', JSON.stringify(response.data))
-                }
-
-                console.log('✅ Dashboard profile fetched successfully')
-            } else if (response.data && !response.error) {
-                // Handle direct data response (fallback)
-                user.value = response.data
-                permissions.value = response.data.permissions
-
-                if (process.client) {
-                    localStorage.setItem('dashboard_user', JSON.stringify(response.data))
-                }
-
-                console.log('✅ Dashboard profile fetched successfully (fallback)')
             }
-        } catch (error: any) {
-            console.error('❌ Dashboard profile fetch error:', error)
-
-            // If it's a 401, the token is invalid
-            if (error.status === 401 || error.statusCode === 401) {
-                await logout(false)
-            }
-        }
+        } catch (error) {
+            console.error('Profile fetch error:', error)
+}
     }
 
     // Check permission
-    const hasPermission = (permission: keyof DashboardPermissions): boolean => {
-        if (user.value?.is_superuser) return true
-        return permissions.value?.[permission] || false
+    const has {
+        ie
+     e
     }
 
     // Get access token (for API calls)
@@ -275,11 +270,11 @@ export const useDashboardAuth = () => {
         return accessToken.value
     }
 
-    // API call with automatic token refresh
-    const apiCall = async (url: string, options: any = {}) => {
-        const makeRequest = async (token: string) => {
-            return await $fetch(url, {
-                ...options,
+    // API call with automatic token reesh
+    const apiCall = async (url: string, options: > {
+        const makeRequest = asyn{
+     
+
                 headers: {
                     ...options.headers,
                     'Authorization': `Bearer ${token}`
@@ -288,73 +283,90 @@ export const useDashboardAuth = () => {
         }
 
         try {
-            if (!accessToken.value) {
-                throw new Error('No access token available')
+            if (!
+              
+         
+ble'
+                })
             }
 
-            const response = await makeRequest(accessToken.value)
+            cvalue)
 
             // Handle standardized response format
-            if (response && typeof response === 'object' && 'success' in response) {
+se) {
                 if (!response.success) {
                     throw createError({
                         statusCode: 400,
-                        statusMessage: response.error || response.message || 'API Error',
+                        statusMessage: r',
                         data: response
                     })
                 }
-                // Return the data field if it exists
-                return response.data !== undefined ? response.data : response
+                // Retts
+                re
             }
 
-            return response
-        } catch (error: any) {
-            // If 401 error, try to refresh token
-            if (error.status === 401 || error.statusCode === 401) {
-                console.log('🔄 Dashboard token expired, trying to refresh...')
+            re
+{
+            // If 401 error
+            if (error.status =01) {
+                console.log('🔄 Dashboard token e')
                 const refreshed = await refreshAccessToken()
                 if (refreshed && accessToken.value) {
-                    console.log('✅ Dashboard token refreshed, retrying request...')
-                    const response = await makeRequest(accessToken.value)
-
+                    console.log('✅ Dashboard token refreshed
+                    const retryResponse = await makeR
+                    
                     // Handle standardized response format for retry
-                    if (response && typeof response === 'object' && 'success' in response) {
-                        if (!response.success) {
+
+                        if (!retryResponse.success) {
                             throw createError({
                                 statusCode: 400,
-                                statusMessage: response.error || response.message || 'API Error',
-                                data: response
+                                statusMessage: 
+                                data: retryResponse
                             })
                         }
-                        return response.data !== undefined ? response.data : response
+                        returnnse
                     }
-
-                    return response
-                } else {
-                    // Refresh failed, redirect to login
-                    console.log('❌ Dashboard token refresh failed, redirecting to login')
-                    await logout(false)
+                    
+                    r
+else {
+                    // Refresh failogin
+                    awailse)
                     await navigateTo('/dashboard/login')
                     throw error
                 }
             }
-            throw error
+            
+            // Harrors
+            lor'
+            if (error.d
+         rror
+     age) {
+ssage
+             {
+                errorMessage e
+            }
+            
+            throw createError({
+               500,
+               sage,
+                data: error.data
+            })
         }
     }
 
     return {
-        user: readonly(user),
-        permissions: readonly(permissions),
-        accessToken: readonly(accessToken),
-        initialized: readonly(initialized),
-        login,
-        logout,
-        refreshAccessToken,
-        isAuthenticated,
-        fetchUserProfile,
-        hasPermission,
-        initializeAuth,
-        getAccessToken,
-        apiCall
-    }
+        user: r
+     ),
+ 
 }
+    }ll  apiCa     en,
+ getAccessTok
+        Auth,ializeit
+        insion,Permis       has,
+ rProfile  fetchUse      nticated,
+isAuthe        essToken,
+  refreshAcct,
+      ogou
+        lgin,   lo     ialized),
+initnly(ed: readoaliz    initi    oken),
+ssTaccenly(adossToken: recce       a

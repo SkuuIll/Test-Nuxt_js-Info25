@@ -21,6 +21,7 @@ from .serializers import (
 )
 from .utils import log_activity, get_client_ip, get_dashboard_stats, get_top_performing_content
 from .api_utils import DashboardResponse
+from django_blog.api_utils import DashboardAPIResponse, BaseDashboardAPIView, HTTPStatus, ErrorMessages
 
 User = get_user_model()
 
@@ -35,19 +36,19 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
         password = request.data.get('password')
         
         if not username or not password:
-            return Response({
-                'error': True,
-                'message': 'Username y password son requeridos'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'Username y password son requeridos',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         # Autenticar usuario
         user = authenticate(username=username, password=password)
         
         if not user:
-            return DashboardResponse.unauthorized('Credenciales inválidas')
+            return DashboardAPIResponse.unauthorized('Credenciales inválidas')
         
         if not user.is_active:
-            return DashboardResponse.unauthorized('Usuario desactivado')
+            return DashboardAPIResponse.unauthorized('Usuario desactivado')
         
         # Verificar permisos de dashboard
         try:
@@ -61,10 +62,10 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
             )
             
             if not has_dashboard_access:
-                return DashboardResponse.permission_denied('No tienes permisos para acceder al dashboard')
+                return DashboardAPIResponse.permission_denied('No tienes permisos para acceder al dashboard')
                 
         except DashboardPermission.DoesNotExist:
-            return DashboardResponse.permission_denied('No tienes permisos para acceder al dashboard')
+            return DashboardAPIResponse.permission_denied('No tienes permisos para acceder al dashboard')
         
         # Generar tokens
         refresh = RefreshToken.for_user(user)
@@ -82,7 +83,7 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
             request=request
         )
         
-        return DashboardResponse.success({
+        return DashboardAPIResponse.success({
             'access': str(access_token),
             'refresh': str(refresh),
             'user': {
@@ -97,65 +98,125 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
         }, message='Login exitoso')
 
 
-class DashboardTokenRefreshView(TokenRefreshView):
+class DashboardTokenRefreshView(BaseDashboardAPIView):
     """
     Vista personalizada para refrescar tokens JWT del dashboard
     """
     
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
+        refresh_token = request.data.get('refresh')
         
-        if response.status_code == 200:
-            # Si el refresh fue exitoso, registrar la actividad
+        if not refresh_token:
+            return self.error_response(
+                'Refresh token es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
+        
+        try:
+            # Validar y refrescar el token
+            refresh = RefreshToken(refresh_token)
+            user_id = refresh.payload.get('user_id')
+            
+            # Verificar que el usuario existe y está activo
             try:
-                refresh_token = RefreshToken(request.data.get('refresh'))
-                user_id = refresh_token.payload.get('user_id')
                 user = User.objects.get(id=user_id)
+                if not user.is_active:
+                    return self.unauthorized_response('Usuario desactivado')
                 
-                log_activity(
-                    user=user,
-                    action='token_refresh',
-                    description='Token JWT refrescado',
-                    request=request
-                )
-            except:
-                pass  # Si hay error, no interrumpir el proceso
-        
-        return response
+                # Verificar permisos de dashboard
+                try:
+                    dashboard_permission = user.dashboard_permission
+                    has_dashboard_access = (
+                        user.is_superuser or
+                        dashboard_permission.can_view_stats or
+                        dashboard_permission.can_manage_posts or
+                        dashboard_permission.can_manage_users or
+                        dashboard_permission.can_manage_comments
+                    )
+                    
+                    if not has_dashboard_access:
+                        return self.permission_denied_response('Sin permisos de dashboard')
+                        
+                except DashboardPermission.DoesNotExist:
+                    return self.permission_denied_response('Permisos de dashboard no encontrados')
+                
+            except User.DoesNotExist:
+                return self.unauthorized_response('Usuario no encontrado')
+            
+            # Generar nuevo access token
+            new_access_token = refresh.access_token
+            
+            # Registrar actividad de refresh
+            log_activity(
+                user=user,
+                action='token_refresh',
+                description='Token JWT refrescado exitosamente',
+                request=request
+            )
+            
+            return self.success_response({
+                'access': str(new_access_token),
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'permissions': DashboardPermissionSerializer(dashboard_permission).data
+                }
+            }, message='Token refrescado exitosamente')
+            
+        except TokenError as e:
+            return self.unauthorized_response('Token inválido o expirado')
+        except Exception as e:
+            return self.error_response(
+                'Error al refrescar token',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
 
-class DashboardLogoutView(APIView):
+class DashboardLogoutView(BaseDashboardAPIView):
     """
     Vista para cerrar sesión en el dashboard
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsDashboardUser]
     
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
+            
+            # Intentar hacer blacklist del refresh token
             if refresh_token:
                 try:
                     token = RefreshToken(refresh_token)
                     token.blacklist()
-                except Exception:
-                    # Si no se puede blacklist el token, continuar
+                except TokenError:
+                    # Token ya está en blacklist o es inválido
                     pass
+                except Exception as e:
+                    # Log el error pero no fallar el logout
+                    log_activity(
+                        user=request.user,
+                        action='logout_error',
+                        description=f'Error al hacer blacklist del token: {str(e)}',
+                        request=request
+                    )
             
-            # Registrar actividad de logout
+            # Registrar actividad de logout exitoso
             log_activity(
                 user=request.user,
                 action='logout',
-                description='Cierre de sesión del dashboard',
+                description='Cierre de sesión exitoso del dashboard',
                 request=request
             )
             
-            return DashboardResponse.success(message='Logout exitoso')
+            return self.success_response(message='Logout exitoso')
             
         except Exception as e:
-            return DashboardResponse.error(f'Error al cerrar sesión: {str(e)}')
+            return self.error_response(
+                f'Error al cerrar sesión: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
 
-class DashboardUserProfileView(APIView):
+class DashboardUserProfileView(BaseDashboardAPIView):
     """
     Vista para obtener el perfil del usuario actual del dashboard
     """
@@ -167,43 +228,111 @@ class DashboardUserProfileView(APIView):
         try:
             dashboard_permission = user.dashboard_permission
         except DashboardPermission.DoesNotExist:
-            return DashboardResponse.not_found('Permisos de dashboard no encontrados')
+            return self.not_found_response('Permisos de dashboard no encontrados')
         
-        return DashboardResponse.success({
+        # Obtener estadísticas del usuario
+        posts_count = user.post_set.count() if hasattr(user, 'post_set') else 0
+        comments_count = user.comentario_set.count() if hasattr(user, 'comentario_set') else 0
+        
+        # Actividad reciente del usuario
+        recent_activity = ActivityLog.objects.filter(user=user).order_by('-timestamp')[:5]
+        recent_activity_data = ActivityLogSerializer(recent_activity, many=True).data
+        
+        return self.success_response({
             'id': user.id,
             'username': user.username,
             'email': user.email,
             'first_name': user.first_name,
             'last_name': user.last_name,
             'is_superuser': user.is_superuser,
+            'is_staff': user.is_staff,
+            'is_active': user.is_active,
             'last_login': user.last_login,
             'date_joined': user.date_joined,
-            'permissions': DashboardPermissionSerializer(dashboard_permission).data
+            'permissions': DashboardPermissionSerializer(dashboard_permission).data,
+            'stats': {
+                'posts_count': posts_count,
+                'comments_count': comments_count,
+                'recent_activity': recent_activity_data
+            }
         })
+    
+    def patch(self, request):
+        """Actualizar perfil del usuario del dashboard"""
+        user = request.user
+        
+        # Campos que se pueden actualizar
+        allowed_fields = ['first_name', 'last_name', 'email']
+        updated_fields = []
+        
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(user, field, request.data[field])
+                updated_fields.append(field)
+        
+        if updated_fields:
+            try:
+                user.save(update_fields=updated_fields)
+                
+                # Registrar actividad
+                log_activity(
+                    user=user,
+                    action='updated_profile',
+                    description=f'Perfil actualizado: {", ".join(updated_fields)}',
+                    request=request
+                )
+                
+                return self.success_response(
+                    DashboardUserSerializer(user).data,
+                    message='Perfil actualizado exitosamente'
+                )
+                
+            except Exception as e:
+                return self.error_response(
+                    f'Error al actualizar perfil: {str(e)}',
+                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+                )
+        else:
+            return self.error_response(
+                'No se proporcionaron campos para actualizar',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
 
 
-@api_view(['POST'])
+@api_view(['POST', 'GET'])
 @permission_classes([permissions.IsAuthenticated, IsDashboardUser])
 def check_dashboard_permission(request):
     """
     Endpoint para verificar permisos específicos del dashboard
+    Soporta tanto POST como GET para mayor flexibilidad
     """
-    permission_type = request.data.get('permission')
+    if request.method == 'POST':
+        permission_type = request.data.get('permission')
+    else:  # GET
+        permission_type = request.query_params.get('permission')
     
     if not permission_type:
-        return Response({
-            'error': True,
-            'message': 'Tipo de permiso requerido'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return DashboardAPIResponse.error(
+            'Tipo de permiso requerido',
+            status_code=HTTPStatus.BAD_REQUEST
+        )
     
     user = request.user
     
+    # Validar que el tipo de permiso es válido
+    valid_permissions = ['manage_posts', 'manage_users', 'manage_comments', 'view_stats']
+    if permission_type not in valid_permissions:
+        return DashboardAPIResponse.error(
+            f'Tipo de permiso inválido. Debe ser uno de: {", ".join(valid_permissions)}',
+            status_code=HTTPStatus.BAD_REQUEST
+        )
+    
     if user.is_superuser:
-        return Response({
-            'error': False,
+        return DashboardAPIResponse.success({
             'has_permission': True,
-            'message': 'Superusuario tiene todos los permisos'
-        })
+            'permission_type': permission_type,
+            'user_type': 'superuser'
+        }, message='Superusuario tiene todos los permisos')
     
     try:
         dashboard_permission = user.dashboard_permission
@@ -217,49 +346,155 @@ def check_dashboard_permission(request):
         
         has_permission = permission_map.get(permission_type, False)
         
-        return Response({
-            'error': False,
+        # Registrar verificación de permisos para auditoría
+        log_activity(
+            user=user,
+            action='permission_check',
+            description=f'Verificación de permiso: {permission_type} - Resultado: {has_permission}',
+            request=request
+        )
+        
+        return DashboardAPIResponse.success({
+                'data': {
             'has_permission': has_permission,
-            'permission_type': permission_type
-        })
+                'permission_type': permission_type,
+            'user_type': 'regular',
+            'all_permissions': {
+                'manage_posts': dashboard_permission.can_manage_posts,
+                'manage_users': dashboard_permission.can_manage_users,
+                'manage_comments': dashboard_permission.can_manage_comments,
+                'view_stats': dashboard_permission.can_view_stats,
+            }
+        }
+            })
         
     except DashboardPermission.DoesNotExist:
-        return Response({
-            'error': True,
-            'has_permission': False,
-            'message': 'Permisos de dashboard no encontrados'
-        }, status=status.HTTP_404_NOT_FOUND)
+        return DashboardAPIResponse.not_found('Permisos de dashboard no encontrados')
 
-class DashboardStatsView(APIView):
+
+class DashboardChangePasswordView(BaseDashboardAPIView):
+    """
+    Vista para cambiar contraseña de usuarios del dashboard
+    """
+    permission_classes = [permissions.IsAuthenticated, IsDashboardUser]
+    
+    def post(self, request):
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+        
+        # Validaciones
+        if not all([current_password, new_password, confirm_password]):
+            return self.error_response(
+                'Todos los campos son requeridos: current_password, new_password, confirm_password',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
+        
+        if new_password != confirm_password:
+            return self.error_response(
+                'La nueva contraseña y la confirmación no coinciden',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
+        
+        # Verificar contraseña actual
+        if not request.user.check_password(current_password):
+            return self.error_response(
+                'La contraseña actual es incorrecta',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
+        
+        # Validar fortaleza de la nueva contraseña
+        if len(new_password) < 8:
+            return self.error_response(
+                'La nueva contraseña debe tener al menos 8 caracteres',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
+        
+        try:
+            # Cambiar contraseña
+            request.user.set_password(new_password)
+            request.user.save()
+            
+            # Registrar actividad
+            log_activity(
+                user=request.user,
+                action='password_changed',
+                description='Contraseña cambiada exitosamente desde el dashboard',
+                request=request
+            )
+            
+            return self.success_response(message='Contraseña cambiada exitosamente')
+            
+        except Exception as e:
+            return self.error_response(
+                f'Error al cambiar contraseña: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+
+class DashboardSessionInfoView(BaseDashboardAPIView):
+    """
+    Vista para obtener información de la sesión actual del dashboard
+    """
+    permission_classes = [permissions.IsAuthenticated, IsDashboardUser]
+    
+    def get(self, request):
+        user = request.user
+        
+        try:
+            dashboard_permission = user.dashboard_permission
+            
+            # Obtener información de la sesión
+            session_info = {
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'full_name': f"{user.first_name} {user.last_name}".strip(),
+                    'is_superuser': user.is_superuser,
+                    'last_login': user.last_login,
+                },
+                'permissions': DashboardPermissionSerializer(dashboard_permission).data,
+                'session': {
+                    'ip_address': get_client_ip(request),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                    'login_time': user.last_login,
+                },
+                'dashboard_access': {
+                    'can_manage_posts': dashboard_permission.can_manage_posts,
+                    'can_manage_users': dashboard_permission.can_manage_users,
+                    'can_manage_comments': dashboard_permission.can_manage_comments,
+                    'can_view_stats': dashboard_permission.can_view_stats,
+                }
+            }
+            
+            return self.success_response(session_info)
+            
+        except DashboardPermission.DoesNotExist:
+            return self.not_found_response('Permisos de dashboard no encontrados')
+
+class DashboardStatsView(BaseDashboardAPIView):
     """
     Vista para obtener estadísticas generales del dashboard
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_stats():
             stats = get_dashboard_stats()
-            
-            return Response({
-                'error': False,
-                'data': DashboardStatsSerializer(stats).data
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return self.success_response(DashboardStatsSerializer(stats).data)
+        
+        return self.handle_exceptions(get_stats)
 
 
-class PopularPostsView(APIView):
+class PopularPostsView(BaseDashboardAPIView):
     """
     Vista para obtener los posts más populares
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_popular_posts():
             limit = int(request.query_params.get('limit', 10))
             
             from django.db.models import Count
@@ -272,42 +507,27 @@ class PopularPostsView(APIView):
             ).order_by('-comments_count', '-fecha_publicacion')[:limit]
             
             serializer = DashboardPostSerializer(popular_posts, many=True)
-            
-            return Response({
-                'error': False,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener posts populares: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return self.success_response(serializer.data)
+        
+        return self.handle_exceptions(get_popular_posts)
 
 
-class RecentActivityView(APIView):
+class RecentActivityView(BaseDashboardAPIView):
     """
     Vista para obtener actividad reciente del dashboard
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_recent_activity():
             limit = int(request.query_params.get('limit', 20))
             
             recent_activity = ActivityLog.objects.select_related('user').order_by('-timestamp')[:limit]
             serializer = ActivityLogSerializer(recent_activity, many=True)
             
-            return Response({
-                'error': False,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener actividad reciente: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return self.success_response(serializer.data)
+        
+        return self.handle_exceptions(get_recent_activity)
 
 
 class MonthlyStatsView(APIView):
@@ -321,16 +541,14 @@ class MonthlyStatsView(APIView):
             from .utils import get_monthly_stats
             monthly_stats = get_monthly_stats()
             
-            return Response({
-                'error': False,
-                'data': monthly_stats
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(monthly_stats
+            )
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas mensuales: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener estadísticas mensuales: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
 
 class UserStatsView(APIView):
@@ -384,17 +602,16 @@ class UserStatsView(APIView):
                 for user in top_commenters
             ]
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': {
-                    'total_users': total_users,
-                    'active_users': active_users,
-                    'new_users_month': new_users_month,
-                    'staff_users': staff_users,
-                    'top_authors': top_authors_data,
-                    'top_commenters': top_commenters_data
-                }
-            }, status=status.HTTP_200_OK)
+                'total_users': total_users,
+                'active_users': active_users,
+                'new_users_month': new_users_month,
+                'staff_users': staff_users,
+                'top_authors': top_authors_data,
+                'top_commenters': top_commenters_data
+            }
+            })
             
         except Exception as e:
             return Response({
@@ -460,25 +677,24 @@ class ContentStatsView(APIView):
                 for post in most_commented
             ]
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': {
-                    'posts': {
-                        'total': total_posts,
-                        'published': published_posts,
-                        'draft': draft_posts,
-                        'archived': archived_posts,
-                        'featured': featured_posts
-                    },
-                    'comments': {
-                        'total': total_comments,
-                        'approved': approved_comments,
-                        'pending': pending_comments
-                    },
-                    'categories': categories_data,
-                    'most_commented_posts': most_commented_data
-                }
-            }, status=status.HTTP_200_OK)
+                'posts': {
+                    'total': total_posts,
+                'published': published_posts,
+                    'draft': draft_posts,
+                    'archived': archived_posts,
+                    'featured': featured_posts
+                },
+                'comments': {
+                    'total': total_comments,
+                    'approved': approved_comments,
+                    'pending': pending_comments
+                },
+                'categories': categories_data,
+                'most_commented_posts': most_commented_data
+            }
+            })
             
         except Exception as e:
             return Response({
@@ -522,37 +738,36 @@ def dashboard_summary(request):
         draft_posts = Post.objects.filter(status='draft').count()
         pending_comments = Comentario.objects.filter(approved=False).count()
         
-        return Response({
-            'error': False,
-            'data': {
-                'totals': {
-                    'posts': total_posts,
-                    'users': total_users,
-                    'comments': total_comments,
-                    'categories': total_categories
-                },
-                'today': {
-                    'posts': posts_today,
-                    'comments': comments_today,
-                    'users': users_today
-                },
-                'week': {
-                    'posts': posts_week,
-                    'comments': comments_week,
-                    'users': users_week
-                },
-                'pending': {
-                    'draft_posts': draft_posts,
-                    'pending_comments': pending_comments
-                }
+        return DashboardAPIResponse.success({
+                'data': {
+            'totals': {
+                'posts': total_posts,
+                'users': total_users,
+                'comments': total_comments,
+                'categories': total_categories
+            },
+            'today': {
+                'posts': posts_today,
+                'comments': comments_today,
+                'users': users_today
+            },
+            'week': {
+                'posts': posts_week,
+                'comments': comments_week,
+                'users': users_week
+            },
+            'pending': {
+                'draft_posts': draft_posts,
+                'pending_comments': pending_comments
             }
-        }, status=status.HTTP_200_OK)
+        }
+            })
         
     except Exception as e:
-        return Response({
-            'error': True,
-            'message': f'Error al obtener resumen del dashboard: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return DashboardAPIResponse.error(
+            f'Error al obtener resumen del dashboard: {str(e)}',
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+        )
 
 class GrowthStatsView(APIView):
     """
@@ -565,15 +780,13 @@ class GrowthStatsView(APIView):
             from .utils import get_growth_stats
             growth_stats = get_growth_stats()
             
-            return Response({
-                'error': False,
-                'data': growth_stats
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(growth_stats)
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener estadísticas de crecimiento: {str(e)}'
+                'message': f'Error al obtener estadísticas de crecimiento: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -588,15 +801,15 @@ class TopPerformingContentView(APIView):
             from .utils import get_top_performing_content
             top_content = get_top_performing_content()
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': top_content
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener contenido destacado: {str(e)}'
+                'message': f'Error al obtener contenido destacado: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -694,26 +907,24 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
         new_status = request.data.get('status')
         
         if not post_ids or not new_status:
-            return Response({
-                'error': True,
-                'message': 'post_ids y status son requeridos'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'post_ids y status son requeridos',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         if new_status not in ['draft', 'published', 'archived']:
-            return Response({
-                'error': True,
-                'message': 'Estado inválido. Debe ser: draft, published, archived'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'Estado inválido. Debe ser: draft, published, archived',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             from .utils import bulk_update_post_status
             updated_count = bulk_update_post_status(post_ids, new_status, request.user)
             
-            return Response({
-                'error': False,
-                'message': f'{updated_count} posts actualizados exitosamente',
+            return DashboardAPIResponse.success({
                 'updated_count': updated_count
-            }, status=status.HTTP_200_OK)
+            }, message=f'{updated_count} posts actualizados exitosamente')
             
         except Exception as e:
             return Response({
@@ -729,10 +940,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
         post_ids = request.data.get('post_ids', [])
         
         if not post_ids:
-            return Response({
-                'error': True,
-                'message': 'post_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'post_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             posts = Post.objects.filter(id__in=post_ids)
@@ -750,11 +961,9 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'{deleted_count} posts eliminados exitosamente',
+            return DashboardAPIResponse.success({
                 'deleted_count': deleted_count
-            }, status=status.HTTP_200_OK)
+            }, message=f'{deleted_count} posts eliminados exitosamente')
             
         except Exception as e:
             return Response({
@@ -783,11 +992,9 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'Post marcado como {action_desc}',
+            return DashboardAPIResponse.success({
                 'featured': post.featured
-            }, status=status.HTTP_200_OK)
+            }, message=f'Post marcado como {action_desc}')
             
         except Exception as e:
             return Response({
@@ -807,15 +1014,15 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             from .serializers import DashboardCommentSerializer
             serializer = DashboardCommentSerializer(comments, many=True)
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': serializer.data
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios: {str(e)}'
+                'message': f'Error al obtener comentarios: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -844,15 +1051,15 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
                     'posts': posts_data
                 })
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': result
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener posts por categoría: {str(e)}'
+                'message': f'Error al obtener posts por categoría: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1073,15 +1280,14 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'Usuario {user.username} activado exitosamente'
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success({
+                'data': message=f'Usuario {user.username} activado exitosamente')
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al activar usuario: {str(e)}'
+                'message': f'Error al activar usuario: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -1094,17 +1300,17 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             
             # No permitir desactivar superusuarios
             if user.is_superuser:
-                return Response({
-                    'error': True,
-                    'message': 'No se puede desactivar un superusuario'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return DashboardAPIResponse.error(
+                'No se puede desactivar un superusuario',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
             
             # No permitir auto-desactivación
             if user == request.user:
-                return Response({
-                    'error': True,
-                    'message': 'No puedes desactivar tu propia cuenta'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return DashboardAPIResponse.error(
+                'No puedes desactivar tu propia cuenta',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
             
             user.is_active = False
             user.save()
@@ -1119,15 +1325,14 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'Usuario {user.username} desactivado exitosamente'
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success({
+                'data': message=f'Usuario {user.username} desactivado exitosamente')
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al desactivar usuario: {str(e)}'
+                'message': f'Error al desactivar usuario: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -1160,11 +1365,9 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             )
             
             from .serializers import DashboardPermissionSerializer
-            return Response({
-                'error': False,
-                'message': 'Permisos actualizados exitosamente',
+            return DashboardAPIResponse.success({
                 'permissions': DashboardPermissionSerializer(dashboard_permission).data
-            }, status=status.HTTP_200_OK)
+            }, message='Permisos actualizados exitosamente')
             
         except Exception as e:
             return Response({
@@ -1184,15 +1387,15 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             activities = ActivityLog.objects.filter(user=user).order_by('-timestamp')[:limit]
             serializer = ActivityLogSerializer(activities, many=True)
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': serializer.data
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener actividad: {str(e)}'
+                'message': f'Error al obtener actividad: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
@@ -1245,10 +1448,10 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
         user_ids = request.data.get('user_ids', [])
         
         if not user_ids:
-            return Response({
-                'error': True,
-                'message': 'user_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'user_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             users = User.objects.filter(id__in=user_ids)
@@ -1283,10 +1486,10 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
         user_ids = request.data.get('user_ids', [])
         
         if not user_ids:
-            return Response({
-                'error': True,
-                'message': 'user_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'user_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             # Excluir superusuarios y el usuario actual
@@ -1343,15 +1546,15 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 'users_with_comments': User.objects.annotate(comments_count=Count('comentario')).filter(comments_count__gt=0).count(),
             }
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': stats
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener estadísticas: {str(e)}'
+                'message': f'Error al obtener estadísticas: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class DashboardCommentViewSet(viewsets.ModelViewSet):
@@ -1451,15 +1654,15 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': 'Comentario aprobado exitosamente'
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success({
+                'data': message='Comentario aprobado exitosamente'
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al aprobar comentario: {str(e)}'
+                'message': f'Error al aprobar comentario: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -1482,15 +1685,15 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': 'Comentario rechazado exitosamente'
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success({
+                'data': message='Comentario rechazado exitosamente'
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al rechazar comentario: {str(e)}'
+                'message': f'Error al rechazar comentario: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'])
@@ -1501,10 +1704,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         comment_ids = request.data.get('comment_ids', [])
         
         if not comment_ids:
-            return Response({
-                'error': True,
-                'message': 'comment_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'comment_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             from .utils import bulk_approve_comments
@@ -1530,10 +1733,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         comment_ids = request.data.get('comment_ids', [])
         
         if not comment_ids:
-            return Response({
-                'error': True,
-                'message': 'comment_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'comment_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             from .utils import bulk_reject_comments
@@ -1559,10 +1762,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         comment_ids = request.data.get('comment_ids', [])
         
         if not comment_ids:
-            return Response({
-                'error': True,
-                'message': 'comment_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'comment_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             comments = Comentario.objects.filter(id__in=comment_ids)
@@ -1607,15 +1810,15 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 return self.get_paginated_response(serializer.data)
             
             serializer = self.get_serializer(pending_comments, many=True)
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': serializer.data
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios pendientes: {str(e)}'
+                'message': f'Error al obtener comentarios pendientes: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -1626,18 +1829,18 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         try:
             post_id = request.query_params.get('post_id')
             if not post_id:
-                return Response({
-                    'error': True,
-                    'message': 'post_id es requerido'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return DashboardAPIResponse.error(
+                'post_id es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
             
             try:
                 post = Post.objects.get(id=post_id)
             except Post.DoesNotExist:
-                return Response({
-                    'error': True,
-                    'message': 'Post no encontrado'
-                }, status=status.HTTP_404_NOT_FOUND)
+                return DashboardAPIResponse.error(
+                'Post no encontrado',
+                status_code=HTTPStatus.NOT_FOUND
+            )
             
             comments = self.get_queryset().filter(post=post).order_by('-fecha_creacion')
             
@@ -1714,15 +1917,15 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 ).data
             }
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': stats
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener estadísticas: {str(e)}'
+                'message': f'Error al obtener estadísticas: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
@@ -1853,26 +2056,24 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
         new_status = request.data.get('status')
         
         if not post_ids or not new_status:
-            return Response({
-                'error': True,
-                'message': 'post_ids y status son requeridos'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'post_ids y status son requeridos',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         if new_status not in ['draft', 'published', 'archived']:
-            return Response({
-                'error': True,
-                'message': 'Estado inválido. Debe ser: draft, published, archived'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'Estado inválido. Debe ser: draft, published, archived',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             from .utils import bulk_update_post_status
             updated_count = bulk_update_post_status(post_ids, new_status, request.user)
             
-            return Response({
-                'error': False,
-                'message': f'{updated_count} posts actualizados exitosamente',
+            return DashboardAPIResponse.success({
                 'updated_count': updated_count
-            }, status=status.HTTP_200_OK)
+            }, message=f'{updated_count} posts actualizados exitosamente')
             
         except Exception as e:
             return Response({
@@ -1888,10 +2089,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
         post_ids = request.data.get('post_ids', [])
         
         if not post_ids:
-            return Response({
-                'error': True,
-                'message': 'post_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'post_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             posts = Post.objects.filter(id__in=post_ids)
@@ -1909,11 +2110,9 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'{deleted_count} posts eliminados exitosamente',
+            return DashboardAPIResponse.success({
                 'deleted_count': deleted_count
-            }, status=status.HTTP_200_OK)
+            }, message=f'{deleted_count} posts eliminados exitosamente')
             
         except Exception as e:
             return Response({
@@ -1942,11 +2141,9 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'Post marcado como {action_desc}',
+            return DashboardAPIResponse.success({
                 'featured': post.featured
-            }, status=status.HTTP_200_OK)
+            }, message=f'Post marcado como {action_desc}')
             
         except Exception as e:
             return Response({
@@ -1966,15 +2163,15 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             from .serializers import DashboardCommentSerializer
             serializer = DashboardCommentSerializer(comments, many=True)
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': serializer.data
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios: {str(e)}'
+                'message': f'Error al obtener comentarios: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -2109,15 +2306,15 @@ def get_posts_statistics(request):
         from .utils import get_posts_statistics
         stats = get_posts_statistics()
         
-        return Response({
-            'error': False,
-            'data': stats
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success({
+                'data': stats
+        )
         
     except Exception as e:
         return Response({
             'error': True,
-            'message': f'Error al obtener estadísticas de posts: {str(e)}'
+                'message': f'Error al obtener estadísticas de posts: {str(e
+            })}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -2132,20 +2329,20 @@ def get_post_engagement_stats(request, post_id):
         stats = get_post_engagement_stats(post_id)
         
         if stats is None:
-            return Response({
-                'error': True,
-                'message': 'Post no encontrado'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return DashboardAPIResponse.error(
+                'Post no encontrado',
+                status_code=HTTPStatus.NOT_FOUND
+            )
         
-        return Response({
-            'error': False,
-            'data': stats
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success({
+                'data': stats
+        )
         
     except Exception as e:
         return Response({
             'error': True,
-            'message': f'Error al obtener estadísticas del post: {str(e)}'
+                'message': f'Error al obtener estadísticas del post: {str(e
+            })}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -2160,10 +2357,10 @@ def duplicate_post(request, post_id):
         duplicate = duplicate_post_util(post_id, request.user)
         
         if duplicate is None:
-            return Response({
-                'error': True,
-                'message': 'Post no encontrado'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return DashboardAPIResponse.error(
+                'Post no encontrado',
+                status_code=HTTPStatus.NOT_FOUND
+            )
         
         serializer = DashboardPostSerializer(duplicate)
         return Response({
@@ -2189,15 +2386,15 @@ def get_post_performance_metrics(request):
         from .utils import get_post_performance_metrics
         metrics = get_post_performance_metrics()
         
-        return Response({
-            'error': False,
-            'data': metrics
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success({
+                'data': metrics
+        )
         
     except Exception as e:
         return Response({
             'error': True,
-            'message': f'Error al obtener métricas de posts: {str(e)}'
+                'message': f'Error al obtener métricas de posts: {str(e
+            })}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -2304,11 +2501,9 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': 'Comentario aprobado exitosamente',
+            return DashboardAPIResponse.success({
                 'approved': True
-            }, status=status.HTTP_200_OK)
+            }, message='Comentario aprobado exitosamente')
             
         except Exception as e:
             return Response({
@@ -2336,11 +2531,9 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': 'Comentario rechazado exitosamente',
+            return DashboardAPIResponse.success({
                 'approved': False
-            }, status=status.HTTP_200_OK)
+            }, message='Comentario rechazado exitosamente')
             
         except Exception as e:
             return Response({
@@ -2356,10 +2549,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         comment_ids = request.data.get('comment_ids', [])
         
         if not comment_ids:
-            return Response({
-                'error': True,
-                'message': 'comment_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'comment_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             comments = Comentario.objects.filter(id__in=comment_ids)
@@ -2400,10 +2593,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         comment_ids = request.data.get('comment_ids', [])
         
         if not comment_ids:
-            return Response({
-                'error': True,
-                'message': 'comment_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'comment_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             comments = Comentario.objects.filter(id__in=comment_ids)
@@ -2444,10 +2637,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
         comment_ids = request.data.get('comment_ids', [])
         
         if not comment_ids:
-            return Response({
-                'error': True,
-                'message': 'comment_ids es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return DashboardAPIResponse.error(
+                'comment_ids es requerido',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
         
         try:
             comments = Comentario.objects.filter(id__in=comment_ids)
@@ -2488,15 +2681,15 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             
             serializer = DashboardCommentSerializer(replies, many=True)
             
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': serializer.data
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener respuestas: {str(e)}'
+                'message': f'Error al obtener respuestas: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -2514,15 +2707,15 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 return self.get_paginated_response(serializer.data)
             
             serializer = self.get_serializer(pending_comments, many=True)
-            return Response({
-                'error': False,
+            return DashboardAPIResponse.success({
                 'data': serializer.data
-            }, status=status.HTTP_200_OK)
+            )
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios pendientes: {str(e)}'
+                'message': f'Error al obtener comentarios pendientes: {str(e
+            })}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -2536,11 +2729,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             
             serializer = self.get_serializer(spam_comments, many=True)
             
-            return Response({
-                'error': False,
-                'data': serializer.data,
+            return DashboardAPIResponse.success({
+                'comments': serializer.data,
                 'count': len(spam_comments)
-            }, status=status.HTTP_200_OK)
+            })
             
         except Exception as e:
             return Response({
@@ -2563,15 +2755,15 @@ def get_comments_statistics(request):
         from .utils import get_comments_statistics
         stats = get_comments_statistics()
         
-        return Response({
-            'error': False,
-            'data': stats
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success({
+                'data': stats
+        )
         
     except Exception as e:
         return Response({
             'error': True,
-            'message': f'Error al obtener estadísticas de comentarios: {str(e)}'
+                'message': f'Error al obtener estadísticas de comentarios: {str(e
+            })}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -2592,15 +2784,15 @@ def get_moderation_queue(request):
                 comments, many=True
             ).data
         
-        return Response({
-            'error': False,
-            'data': serialized_queue
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success({
+                'data': serialized_queue
+        )
         
     except Exception as e:
         return Response({
             'error': True,
-            'message': f'Error al obtener cola de moderación: {str(e)}'
+                'message': f'Error al obtener cola de moderación: {str(e
+            })}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -2614,15 +2806,15 @@ def get_comment_engagement_metrics(request):
         from .utils import get_comment_engagement_metrics
         metrics = get_comment_engagement_metrics()
         
-        return Response({
-            'error': False,
-            'data': metrics
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success({
+                'data': metrics
+        )
         
     except Exception as e:
         return Response({
             'error': True,
-            'message': f'Error al obtener métricas de comentarios: {str(e)}'
+                'message': f'Error al obtener métricas de comentarios: {str(e
+            })}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -2644,11 +2836,10 @@ def auto_moderate_comments(request):
             request=request
         )
         
-        return Response({
-            'error': False,
-            'message': 'Moderación automática completada',
-            'data': results
-        }, status=status.HTTP_200_OK)
+        return DashboardAPIResponse.success(
+            results,
+            message='Moderación automática completada'
+        )
         
     except Exception as e:
         return Response({
@@ -2667,16 +2858,16 @@ def bulk_moderate_comments(request):
     action = request.data.get('action')
     
     if not comment_ids or not action:
-        return Response({
-            'error': True,
-            'message': 'comment_ids y action son requeridos'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return DashboardAPIResponse.error(
+                'comment_ids y action son requeridos',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
     
     if action not in ['approve', 'reject', 'delete']:
-        return Response({
-            'error': True,
-            'message': 'Acción inválida. Debe ser: approve, reject, delete'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return DashboardAPIResponse.error(
+                'Acción inválida. Debe ser: approve, reject, delete',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
     
     try:
         from .utils import bulk_moderate_comments as bulk_moderate
@@ -2713,11 +2904,10 @@ def detect_spam_comments(request):
         
         serializer = DashboardCommentSerializer(spam_comments, many=True)
         
-        return Response({
-            'error': False,
-            'data': serializer.data,
+        return DashboardAPIResponse.success({
+            'comments': serializer.data,
             'count': len(spam_comments)
-        }, status=status.HTTP_200_OK)
+        })
         
     except Exception as e:
         return Response({
