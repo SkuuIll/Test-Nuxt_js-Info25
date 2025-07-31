@@ -20,7 +20,6 @@ from .serializers import (
     DashboardUserSerializer, DashboardPostCreateUpdateSerializer
 )
 from .utils import log_activity, get_client_ip, get_dashboard_stats, get_top_performing_content
-from .api_utils import DashboardResponse
 from django_blog.api_utils import DashboardAPIResponse, BaseDashboardAPIView, HTTPStatus, ErrorMessages
 
 User = get_user_model()
@@ -552,14 +551,14 @@ class MonthlyStatsView(APIView):
             )
 
 
-class UserStatsView(APIView):
+class UserStatsView(BaseDashboardAPIView):
     """
     Vista para obtener estadísticas de usuarios
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_stats():
             from django.db.models import Count, Q
             from django.utils import timezone
             from datetime import timedelta
@@ -603,32 +602,25 @@ class UserStatsView(APIView):
                 for user in top_commenters
             ]
             
-            return DashboardAPIResponse.success({
-                'data': {
+            return self.success_response({
                 'total_users': total_users,
                 'active_users': active_users,
                 'new_users_month': new_users_month,
                 'staff_users': staff_users,
                 'top_authors': top_authors_data,
                 'top_commenters': top_commenters_data
-            }
             })
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas de usuarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return self.handle_exceptions(get_stats)
 
 
-class ContentStatsView(APIView):
+class ContentStatsView(BaseDashboardAPIView):
     """
     Vista para obtener estadísticas de contenido
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_stats():
             from django.db.models import Count, Q
             from posts.models import Post, Categoria, Comentario
             
@@ -678,8 +670,7 @@ class ContentStatsView(APIView):
                 for post in most_commented
             ]
             
-            return DashboardAPIResponse.success({
-                'data': {
+            return self.success_response({
                 'posts': {
                     'total': total_posts,
                 'published': published_posts,
@@ -694,14 +685,8 @@ class ContentStatsView(APIView):
                 },
                 'categories': categories_data,
                 'most_commented_posts': most_commented_data
-            }
             })
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas de contenido: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return self.handle_exceptions(get_stats)
 
 
 @api_view(['GET'])
@@ -770,46 +755,34 @@ def dashboard_summary(request):
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR
         )
 
-class GrowthStatsView(APIView):
+class GrowthStatsView(BaseDashboardAPIView):
     """
     Vista para obtener estadísticas de crecimiento
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_stats():
             from .utils import get_growth_stats
             growth_stats = get_growth_stats()
             
-            return DashboardAPIResponse.success(growth_stats)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas de crecimiento: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return self.success_response(growth_stats)
+        return self.handle_exceptions(get_stats)
 
 
-class TopPerformingContentView(APIView):
+class TopPerformingContentView(BaseDashboardAPIView):
     """
     Vista para obtener contenido con mejor rendimiento
     """
     permission_classes = [CanViewStats]
     
     def get(self, request):
-        try:
+        def get_content():
             from .utils import get_top_performing_content
             top_content = get_top_performing_content()
             
-            return DashboardAPIResponse.success({
-                'data': top_content
-            })
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener contenido destacado: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return self.success_response(top_content)
+        return self.handle_exceptions(get_content)
 
 
 class DashboardPostViewSet(viewsets.ModelViewSet):
@@ -926,10 +899,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             }, message=f'{updated_count} posts actualizados exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al actualizar posts: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al actualizar posts: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
@@ -965,10 +938,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             }, message=f'{deleted_count} posts eliminados exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al eliminar posts: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al eliminar posts: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def toggle_featured(self, request, pk=None):
@@ -996,10 +969,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             }, message=f'Post marcado como {action_desc}')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al actualizar post: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al actualizar post: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def comments(self, request, pk=None):
@@ -1018,10 +991,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener comentarios: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def by_category(self, request):
@@ -1054,10 +1027,10 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener posts por categoría: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener posts por categoría: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
 
 class DashboardCategoryViewSet(viewsets.ModelViewSet):
@@ -1156,29 +1129,26 @@ class DashboardCategoryViewSet(viewsets.ModelViewSet):
             paginated_posts = posts[start:end]
             serializer = DashboardPostSerializer(paginated_posts, many=True)
             
-            return Response({
-                'error': False,
-                'data': {
-                    'category': {
-                        'id': category.id,
-                        'name': category.nombre,
-                        'description': category.descripcion
-                    },
-                    'posts': serializer.data,
-                    'pagination': {
-                        'page': page,
-                        'page_size': page_size,
-                        'total': posts.count(),
-                        'has_next': end < posts.count()
-                    }
+            return DashboardAPIResponse.success({
+                'category': {
+                    'id': category.id,
+                    'name': category.nombre,
+                    'description': category.descripcion
+                },
+                'posts': serializer.data,
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total': posts.count(),
+                    'has_next': end < posts.count()
                 }
-            }, status=status.HTTP_200_OK)
+            })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener posts de la categoría: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener posts de la categoría: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 class DashboardUserViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestión de usuarios en el dashboard
@@ -1281,10 +1251,10 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 message=f'Usuario {user.username} activado exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al activar usuario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al activar usuario: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
@@ -1325,10 +1295,10 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 message=f'Usuario {user.username} desactivado exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al desactivar usuario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al desactivar usuario: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def update_permissions(self, request, pk=None):
@@ -1365,10 +1335,10 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             }, message='Permisos actualizados exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al actualizar permisos: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al actualizar permisos: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def activity(self, request, pk=None):
@@ -1387,10 +1357,10 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener actividad: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener actividad: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def posts(self, request, pk=None):
@@ -1410,29 +1380,26 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             paginated_posts = posts[start:end]
             serializer = DashboardPostSerializer(paginated_posts, many=True)
             
-            return Response({
-                'error': False,
-                'data': {
-                    'user': {
-                        'id': user.id,
-                        'username': user.username,
-                        'email': user.email
-                    },
-                    'posts': serializer.data,
-                    'pagination': {
-                        'page': page,
-                        'page_size': page_size,
-                        'total': posts.count(),
-                        'has_next': end < posts.count()
-                    }
+            return DashboardAPIResponse.success({
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email
+                },
+                'posts': serializer.data,
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total': posts.count(),
+                    'has_next': end < posts.count()
                 }
-            }, status=status.HTTP_200_OK)
+            })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener posts del usuario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener posts del usuario: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def bulk_activate(self, request):
@@ -1460,17 +1427,16 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'{updated_count} usuarios activados exitosamente',
-                'updated_count': updated_count
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(
+                {'updated_count': updated_count},
+                message=f'{updated_count} usuarios activados exitosamente'
+            )
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al activar usuarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al activar usuarios: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def bulk_deactivate(self, request):
@@ -1504,17 +1470,16 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'{updated_count} usuarios desactivados exitosamente',
-                'updated_count': updated_count
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(
+                {'updated_count': updated_count},
+                message=f'{updated_count} usuarios desactivados exitosamente'
+            )
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al desactivar usuarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al desactivar usuarios: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -1540,15 +1505,13 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 'users_with_comments': User.objects.annotate(comments_count=Count('comentario')).filter(comments_count__gt=0).count(),
             }
             
-            return DashboardAPIResponse.success({
-                'data': stats
-            })
+            return DashboardAPIResponse.success(stats)
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener estadísticas: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
 class DashboardCommentViewSet(viewsets.ModelViewSet):
     """
@@ -1651,10 +1614,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 message='Comentario aprobado exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al aprobar comentario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al aprobar comentario: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -1680,10 +1643,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 message='Comentario rechazado exitosamente')
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al rechazar comentario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al rechazar comentario: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def bulk_approve(self, request):
@@ -1702,17 +1665,16 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             from .utils import bulk_approve_comments
             updated_count = bulk_approve_comments(comment_ids, request.user)
             
-            return Response({
-                'error': False,
-                'message': f'{updated_count} comentarios aprobados exitosamente',
-                'updated_count': updated_count
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(
+                {'updated_count': updated_count},
+                message=f'{updated_count} comentarios aprobados exitosamente'
+            )
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al aprobar comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al aprobar comentarios: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def bulk_reject(self, request):
@@ -1731,17 +1693,16 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             from .utils import bulk_reject_comments
             updated_count = bulk_reject_comments(comment_ids, request.user)
             
-            return Response({
-                'error': False,
-                'message': f'{updated_count} comentarios rechazados exitosamente',
-                'updated_count': updated_count
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(
+                {'rejected_count': updated_count},
+                message=f'{updated_count} comentarios rechazados exitosamente'
+            )
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al rechazar comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al rechazar comentarios: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
@@ -1772,17 +1733,16 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return Response({
-                'error': False,
-                'message': f'{deleted_count} comentarios eliminados exitosamente',
-                'deleted_count': deleted_count
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success(
+                {'deleted_count': deleted_count},
+                message=f'{deleted_count} comentarios eliminados exitosamente'
+            )
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al eliminar comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al eliminar comentarios: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def pending(self, request):
@@ -1804,10 +1764,10 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener comentarios pendientes: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener comentarios pendientes: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def by_post(self, request):
@@ -1846,23 +1806,20 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 })
             
             serializer = self.get_serializer(comments, many=True)
-            return Response({
-                'error': False,
-                'data': {
-                    'post': {
-                        'id': post.id,
-                        'title': post.titulo,
-                        'author': post.autor.username
-                    },
-                    'comments': serializer.data
-                }
-            }, status=status.HTTP_200_OK)
+            return DashboardAPIResponse.success({
+                'post': {
+                    'id': post.id,
+                    'title': post.titulo,
+                    'author': post.autor.username
+                },
+                'comments': serializer.data
+            })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener comentarios del post: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener comentarios del post: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -1905,15 +1862,13 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 ).data
             }
             
-            return DashboardAPIResponse.success({
-                'data': stats
-            })
+            return DashboardAPIResponse.success(stats)
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener estadísticas: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return DashboardAPIResponse.error(
+                f'Error al obtener estadísticas: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def replies(self, request, pk=None):
@@ -1926,969 +1881,18 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             
             serializer = self.get_serializer(replies, many=True)
             
-            return Response({
-                'error': False,
-                'data': {
-                    'parent_comment': {
-                        'id': comment.id,
-                        'content': comment.contenido,
-                        'author': comment.usuario.username
-                    },
-                    'replies': serializer.data
-                }
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener respuestas: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# ============================================================================
-# POSTS MANAGEMENT VIEWS
-# ============================================================================
-
-class DashboardPostViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestión completa de posts en el dashboard
-    """
-    queryset = Post.objects.all().select_related('autor', 'categoria').prefetch_related('comentarios')
-    serializer_class = DashboardPostSerializer
-    permission_classes = [CanManagePosts]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'categoria', 'featured', 'autor']
-    search_fields = ['titulo', 'contenido', 'autor__username']
-    ordering_fields = ['fecha_creacion', 'fecha_publicacion', 'fecha_actualizacion', 'titulo']
-    ordering = ['-fecha_creacion']
-    
-    def get_serializer_class(self):
-        """
-        Usar diferentes serializers según la acción
-        """
-        if self.action in ['create', 'update', 'partial_update']:
-            from .serializers import DashboardPostCreateUpdateSerializer
-            return DashboardPostCreateUpdateSerializer
-        return DashboardPostSerializer
-    
-    def get_permissions(self):
-        """
-        Permisos específicos por acción
-        """
-        if self.action in ['update', 'partial_update', 'destroy']:
-            permission_classes = [IsOwnerOrCanManage]
-        else:
-            permission_classes = [CanManagePosts]
-        
-        return [permission() for permission in permission_classes]
-    
-    def perform_create(self, serializer):
-        """
-        Crear post asignando el autor actual
-        """
-        post = serializer.save(autor=self.request.user)
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='created_post',
-            target_model='Post',
-            target_id=post.id,
-            description=f'Post creado: {post.titulo}',
-            request=self.request
-        )
-    
-    def perform_update(self, serializer):
-        """
-        Actualizar post con logging
-        """
-        post = serializer.save()
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='updated_post',
-            target_model='Post',
-            target_id=post.id,
-            description=f'Post actualizado: {post.titulo}',
-            request=self.request
-        )
-    
-    def perform_destroy(self, instance):
-        """
-        Eliminar post con logging
-        """
-        post_title = instance.titulo
-        post_id = instance.id
-        
-        # Eliminar post
-        instance.delete()
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='deleted_post',
-            target_model='Post',
-            target_id=post_id,
-            description=f'Post eliminado: {post_title}',
-            request=self.request
-        )
-    
-    @action(detail=False, methods=['post'])
-    def bulk_update_status(self, request):
-        """
-        Actualizar estado de múltiples posts
-        """
-        post_ids = request.data.get('post_ids', [])
-        new_status = request.data.get('status')
-        
-        if not post_ids or not new_status:
-            return DashboardAPIResponse.error(
-                'post_ids y status son requeridos',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-        
-        if new_status not in ['draft', 'published', 'archived']:
-            return DashboardAPIResponse.error(
-                'Estado inválido. Debe ser: draft, published, archived',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-        
-        try:
-            from .utils import bulk_update_post_status
-            updated_count = bulk_update_post_status(post_ids, new_status, request.user)
-            
             return DashboardAPIResponse.success({
-                'updated_count': updated_count
-            }, message=f'{updated_count} posts actualizados exitosamente')
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al actualizar posts: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=['post'])
-    def bulk_delete(self, request):
-        """
-        Eliminar múltiples posts
-        """
-        post_ids = request.data.get('post_ids', [])
-        
-        if not post_ids:
-            return DashboardAPIResponse.error(
-                'post_ids es requerido',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-        
-        try:
-            posts = Post.objects.filter(id__in=post_ids)
-            deleted_count = posts.count()
-            post_titles = [post.titulo for post in posts]
-            
-            # Eliminar posts
-            posts.delete()
-            
-            # Registrar actividad
-            log_activity(
-                user=request.user,
-                action='deleted_post',
-                description=f'Eliminados {deleted_count} posts: {", ".join(post_titles[:5])}{"..." if len(post_titles) > 5 else ""}',
-                request=request
-            )
-            
-            return DashboardAPIResponse.success({
-                'deleted_count': deleted_count
-            }, message=f'{deleted_count} posts eliminados exitosamente')
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al eliminar posts: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['post'])
-    def toggle_featured(self, request, pk=None):
-        """
-        Alternar estado destacado de un post
-        """
-        try:
-            post = self.get_object()
-            post.featured = not post.featured
-            post.save()
-            
-            # Registrar actividad
-            action_desc = 'destacado' if post.featured else 'no destacado'
-            log_activity(
-                user=request.user,
-                action='updated_post',
-                target_model='Post',
-                target_id=post.id,
-                description=f'Post marcado como {action_desc}: {post.titulo}',
-                request=request
-            )
-            
-            return DashboardAPIResponse.success({
-                'featured': post.featured
-            }, message=f'Post marcado como {action_desc}')
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al actualizar post: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['get'])
-    def comments(self, request, pk=None):
-        """
-        Obtener comentarios de un post específico
-        """
-        try:
-            post = self.get_object()
-            comments = post.comentarios.select_related('usuario').order_by('-fecha_creacion')
-            
-            from .serializers import DashboardCommentSerializer
-            serializer = DashboardCommentSerializer(comments, many=True)
-            
-            return DashboardAPIResponse.success({
-                'data': serializer.data
+                'parent_comment': {
+                    'id': comment.id,
+                    'content': comment.contenido,
+                    'author': comment.usuario.username
+                },
+                'replies': serializer.data
             })
             
         except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['post'])
-    def duplicate(self, request, pk=None):
-        """
-        Duplicar un post
-        """
-        try:
-            original_post = self.get_object()
-            
-            # Crear copia del post
-            new_post = Post.objects.create(
-                titulo=f"Copia de {original_post.titulo}",
-                contenido=original_post.contenido,
-                categoria=original_post.categoria,
-                autor=request.user,
-                status='draft',
-                featured=False,
-                meta_title=original_post.meta_title,
-                meta_description=original_post.meta_description
-            )
-            
-            # Registrar actividad
-            log_activity(
-                user=request.user,
-                action='created_post',
-                target_model='Post',
-                target_id=new_post.id,
-                description=f'Post duplicado: {new_post.titulo}',
-                request=request
-            )
-            
-            serializer = self.get_serializer(new_post)
-            return Response({
-                'error': False,
-                'message': 'Post duplicado exitosamente',
-                'data': serializer.data
-            }, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al duplicar post: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# ============================================================================
-# CATEGORIES MANAGEMENT VIEWS
-# ============================================================================
-
-class DashboardCategoryViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestión de categorías en el dashboard
-    """
-    queryset = Categoria.objects.all().annotate(
-        posts_count=Count('post')
-    ).order_by('nombre')
-    serializer_class = CategorySerializer
-    permission_classes = [CanManagePosts]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['nombre', 'descripcion']
-    ordering_fields = ['nombre', 'fecha_creacion', 'posts_count']
-    ordering = ['nombre']
-    
-    def perform_create(self, serializer):
-        """
-        Crear categoría con logging
-        """
-        category = serializer.save()
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='created_category',
-            target_model='Categoria',
-            target_id=category.id,
-            description=f'Categoría creada: {category.nombre}',
-            request=self.request
-        )
-    
-    def perform_update(self, serializer):
-        """
-        Actualizar categoría con logging
-        """
-        category = serializer.save()
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='updated_category',
-            target_model='Categoria',
-            target_id=category.id,
-            description=f'Categoría actualizada: {category.nombre}',
-            request=self.request
-        )
-    
-    def perform_destroy(self, instance):
-        """
-        Eliminar categoría con validación
-        """
-        if instance.post_set.exists():
-            raise ValidationError('No se puede eliminar una categoría que tiene posts asociados')
-        
-        category_name = instance.nombre
-        category_id = instance.id
-        
-        # Eliminar categoría
-        instance.delete()
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='deleted_category',
-            target_model='Categoria',
-            target_id=category_id,
-            description=f'Categoría eliminada: {category_name}',
-            request=self.request
-        )
-
-
-# ============================================================================
-# POSTS STATISTICS FUNCTION VIEWS
-# ============================================================================
-
-@api_view(['GET'])
-@permission_classes([CanViewStats])
-def get_posts_statistics(request):
-    """
-    Obtener estadísticas detalladas de posts
-    """
-    try:
-        from .utils import get_posts_statistics
-        stats = get_posts_statistics()
-        
-        return DashboardAPIResponse.success({
-                'data': stats
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-                'message': f'Error al obtener estadísticas de posts: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-@permission_classes([CanViewStats])
-def get_post_engagement_stats(request, post_id):
-    """
-    Obtener estadísticas de engagement de un post específico
-    """
-    try:
-        from .utils import get_post_engagement_stats
-        stats = get_post_engagement_stats(post_id)
-        
-        if stats is None:
             return DashboardAPIResponse.error(
-                'Post no encontrado',
-                status_code=HTTPStatus.NOT_FOUND
+                f'Error al obtener respuestas: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
             )
-        
-        return DashboardAPIResponse.success({
-                'data': stats
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-                'message': f'Error al obtener estadísticas del post: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-@api_view(['POST'])
-@permission_classes([CanManagePosts])
-def duplicate_post(request, post_id):
-    """
-    Duplicar un post existente
-    """
-    try:
-        from .utils import duplicate_post as duplicate_post_util
-        duplicate = duplicate_post_util(post_id, request.user)
-        
-        if duplicate is None:
-            return DashboardAPIResponse.error(
-                'Post no encontrado',
-                status_code=HTTPStatus.NOT_FOUND
-            )
-        
-        serializer = DashboardPostSerializer(duplicate)
-        return Response({
-            'error': False,
-            'message': 'Post duplicado exitosamente',
-            'data': serializer.data
-        }, status=status.HTTP_201_CREATED)
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-            'message': f'Error al duplicar post: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-@permission_classes([CanViewStats])
-def get_post_performance_metrics(request):
-    """
-    Obtener métricas de rendimiento de posts
-    """
-    try:
-        from .utils import get_post_performance_metrics
-        metrics = get_post_performance_metrics()
-        
-        return DashboardAPIResponse.success({
-                'data': metrics
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-                'message': f'Error al obtener métricas de posts: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# ============================================================================
-# COMMENTS MANAGEMENT VIEWS
-# ============================================================================
-
-class DashboardCommentViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestión completa de comentarios en el dashboard
-    """
-    queryset = Comentario.objects.all().select_related('usuario', 'post').prefetch_related('replies')
-    serializer_class = DashboardCommentSerializer
-    permission_classes = [CanManageComments]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['approved', 'post', 'usuario']
-    search_fields = ['contenido', 'usuario__username', 'post__titulo']
-    ordering_fields = ['fecha_creacion', 'fecha_actualizacion', 'approved']
-    ordering = ['-fecha_creacion']
-    
-    def get_queryset(self):
-        """
-        Personalizar queryset con filtros adicionales
-        """
-        queryset = super().get_queryset()
-        
-        # Filtro por estado de aprobación
-        approved = self.request.query_params.get('approved')
-        if approved is not None:
-            if approved.lower() in ['true', '1']:
-                queryset = queryset.filter(approved=True)
-            elif approved.lower() in ['false', '0']:
-                queryset = queryset.filter(approved=False)
-        
-        # Filtro por post específico
-        post_id = self.request.query_params.get('post')
-        if post_id:
-            try:
-                queryset = queryset.filter(post_id=int(post_id))
-            except ValueError:
-                pass
-        
-        # Filtro por comentarios padre (sin respuestas)
-        only_parents = self.request.query_params.get('only_parents')
-        if only_parents and only_parents.lower() in ['true', '1']:
-            queryset = queryset.filter(parent__isnull=True)
-        
-        return queryset
-    
-    def perform_update(self, serializer):
-        """
-        Actualizar comentario con logging
-        """
-        comment = serializer.save()
-        
-        # Registrar actividad
-        action = 'approved_comment' if comment.approved else 'rejected_comment'
-        log_activity(
-            user=self.request.user,
-            action=action,
-            target_model='Comentario',
-            target_id=comment.id,
-            description=f'Comentario {"aprobado" if comment.approved else "rechazado"}: {comment.contenido[:50]}...',
-            request=self.request
-        )
-    
-    def perform_destroy(self, instance):
-        """
-        Eliminar comentario con logging
-        """
-        comment_content = instance.contenido[:50]
-        comment_id = instance.id
-        
-        # Eliminar comentario
-        instance.delete()
-        
-        # Registrar actividad
-        log_activity(
-            user=self.request.user,
-            action='deleted_comment',
-            target_model='Comentario',
-            target_id=comment_id,
-            description=f'Comentario eliminado: {comment_content}...',
-            request=self.request
-        )
-    
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        """
-        Aprobar un comentario específico
-        """
-        try:
-            comment = self.get_object()
-            comment.approved = True
-            comment.save()
-            
-            # Registrar actividad
-            log_activity(
-                user=request.user,
-                action='approved_comment',
-                target_model='Comentario',
-                target_id=comment.id,
-                description=f'Comentario aprobado: {comment.contenido[:50]}...',
-                request=request
-            )
-            
-            return DashboardAPIResponse.success({
-                'approved': True
-            }, message='Comentario aprobado exitosamente')
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al aprobar comentario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['post'])
-    def reject(self, request, pk=None):
-        """
-        Rechazar un comentario específico
-        """
-        try:
-            comment = self.get_object()
-            comment.approved = False
-            comment.save()
-            
-            # Registrar actividad
-            log_activity(
-                user=request.user,
-                action='rejected_comment',
-                target_model='Comentario',
-                target_id=comment.id,
-                description=f'Comentario rechazado: {comment.contenido[:50]}...',
-                request=request
-            )
-            
-            return DashboardAPIResponse.success({
-                'approved': False
-            }, message='Comentario rechazado exitosamente')
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al rechazar comentario: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=['post'])
-    def bulk_approve(self, request):
-        """
-        Aprobar múltiples comentarios
-        """
-        comment_ids = request.data.get('comment_ids', [])
-        
-        if not comment_ids:
-            return DashboardAPIResponse.error(
-                'comment_ids es requerido',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-        
-        try:
-            comments = Comentario.objects.filter(id__in=comment_ids)
-            approved_count = 0
-            
-            for comment in comments:
-                comment.approved = True
-                comment.save()
-                approved_count += 1
-                
-                # Registrar actividad individual
-                log_activity(
-                    user=request.user,
-                    action='approved_comment',
-                    target_model='Comentario',
-                    target_id=comment.id,
-                    description=f'Comentario aprobado (lote): {comment.contenido[:50]}...',
-                    request=request
-                )
-            
-            return Response({
-                'error': False,
-                'message': f'{approved_count} comentarios aprobados exitosamente',
-                'approved_count': approved_count
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al aprobar comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=['post'])
-    def bulk_reject(self, request):
-        """
-        Rechazar múltiples comentarios
-        """
-        comment_ids = request.data.get('comment_ids', [])
-        
-        if not comment_ids:
-            return DashboardAPIResponse.error(
-                'comment_ids es requerido',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-        
-        try:
-            comments = Comentario.objects.filter(id__in=comment_ids)
-            rejected_count = 0
-            
-            for comment in comments:
-                comment.approved = False
-                comment.save()
-                rejected_count += 1
-                
-                # Registrar actividad individual
-                log_activity(
-                    user=request.user,
-                    action='rejected_comment',
-                    target_model='Comentario',
-                    target_id=comment.id,
-                    description=f'Comentario rechazado (lote): {comment.contenido[:50]}...',
-                    request=request
-                )
-            
-            return Response({
-                'error': False,
-                'message': f'{rejected_count} comentarios rechazados exitosamente',
-                'rejected_count': rejected_count
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al rechazar comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=['post'])
-    def bulk_delete(self, request):
-        """
-        Eliminar múltiples comentarios
-        """
-        comment_ids = request.data.get('comment_ids', [])
-        
-        if not comment_ids:
-            return DashboardAPIResponse.error(
-                'comment_ids es requerido',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-        
-        try:
-            comments = Comentario.objects.filter(id__in=comment_ids)
-            deleted_count = comments.count()
-            comment_contents = [comment.contenido[:30] for comment in comments[:5]]
-            
-            # Eliminar comentarios
-            comments.delete()
-            
-            # Registrar actividad
-            log_activity(
-                user=request.user,
-                action='deleted_comment',
-                description=f'Eliminados {deleted_count} comentarios: {", ".join(comment_contents)}{"..." if deleted_count > 5 else ""}',
-                request=request
-            )
-            
-            return Response({
-                'error': False,
-                'message': f'{deleted_count} comentarios eliminados exitosamente',
-                'deleted_count': deleted_count
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al eliminar comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['get'])
-    def replies(self, request, pk=None):
-        """
-        Obtener respuestas de un comentario específico
-        """
-        try:
-            comment = self.get_object()
-            replies = comment.replies.select_related('usuario').order_by('fecha_creacion')
-            
-            serializer = DashboardCommentSerializer(replies, many=True)
-            
-            return DashboardAPIResponse.success({
-                'data': serializer.data
-            })
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener respuestas: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=['get'])
-    def pending(self, request):
-        """
-        Obtener comentarios pendientes de moderación
-        """
-        try:
-            pending_comments = self.get_queryset().filter(approved=False)
-            
-            # Aplicar paginación
-            page = self.paginate_queryset(pending_comments)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-            
-            serializer = self.get_serializer(pending_comments, many=True)
-            return DashboardAPIResponse.success({
-                'data': serializer.data
-            })
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error al obtener comentarios pendientes: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=['get'])
-    def spam_detection(self, request):
-        """
-        Detectar posibles comentarios spam
-        """
-        try:
-            from .utils import detect_spam_comments
-            spam_comments = detect_spam_comments()
-            
-            serializer = self.get_serializer(spam_comments, many=True)
-            
-            return DashboardAPIResponse.success({
-                'comments': serializer.data,
-                'count': len(spam_comments)
-            })
-            
-        except Exception as e:
-            return Response({
-                'error': True,
-                'message': f'Error en detección de spam: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# ============================================================================
-# COMMENTS STATISTICS FUNCTION VIEWS
-# ============================================================================
-
-@api_view(['GET'])
-@permission_classes([CanViewStats])
-def get_comments_statistics(request):
-    """
-    Obtener estadísticas detalladas de comentarios
-    """
-    try:
-        from .utils import get_comments_statistics
-        stats = get_comments_statistics()
-        
-        return DashboardAPIResponse.success({
-                'data': stats
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-                'message': f'Error al obtener estadísticas de comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-@permission_classes([CanManageComments])
-def get_moderation_queue(request):
-    """
-    Obtener cola de moderación de comentarios
-    """
-    try:
-        from .utils import get_comment_moderation_queue
-        queue = get_comment_moderation_queue()
-        
-        # Serializar los comentarios
-        serialized_queue = {}
-        for category, comments in queue.items():
-            serialized_queue[category] = DashboardCommentSerializer(
-                comments, many=True
-            ).data
-        
-        return DashboardAPIResponse.success({
-                'data': serialized_queue
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-                'message': f'Error al obtener cola de moderación: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-@permission_classes([CanViewStats])
-def get_comment_engagement_metrics(request):
-    """
-    Obtener métricas de engagement de comentarios
-    """
-    try:
-        from .utils import get_comment_engagement_metrics
-        metrics = get_comment_engagement_metrics()
-        
-        return DashboardAPIResponse.success({
-                'data': metrics
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-                'message': f'Error al obtener métricas de comentarios: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['POST'])
-@permission_classes([CanManageComments])
-def auto_moderate_comments(request):
-    """
-    Ejecutar moderación automática de comentarios
-    """
-    try:
-        from .utils import auto_moderate_comments
-        results = auto_moderate_comments()
-        
-        # Registrar actividad
-        log_activity(
-            user=request.user,
-            action='auto_moderated_comments',
-            description=f'Moderación automática: {results["auto_approved"]} aprobados, {results["auto_rejected"]} rechazados',
-            request=request
-        )
-        
-        return DashboardAPIResponse.success(
-            results,
-            message='Moderación automática completada'
-        )
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-            'message': f'Error en moderación automática: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['POST'])
-@permission_classes([CanManageComments])
-def bulk_moderate_comments(request):
-    """
-    Moderar múltiples comentarios
-    """
-    comment_ids = request.data.get('comment_ids', [])
-    action = request.data.get('action')
-    
-    if not comment_ids or not action:
-        return DashboardAPIResponse.error(
-                'comment_ids y action son requeridos',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-    
-    if action not in ['approve', 'reject', 'delete']:
-        return DashboardAPIResponse.error(
-                'Acción inválida. Debe ser: approve, reject, delete',
-                status_code=HTTPStatus.BAD_REQUEST
-            )
-    
-    try:
-        from .utils import bulk_moderate_comments as bulk_moderate
-        processed_count = bulk_moderate(comment_ids, action, request.user)
-        
-        action_text = {
-            'approve': 'aprobados',
-            'reject': 'rechazados',
-            'delete': 'eliminados'
-        }[action]
-        
-        return Response({
-            'error': False,
-            'message': f'{processed_count} comentarios {action_text} exitosamente',
-            'processed_count': processed_count
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-            'message': f'Error al moderar comentarios: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-@permission_classes([CanManageComments])
-def detect_spam_comments(request):
-    """
-    Detectar comentarios spam
-    """
-    try:
-        from .utils import detect_spam_comments
-        spam_comments = detect_spam_comments()
-        
-        serializer = DashboardCommentSerializer(spam_comments, many=True)
-        
-        return DashboardAPIResponse.success({
-            'comments': serializer.data,
-            'count': len(spam_comments)
-        })
-        
-    except Exception as e:
-        return Response({
-            'error': True,
-            'message': f'Error en detección de spam: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

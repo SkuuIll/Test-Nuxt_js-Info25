@@ -204,21 +204,20 @@ class BaseAPIView(APIView):
 
 class DashboardAPIResponse:
     """
-    Specialized response class for dashboard APIs with consistent format
+    Specialized response class for dashboard APIs with consistent format.
+    Mirrors StandardAPIResponse for consistency.
     """
     
     @staticmethod
     def success(data=None, message=None, status_code=status.HTTP_200_OK, **kwargs):
         """Return a standardized dashboard success response"""
         response_data = {
-            'error': False,
             'success': True,
             'data': data,
         }
         if message:
             response_data['message'] = message
         
-        # Add any additional fields
         response_data.update(kwargs)
         
         return Response(response_data, status=status_code)
@@ -227,16 +226,14 @@ class DashboardAPIResponse:
     def error(error_message, message=None, status_code=status.HTTP_400_BAD_REQUEST, errors=None, **kwargs):
         """Return a standardized dashboard error response"""
         response_data = {
-            'error': True,
             'success': False,
-            'message': error_message,
+            'error': error_message,
         }
-        if message and message != error_message:
-            response_data['details'] = message
+        if message:
+            response_data['message'] = message
         if errors:
             response_data['errors'] = errors
         
-        # Add any additional fields
         response_data.update(kwargs)
         
         return Response(response_data, status=status_code)

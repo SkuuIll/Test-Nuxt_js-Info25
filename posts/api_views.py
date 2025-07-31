@@ -27,48 +27,6 @@ class PostListAPIView(BaseAPIView, generics.ListCreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = PostFilter
     
-    @api_error_handler
-    @log_api_call
-    def list(self, request, *args, **kwargs):
-        """List posts with standardized response format"""
-        return self.handle_exceptions(self._list_posts, request)
-    
-    def _list_posts(self, request):
-        """Internal method to list posts"""
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return self.success_response(data=serializer.data)
-    
-    @api_error_handler
-    @log_api_call
-    def create(self, request, *args, **kwargs):
-        """Create post with standardized response format"""
-        return self.handle_exceptions(self._create_post, request)
-    
-    def _create_post(self, request):
-        """Internal method to create post"""
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(autor=request.user)
-            return self.success_response(
-                data=serializer.data,
-                message="Post created successfully",
-                status_code=status.HTTP_201_CREATED
-            )
-        return self.validation_error_response(serializer.errors)
-    
-    def get_serializer_class(self):
-        """Use different serializers based on action"""
-        if self.request.method == 'GET':
-            return PostListSerializer
-        return PostSerializer
-    
     def list(self, request, *args, **kwargs):
         """Lista de posts con metadatos adicionales"""
         try:
@@ -100,6 +58,24 @@ class PostListAPIView(BaseAPIView, generics.ListCreateAPIView):
             
         except Exception as e:
             return self.error_response(f"Error al obtener posts: {str(e)}")
+
+    def create(self, request, *args, **kwargs):
+        """Create post with standardized response format"""
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(autor=request.user)
+            return self.success_response(
+                data=serializer.data,
+                message="Post created successfully",
+                status_code=status.HTTP_201_CREATED
+            )
+        return self.validation_error_response(serializer.errors)
+
+    def get_serializer_class(self):
+        """Use different serializers based on action"""
+        if self.request.method == 'GET':
+            return PostListSerializer
+        return PostSerializer
 
 class PostDetailAPIView(BaseAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.filter(status='published').select_related('autor', 'categoria').prefetch_related('comentarios')
@@ -238,9 +214,9 @@ def featured_posts(request):
     try:
         posts = Post.objects.filter(status='published', featured=True)[:6]
         serializer = PostSerializer(posts, many=True, context={'request': request})
-        return StandardResponse.success(serializer.data)
+        return StandardAPIResponse.success(serializer.data)
     except Exception as e:
-        return StandardResponse.error(f"Error fetching featured posts: {str(e)}")
+        return StandardAPIResponse.error(f"Error fetching featured posts: {str(e)}")
 
 @api_view(['GET'])
 def search_posts(request):
@@ -249,7 +225,7 @@ def search_posts(request):
         query = request.GET.get('q', '').strip()
         
         if not query:
-            return StandardResponse.error('Parámetro de búsqueda "q" es requerido')
+            return StandardAPIResponse.error('Parámetro de búsqueda "q" es requerido')
         
         # Obtener filtros adicionales
         filters = {
@@ -274,13 +250,13 @@ def search_posts(request):
             return response
         
         serializer = PostListSerializer(posts, many=True, context={'request': request})
-        return StandardResponse.success({
+        return StandardAPIResponse.success({
             'results': serializer.data,
             'search_metadata': metadata
         })
         
     except Exception as e:
-        return StandardResponse.error(f"Error en búsqueda: {str(e)}")
+        return StandardAPIResponse.error(f"Error en búsqueda: {str(e)}")
 
 
 @api_view(['GET'])
@@ -292,13 +268,13 @@ def search_suggestions(request):
         
         suggestions = AdvancedSearchFilter.get_search_suggestions(query, limit)
         
-        return StandardResponse.success({
+        return StandardAPIResponse.success({
             'suggestions': suggestions,
             'query': query
         })
         
     except Exception as e:
-        return StandardResponse.error(f"Error obteniendo sugerencias: {str(e)}")
+        return StandardAPIResponse.error(f"Error obteniendo sugerencias: {str(e)}")
 
 
 @api_view(['GET'])
@@ -308,12 +284,12 @@ def popular_searches(request):
         limit = int(request.GET.get('limit', 10))
         popular = AdvancedSearchFilter.get_popular_searches(limit)
         
-        return StandardResponse.success({
+        return StandardAPIResponse.success({
             'popular_searches': popular
         })
         
     except Exception as e:
-        return StandardResponse.error(f"Error obteniendo búsquedas populares: {str(e)}")
+        return StandardAPIResponse.error(f"Error obteniendo búsquedas populares: {str(e)}")
 
 
 @api_view(['GET'])
@@ -380,10 +356,10 @@ def search_filters(request):
             ]
         }
         
-        return StandardResponse.success(filter_options)
+        return StandardAPIResponse.success(filter_options)
         
     except Exception as e:
-        return StandardResponse.error(f"Error obteniendo filtros: {str(e)}")
+        return StandardAPIResponse.error(f"Error obteniendo filtros: {str(e)}")
 
 
 @api_view(['GET'])
@@ -446,10 +422,10 @@ def search_stats(request):
             ]
         }
         
-        return StandardResponse.success(stats)
+        return StandardAPIResponse.success(stats)
         
     except Exception as e:
-        return StandardResponse.error(f"Error obteniendo estadísticas: {str(e)}")
+        return StandardAPIResponse.error(f"Error obteniendo estadísticas: {str(e)}")
 
 
 class AdvancedSearchAPIView(BaseAPIView, generics.ListAPIView):
@@ -525,10 +501,10 @@ def post_comments(request, post_id):
             return paginator.get_paginated_response(serializer.data)
         
         serializer = CommentSerializer(comments, many=True, context={'request': request})
-        return StandardResponse.success(serializer.data)
+        return StandardAPIResponse.success(serializer.data)
         
     except Post.DoesNotExist:
-        return StandardResponse.not_found('Post not found')
+        return StandardAPIResponse.not_found('Post not found')
 
 
 @api_view(['GET'])
@@ -569,10 +545,10 @@ def get_tags(request):
                 'posts_count': author.posts_count
             })
         
-        return StandardResponse.success(tags_data)
+        return StandardAPIResponse.success(tags_data)
         
     except Exception as e:
-        return StandardResponse.error(f"Error fetching tags: {str(e)}")
+        return StandardAPIResponse.error(f"Error fetching tags: {str(e)}")
 
 
 @api_view(['GET'])
@@ -582,7 +558,7 @@ def get_search_suggestions(request):
         query = request.GET.get('q', '').strip()
         
         if not query or len(query) < 2:
-            return StandardResponse.success([])
+            return StandardAPIResponse.success([])
         
         suggestions = []
         
@@ -625,7 +601,7 @@ def get_search_suggestions(request):
                 'type': 'author'
             })
         
-        return StandardResponse.success(suggestions[:10])  # Limit to 10 suggestions
+        return StandardAPIResponse.success(suggestions[:10])  # Limit to 10 suggestions
         
     except Exception as e:
-        return StandardResponse.error(f"Error fetching suggestions: {str(e)}")
+        return StandardAPIResponse.error(f"Error fetching suggestions: {str(e)}")

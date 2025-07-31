@@ -10,3 +10,4 @@ django-tinymce==4.1.0
 django-admin-interface==0.28.8
 django-colorfield==0.11.0
 PyJWT==2.10.1
+django-filter==25.1

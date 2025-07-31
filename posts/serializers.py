@@ -159,11 +159,14 @@ class CommentSerializer(CommentBasicSerializer):
 
 class PostCreateUpdateSerializer(BaseModelSerializer, SEOSerializer):
     """Serializer for creating and updating posts"""
-    
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Categoria.objects.all(), source='categoria', allow_null=True
+    )
+
     class Meta:
         model = Post
         fields = [
-            'titulo', 'contenido', 'excerpt', 'imagen', 'categoria',
+            'titulo', 'contenido', 'excerpt', 'imagen', 'category',
             'meta_title', 'meta_description', 'canonical_url',
             'status', 'featured'
         ]
@@ -288,7 +291,8 @@ class CommentCreateUpdateSerializer(BaseModelSerializer):
 
 class PostListSerializer(PostBasicSerializer):
     """Serializador optimizado para listas de posts"""
-    
+    category = CategorySerializer(source='categoria', read_only=True)
+
     class Meta:
         model = Post
         fields = [

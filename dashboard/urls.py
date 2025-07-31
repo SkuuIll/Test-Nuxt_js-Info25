@@ -20,17 +20,7 @@ from .views import (
     DashboardPostViewSet,
     DashboardCategoryViewSet,
     DashboardUserViewSet,
-    DashboardCommentViewSet,
-    get_posts_statistics,
-    get_post_engagement_stats,
-    duplicate_post,
-    get_post_performance_metrics,
-    get_comments_statistics,
-    get_moderation_queue,
-    get_comment_engagement_metrics,
-    auto_moderate_comments,
-    bulk_moderate_comments,
-    detect_spam_comments
+    DashboardCommentViewSet
 )
 from .auth_views import (
     DashboardTokenValidateView,
@@ -78,17 +68,6 @@ urlpatterns = [
     # API endpoints para gestión
     path('api/', include(router.urls)),
     
-    # Posts management endpoints
-    path('posts/stats/', get_posts_statistics, name='posts_stats'),
-    path('posts/<int:post_id>/engagement/', get_post_engagement_stats, name='post_engagement'),
-    path('posts/<int:post_id>/duplicate/', duplicate_post, name='duplicate_post'),
-    path('posts/performance/', get_post_performance_metrics, name='posts_performance'),
-    
-    # Comments management endpoints
-    path('comments/stats/', get_comments_statistics, name='comments_stats'),
-    path('comments/moderation-queue/', get_moderation_queue, name='moderation_queue'),
-    path('comments/engagement/', get_comment_engagement_metrics, name='comments_engagement'),
-    path('comments/auto-moderate/', auto_moderate_comments, name='auto_moderate'),
-    path('comments/bulk-moderate/', bulk_moderate_comments, name='bulk_moderate'),
-    path('comments/detect-spam/', detect_spam_comments, name='detect_spam'),
+    # API endpoints para gestión
+    path('api/', include(router.urls)),
 ]
