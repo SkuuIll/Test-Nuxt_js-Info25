@@ -88,8 +88,24 @@ git clone https://github.com/tu-usuario/blog-noticias.git
 cd blog-noticias
 ```
 
-### 2. Configurar el Backend (Django)
+### 2. Inicio Rápido
 
+#### Windows:
+```bash
+# Ejecutar script automático
+start.bat
+```
+
+#### Linux/Mac:
+```bash
+# Ejecutar script automático
+chmod +x start.sh
+./start.sh
+```
+
+### 3. Configuración Manual
+
+#### Backend (Django):
 ```bash
 # Crear entorno virtual
 python -m venv entorno
@@ -102,15 +118,11 @@ pip install -r requirements.txt
 python manage.py makemigrations
 python manage.py migrate
 
-# Crear superusuario
-python manage.py createsuperuser
-
 # Ejecutar servidor de desarrollo
 python manage.py runserver
 ```
 
-### 3. Configurar el Frontend (Nuxt.js)
-
+#### Frontend (Nuxt.js):
 ```bash
 # Navegar al directorio frontend
 cd frontend
