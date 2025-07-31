@@ -57,7 +57,20 @@ interface SearchResponse<T = any> extends PaginatedApiResponse<T> {
 
 export const useApi = () => {
   const config = useRuntimeConfig()
-  const { handleApiError, handleAuthError, handleNetworkError } = useErrorHandler()
+
+  // Helper function to get error handler when needed
+  const getErrorHandler = () => {
+    try {
+      return useErrorHandler()
+    } catch (error) {
+      console.warn('Error handler not available, using fallback')
+      return {
+        handleApiError: (err: any, context?: string) => console.error('API Error:', err, context),
+        handleAuthError: (err: any, context?: string) => console.error('Auth Error:', err, context),
+        handleNetworkError: (err: any, context?: string) => console.error('Network Error:', err, context)
+      }
+    }
+  }
 
   // Helper function to clean undefined/null params
   const cleanParams = (params: Record<string, any>) => {
@@ -409,7 +422,7 @@ export const useApi = () => {
                 refresh_error: refreshError
               }
             })
-            handleAuthError(authError, 'Token Refresh Failed')
+            getErrorHandler().handleAuthError(authError, 'Token Refresh Failed')
             throw authError
           }
         } else {
@@ -420,7 +433,7 @@ export const useApi = () => {
             statusMessage: 'Session expired',
             data: { ...errorData, no_refresh_token: true }
           })
-          handleAuthError(authError, 'No Refresh Token')
+          getErrorHandler().handleAuthError(authError, 'No Refresh Token')
           throw authError
         }
       }
@@ -454,16 +467,17 @@ export const useApi = () => {
       })
 
       // Handle different types of errors with appropriate error handlers
+      const errorHandler = getErrorHandler()
       if (response.status === 401) {
-        handleAuthError(enhancedError, 'API Authentication Error')
+        errorHandler.handleAuthError(enhancedError, 'API Authentication Error')
       } else if (response.status === 403) {
-        handleApiError(enhancedError, 'API Permission Error')
+        errorHandler.handleApiError(enhancedError, 'API Permission Error')
       } else if (response.status === 404) {
-        handleApiError(enhancedError, 'API Not Found Error')
+        errorHandler.handleApiError(enhancedError, 'API Not Found Error')
       } else if (response.status >= 500) {
-        handleNetworkError(enhancedError, 'API Server Error')
+        errorHandler.handleNetworkError(enhancedError, 'API Server Error')
       } else {
-        handleApiError(enhancedError, 'API Error')
+        errorHandler.handleApiError(enhancedError, 'API Error')
       }
 
       throw enhancedError
@@ -948,10 +962,11 @@ export const useApi = () => {
         }
 
         // For other errors, don't retry
+        const errorHandler = getErrorHandler()
         if (statusCode >= 500) {
-          handleNetworkError(error, 'API Server Error')
+          errorHandler.handleNetworkError(error, 'API Server Error')
         } else {
-          handleApiError(error, 'API Request Failed')
+          errorHandler.handleApiError(error, 'API Request Failed')
         }
 
         throw error
