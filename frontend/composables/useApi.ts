@@ -142,8 +142,10 @@ export const useApi = () => {
     }
   }
 
-  // Token refresh scheduling
+  // Enhanced token refresh scheduling with loop prevention
   let refreshTimer: NodeJS.Timeout | null = null
+  let isRefreshing = false
+  let refreshPromise: Promise<AuthTokens> | null = null
 
   const scheduleTokenRefresh = (accessToken: string) => {
     clearTokenRefreshTimer()
@@ -152,21 +154,23 @@ export const useApi = () => {
     const currentTime = Date.now()
     const timeUntilExpiry = expiryTime - currentTime
 
-    // Schedule refresh 5 minutes before expiry
-    const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 60000) // At least 1 minute
+    // Schedule refresh 5 minutes before expiry, but at least 1 minute
+    const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 60000)
 
-    if (refreshTime > 0) {
+    if (refreshTime > 0 && refreshTime < timeUntilExpiry) {
       refreshTimer = setTimeout(async () => {
         const tokens = getTokens()
-        if (tokens?.refresh) {
+        if (tokens?.refresh && !isRefreshing) {
           try {
             console.log('🔄 Auto-refreshing token...')
-            const newTokens = await refreshTokens(tokens.refresh)
+            const newTokens = await performTokenRefresh(tokens.refresh)
             setTokens(newTokens)
             console.log('✅ Token auto-refreshed successfully')
           } catch (error) {
             console.error('❌ Auto-refresh failed:', error)
             clearTokens()
+            // Redirect to login after failed auto-refresh
+            await navigateTo('/login')
           }
         }
       }, refreshTime)
@@ -180,17 +184,106 @@ export const useApi = () => {
     }
   }
 
+  // Centralized token refresh with concurrency control
+  const performTokenRefresh = async (refreshToken: string): Promise<AuthTokens> => {
+    // Prevent multiple concurrent refresh attempts
+    if (isRefreshing && refreshPromise) {
+      console.log('🔄 Token refresh already in progress, waiting...')
+      return await refreshPromise
+    }
+
+    isRefreshing = true
+    refreshPromise = (async () => {
+      try {
+        const response = await $fetch('/users/auth/refresh/', {
+          baseURL: getApiBaseUrl(),
+          method: 'POST',
+          body: { refresh: refreshToken },
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }) as StandardApiResponse<AuthTokens> | AuthTokens
+
+        // Handle both standardized and direct response formats
+        let tokens: AuthTokens
+        if ('data' in response && response.data) {
+          tokens = response.data
+        } else if ('access' in response && 'refresh' in response) {
+          tokens = response as AuthTokens
+        } else {
+          throw new Error('Invalid response format from refresh endpoint')
+        }
+
+        console.log('✅ Token refresh successful')
+        return tokens
+      } catch (error) {
+        console.error('❌ Token refresh failed:', error)
+        throw error
+      } finally {
+        isRefreshing = false
+        refreshPromise = null
+      }
+    })()
+
+    return await refreshPromise
+  }
+
+  // API Configuration with validation
+  const getApiBaseUrl = (): string => {
+    const baseUrl = config.public.apiBase
+    if (!baseUrl) {
+      console.error('❌ API_BASE_URL not configured')
+      throw new Error('API base URL is not configured')
+    }
+
+    // Ensure URL doesn't end with slash to avoid double slashes
+    const cleanUrl = baseUrl.replace(/\/$/, '')
+    return `${cleanUrl}/api/v1`
+  }
+
+  // Enhanced logging utility
+  const logApiCall = (method: string, url: string, data?: any, response?: any, error?: any) => {
+    if (!import.meta.dev) return
+
+    const timestamp = new Date().toISOString()
+    const logData = {
+      timestamp,
+      method,
+      url,
+      ...(data && { requestData: data }),
+      ...(response && { response }),
+      ...(error && { error })
+    }
+
+    try {
+      const { $logger } = useNuxtApp()
+      if (error) {
+        $logger.error('API Error', logData)
+      } else {
+        $logger.api(method, url, logData)
+      }
+    } catch (e) {
+      // Fallback to console logging
+      if (error) {
+        console.error('🚨 API Error:', logData)
+      } else {
+        console.log('🔗 API Call:', logData)
+      }
+    }
+  }
+
   // Create base API instance
   const api = $fetch.create({
-    baseURL: config.public.apiBase + '/api/v1',
+    baseURL: getApiBaseUrl(),
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
     },
     onRequest({ request, options }) {
       // Add JWT token to requests
       const tokens = getTokens()
-      if (tokens?.access) {
+      if (tokens?.access && !isTokenExpired(tokens.access)) {
         if (!options.headers) {
           options.headers = {}
         }
@@ -200,17 +293,23 @@ export const useApi = () => {
         headers['Authorization'] = `Bearer ${tokens.access}`
       }
 
-      // Log API requests in development
-      if (import.meta.dev) {
-        try {
-          const { $logger } = useNuxtApp()
-          $logger.api(options.method || 'GET', request.toString(), options.body)
-        } catch (e) {
-          console.log('🔗 API Request:', options.method || 'GET', request.toString(), options.body)
-        }
+      // Add request ID for tracking
+      const requestId = Math.random().toString(36).substr(2, 9)
+      if (!options.headers) {
+        options.headers = {}
       }
+      (options.headers as Record<string, string>)['X-Request-ID'] = requestId
+
+      // Enhanced logging for development
+      logApiCall(
+        options.method || 'GET',
+        request.toString(),
+        options.body,
+        undefined,
+        undefined
+      )
     },
-    onResponse({ response }) {
+    onResponse({ request, response }) {
       // Handle standardized API responses
       if (response._data && typeof response._data === 'object') {
         const data = response._data as StandardApiResponse
@@ -239,62 +338,79 @@ export const useApi = () => {
         }
       }
 
-      // Log successful API responses in development
-      if (import.meta.dev) {
-        try {
-          const { $logger } = useNuxtApp()
-          $logger.api('Response', response.status.toString(), response._data)
-        } catch (e) {
-          console.log('✅ API Response:', response.status, response._data)
-        }
-      }
+      // Enhanced response logging
+      logApiCall(
+        'RESPONSE',
+        request.toString(),
+        undefined,
+        {
+          status: response.status,
+          data: response._data
+        },
+        undefined
+      )
     },
     async onResponseError({ request, response }) {
-      // Log API errors in development
-      if (import.meta.dev) {
-        try {
-          const { $logger } = useNuxtApp()
-          $logger.error('API Error', {
-            url: request.toString(),
-            status: response.status,
-            statusText: response.statusText,
-            data: response._data
-          })
-        } catch (e) {
-          console.error('🚨 API Error:', response.status, response.statusText, request.toString(), response._data)
-        }
-      }
-
       const url = request.toString()
-      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')
+      const errorData = response._data
 
-      // Handle token refresh on 401 (but not for auth endpoints)
-      if (response.status === 401 && !isAuthEndpoint) {
+      // Enhanced error logging
+      logApiCall(
+        'ERROR',
+        url,
+        undefined,
+        undefined,
+        {
+          status: response.status,
+          statusText: response.statusText,
+          data: errorData
+        }
+      )
+
+      const isAuthEndpoint = url.includes('/auth/login') ||
+        url.includes('/auth/register') ||
+        url.includes('/auth/refresh')
+
+      // Handle token refresh on 401 (but not for auth endpoints and prevent loops)
+      if (response.status === 401 && !isAuthEndpoint && !isRefreshing) {
         const tokens = getTokens()
         if (tokens?.refresh && !isTokenExpired(tokens.refresh)) {
           try {
             console.log('🔄 Token expired, attempting refresh...')
-            const newTokens = await refreshTokens(tokens.refresh)
+            const newTokens = await performTokenRefresh(tokens.refresh)
             setTokens(newTokens)
             console.log('✅ Token refreshed successfully')
 
-            // Don't retry automatically to prevent infinite loops
-            // Let the calling code handle the retry
-            console.log('🔄 Token refreshed, please retry the request')
-
-            // Still throw the error but with a special flag
+            // Return a special error that indicates token was refreshed
+            // The calling code can check for this and retry the request
             const refreshedError = createError({
               statusCode: 401,
               statusMessage: 'Token refreshed, retry required',
-              data: { ...response._data, token_refreshed: true }
+              data: {
+                ...errorData,
+                token_refreshed: true,
+                original_error: errorData
+              }
             })
             throw refreshedError
           } catch (refreshError) {
             console.error('❌ Token refresh failed:', refreshError)
-            // Refresh failed, handle as auth error
+            // Refresh failed, clear tokens and handle as auth error
             clearTokens()
-            handleAuthError(refreshError, 'Token Refresh Failed')
-            throw refreshError
+            isRefreshing = false
+            refreshPromise = null
+
+            const authError = createError({
+              statusCode: 401,
+              statusMessage: 'Session expired - refresh failed',
+              data: {
+                ...errorData,
+                refresh_failed: true,
+                refresh_error: refreshError
+              }
+            })
+            handleAuthError(authError, 'Token Refresh Failed')
+            throw authError
           }
         } else {
           console.log('🚫 No valid refresh token available')
@@ -302,24 +418,34 @@ export const useApi = () => {
           const authError = createError({
             statusCode: 401,
             statusMessage: 'Session expired',
-            data: response._data
+            data: { ...errorData, no_refresh_token: true }
           })
           handleAuthError(authError, 'No Refresh Token')
           throw authError
         }
       }
 
-      // Create enhanced error object
-      const errorData = response._data
+      // Create enhanced error object with better error extraction
       const enhancedError = createError({
         statusCode: response.status,
-        statusMessage: errorData?.error || errorData?.message || response.statusText,
-        data: errorData
+        statusMessage: extractErrorMessage(errorData) || response.statusText,
+        data: {
+          ...errorData,
+          url,
+          timestamp: new Date().toISOString(),
+          request_id: response.headers?.['x-request-id']
+        }
       })
 
-      // Handle different types of errors
+      // Handle different types of errors with appropriate error handlers
       if (response.status === 401) {
         handleAuthError(enhancedError, 'API Authentication Error')
+      } else if (response.status === 403) {
+        handleApiError(enhancedError, 'API Permission Error')
+      } else if (response.status === 404) {
+        handleApiError(enhancedError, 'API Not Found Error')
+      } else if (response.status === 422) {
+        handleValidationError(enhancedError, 'API Validation Error')
       } else if (response.status >= 500) {
         handleNetworkError(enhancedError, 'API Server Error')
       } else {
@@ -327,6 +453,26 @@ export const useApi = () => {
       }
 
       throw enhancedError
+    }
+
+    // Helper function to extract error message from response
+    const extractErrorMessage = (errorData: any): string | null => {
+      if (!errorData) return null
+
+      // Try different error message formats
+      if (errorData.error) return errorData.error
+      if (errorData.message) return errorData.message
+      if (errorData.detail) return errorData.detail
+
+      // Handle validation errors
+      if (errorData.errors && typeof errorData.errors === 'object') {
+        const errorMessages = Object.values(errorData.errors).flat()
+        if (errorMessages.length > 0) {
+          return errorMessages.join(', ')
+        }
+      }
+
+      return null
     }
   })
 
@@ -384,29 +530,7 @@ export const useApi = () => {
   }
 
   const refreshTokens = async (refreshToken: string): Promise<AuthTokens> => {
-    try {
-      const response = await api('/users/auth/refresh/', {
-        method: 'POST',
-        body: { refresh: refreshToken }
-      }) as StandardApiResponse<AuthTokens> | AuthTokens
-
-      // Handle both standardized and direct response formats
-      let tokens: AuthTokens
-      if ('data' in response && response.data) {
-        tokens = response.data
-      } else if ('access' in response && 'refresh' in response) {
-        tokens = response as AuthTokens
-      } else {
-        throw new Error('Invalid response format from refresh endpoint')
-      }
-
-      console.log('✅ Token refresh successful')
-      return tokens
-    } catch (error) {
-      console.error('❌ Token refresh failed:', error)
-      clearTokens()
-      throw error
-    }
+    return await performTokenRefresh(refreshToken)
   }
 
   const logout = async (): Promise<void> => {
@@ -770,47 +894,138 @@ export const useApi = () => {
     })
   }
 
-  // Enhanced request wrapper with retry logic
+  // Enhanced request wrapper with intelligent retry logic
   const apiRequest = async <T>(
     endpoint: string,
     options: any = {},
     maxRetries: number = 2
   ): Promise<T> => {
     let lastError: any
+    let tokenRefreshed = false
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await api(endpoint, options)
+
+        // Log successful retry if applicable
+        if (attempt > 0) {
+          console.log(`✅ Request succeeded on attempt ${attempt + 1}`)
+        }
+
         return response as T
       } catch (error: any) {
         lastError = error
 
-        // Check if this is a token refresh scenario
-        if (error?.data?.token_refreshed && attempt < maxRetries) {
+        // Handle token refresh scenario (only once per request)
+        if (error?.data?.token_refreshed && !tokenRefreshed && attempt < maxRetries) {
           console.log(`🔄 Retrying request after token refresh (attempt ${attempt + 1}/${maxRetries + 1})`)
-          // Wait a bit before retrying
+          tokenRefreshed = true
+
+          // Wait a bit before retrying to ensure token is properly set
           await new Promise(resolve => setTimeout(resolve, 500))
           continue
         }
 
-        // Don't retry on certain errors
-        if (error?.statusCode === 400 || error?.statusCode === 404 || error?.statusCode === 403) {
+        // Don't retry on client errors (except 401 which is handled above)
+        const statusCode = error?.statusCode || error?.status
+        if (statusCode === 400 || statusCode === 403 || statusCode === 404 || statusCode === 422) {
+          console.log(`❌ Not retrying client error: ${statusCode}`)
           throw error
         }
 
         // Don't retry on the last attempt
         if (attempt === maxRetries) {
+          console.log(`❌ Max retries (${maxRetries}) reached for ${endpoint}`)
           throw error
         }
 
-        // Wait before retrying (exponential backoff)
-        const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
-        console.log(`⏳ Retrying request in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
-        await new Promise(resolve => setTimeout(resolve, delay))
+        // Only retry on server errors or network issues
+        if (statusCode >= 500 || statusCode === 408 || statusCode === 429) {
+          // Exponential backoff with jitter
+          const baseDelay = 1000 * Math.pow(2, attempt)
+          const jitter = Math.random() * 500
+          const delay = Math.min(baseDelay + jitter, 10000)
+
+          console.log(`⏳ Retrying request in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+
+        // For other errors, don't retry
+        throw error
       }
     }
 
     throw lastError
+  }
+
+  // API health check
+  const healthCheck = async (): Promise<boolean> => {
+    try {
+      await api('/health/', { method: 'GET' })
+      return true
+    } catch (error) {
+      console.warn('⚠️ API health check failed:', error)
+      return false
+    }
+  }
+
+  // Get API status and version info
+  const getApiInfo = async (): Promise<any> => {
+    try {
+      return await api('/info/', { method: 'GET' })
+    } catch (error) {
+      console.warn('⚠️ Could not fetch API info:', error)
+      return null
+    }
+  }
+
+  // Validate API connection and configuration
+  const validateApiConnection = async (): Promise<{
+    connected: boolean
+    baseUrl: string
+    version?: string
+    error?: string
+  }> => {
+    const baseUrl = getApiBaseUrl()
+
+    try {
+      const isHealthy = await healthCheck()
+      const info = await getApiInfo()
+
+      return {
+        connected: isHealthy,
+        baseUrl,
+        version: info?.version,
+      }
+    } catch (error: any) {
+      return {
+        connected: false,
+        baseUrl,
+        error: error.message || 'Connection failed'
+      }
+    }
+  }
+
+  // Enhanced error handling utilities
+  const errorUtils = {
+    extractErrorMessage,
+    isRetryableError: (error: any): boolean => {
+      const statusCode = error?.statusCode || error?.status
+      return [408, 429, 500, 502, 503, 504].includes(statusCode)
+    },
+    isAuthError: (error: any): boolean => {
+      const statusCode = error?.statusCode || error?.status
+      return statusCode === 401
+    },
+    isValidationError: (error: any): boolean => {
+      const statusCode = error?.statusCode || error?.status
+      return statusCode === 422 || statusCode === 400
+    },
+    isNetworkError: (error: any): boolean => {
+      const statusCode = error?.statusCode || error?.status
+      return statusCode >= 500 || !statusCode
+    }
   }
 
   // Token management utilities
@@ -821,7 +1036,26 @@ export const useApi = () => {
     isTokenExpired,
     getTokenExpiryTime,
     scheduleTokenRefresh,
-    clearTokenRefreshTimer
+    clearTokenRefreshTimer,
+    isRefreshing: () => isRefreshing,
+    forceRefresh: async () => {
+      const tokens = getTokens()
+      if (tokens?.refresh) {
+        return await performTokenRefresh(tokens.refresh)
+      }
+      throw new Error('No refresh token available')
+    }
+  }
+
+  // Request utilities
+  const requestUtils = {
+    cleanParams,
+    transformPaginatedResponse,
+    logApiCall,
+    getApiBaseUrl,
+    validateApiConnection,
+    healthCheck,
+    getApiInfo
   }
 
   return {
@@ -870,9 +1104,13 @@ export const useApi = () => {
     subscribeNewsletter,
     sendContactMessage,
 
-    // Utils
-    cleanParams,
+    // Enhanced utilities
     apiRequest,
-    tokenUtils
+    tokenUtils,
+    errorUtils,
+    requestUtils,
+
+    // Legacy support (deprecated, use requestUtils instead)
+    cleanParams
   }
 }

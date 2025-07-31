@@ -13,15 +13,39 @@ User = get_user_model()
 # UserBasicSerializer ahora se importa desde base_serializers
 
 class UserSerializer(UserBasicSerializer):
-    """Serializador completo de usuario"""
+    """Serializador completo de usuario con información de permisos"""
+    permissions = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'full_name', 'avatar_url', 'is_active', 'date_joined'
+            'full_name', 'avatar_url', 'is_active', 'date_joined',
+            'permissions'
         ]
-        read_only_fields = ['id', 'username', 'date_joined', 'is_active']
+        read_only_fields = ['id', 'username', 'date_joined', 'is_active', 'permissions']
+    
+    def get_permissions(self, obj):
+        """Obtener información de permisos del usuario"""
+        permissions = {
+            'is_staff': obj.is_staff,
+            'is_superuser': obj.is_superuser,
+            'dashboard_access': False,
+            'dashboard_permissions': None
+        }
+        
+        # Verificar permisos del dashboard si existen
+        try:
+            if hasattr(obj, 'dashboardpermission'):
+                from dashboard.serializers import DashboardPermissionSerializer
+                permissions['dashboard_access'] = True
+                permissions['dashboard_permissions'] = DashboardPermissionSerializer(
+                    obj.dashboardpermission
+                ).data
+        except Exception:
+            pass
+        
+        return permissions
 
 class UserRegistrationSerializer(BaseModelSerializer):
     """Serializador para registro de usuarios"""

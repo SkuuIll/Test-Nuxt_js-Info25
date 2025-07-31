@@ -19,6 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
+from django_blog.middleware.cors_middleware import cors_test_view
 
 def api_root(request):
     return JsonResponse({
@@ -33,6 +34,7 @@ def api_root(request):
             'dashboard': '/api/v1/dashboard/',
             'dashboard_auth': '/api/v1/dashboard/auth/',
             'media': '/api/v1/media/',
+            'cors_test': '/api/v1/cors-test/',
         }
     })
 
@@ -44,6 +46,7 @@ urlpatterns = [
     path('api/v1/users/', include('users.urls')),  # User API endpoints
     path('api/v1/dashboard/', include('dashboard.urls')),  # Dashboard API endpoints
     path('api/v1/media/', include('media_files.urls')),  # Media files API endpoints
+    path('api/v1/cors-test/', cors_test_view, name='cors_test'),  # CORS testing endpoint
 ]
 
 # Serve media files during development

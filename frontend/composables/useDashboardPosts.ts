@@ -6,6 +6,15 @@ interface DashboardPost extends Post {
     last_edited_by?: User
     seo_score?: number
     reading_time?: number
+    word_count?: number
+    comments_count?: number
+    is_trending?: boolean
+    last_comment_date?: string
+    edit_history?: Array<{
+        user: User
+        date: string
+        action: string
+    }>
 }
 
 interface PostFilters {
@@ -22,8 +31,14 @@ interface PostFilters {
 }
 
 interface BulkAction {
-    action: 'publish' | 'draft' | 'archive' | 'delete' | 'feature' | 'unfeature'
+    action: 'publish' | 'draft' | 'archive' | 'delete' | 'feature' | 'unfeature' | 'change_category' | 'change_author'
     post_ids: number[]
+    data?: {
+        category_id?: number
+        author_id?: number
+        publish_date?: string
+        [key: string]: any
+    }
 }
 
 interface PostStats {
@@ -32,6 +47,22 @@ interface PostStats {
     draft_posts: number
     archived_posts: number
     featured_posts: number
+    trending_posts: number
+    posts_this_month: number
+    posts_this_week: number
+    total_views: number
+    total_comments: number
+    avg_reading_time: number
+    top_categories: Array<{
+        name: string
+        count: number
+    }>
+    recent_activity: Array<{
+        action: string
+        post_title: string
+        user: string
+        date: string
+    }>
 }
 
 export const useDashboardPosts = () => {
@@ -52,6 +83,19 @@ export const useDashboardPosts = () => {
     const totalCount = ref(0)
     const currentFilters = ref<PostFilters>({})
     const selectedPosts = ref<number[]>([])
+    const lastFetch = ref<Date | null>(null)
+    const autoRefreshEnabled = ref(false)
+    const autoRefreshInterval = ref<NodeJS.Timeout | null>(null)
+    const operationHistory = ref<Array<{
+        action: string
+        postId?: number
+        postTitle?: string
+        timestamp: Date
+        success: boolean
+        error?: string
+    }>>([])
+    const validationErrors = ref<Record<string, string[]>>({})
+    const isDirty = ref(false)
 
     // Computed
     const hasSelectedPosts = computed(() => selectedPosts.value.length > 0)
@@ -71,11 +115,156 @@ export const useDashboardPosts = () => {
         return cleaned
     }
 
+    // Add operation to history
+    const addToHistory = (operation: {
+        action: string
+        postId?: number
+        postTitle?: string
+        success: boolean
+        error?: string
+    }) => {
+        operationHistory.value.unshift({
+            ...operation,
+            timestamp: new Date()
+        })
+
+        // Keep only last 50 operations
+        if (operationHistory.value.length > 50) {
+            operationHistory.value = operationHistory.value.slice(0, 50)
+        }
+    }
+
+    // Clear validation errors
+    const clearValidationErrors = () => {
+        validationErrors.value = {}
+    }
+
+    // Validate post data
+    const validatePostData = (postData: Partial<DashboardPost>): boolean => {
+        clearValidationErrors()
+        let isValid = true
+
+        // Title validation
+        if (!postData.title?.trim()) {
+            validationErrors.value.title = ['Title is required']
+            isValid = false
+        } else if (postData.title.length > 200) {
+            validationErrors.value.title = ['Title must be less than 200 characters']
+            isValid = false
+        }
+
+        // Content validation
+        if (!postData.content?.trim()) {
+            validationErrors.value.content = ['Content is required']
+            isValid = false
+        } else if (postData.content.length < 50) {
+            validationErrors.value.content = ['Content must be at least 50 characters']
+            isValid = false
+        }
+
+        // Category validation
+        if (!postData.category_id && !postData.categoria) {
+            validationErrors.value.category = ['Category is required']
+            isValid = false
+        }
+
+        // Status validation
+        if (postData.status && !['draft', 'published', 'archived'].includes(postData.status)) {
+            validationErrors.value.status = ['Invalid status']
+            isValid = false
+        }
+
+        // SEO validation
+        if (postData.meta_title && postData.meta_title.length > 60) {
+            validationErrors.value.meta_title = ['Meta title should be less than 60 characters for SEO']
+            isValid = false
+        }
+
+        if (postData.meta_description && postData.meta_description.length > 160) {
+            validationErrors.value.meta_description = ['Meta description should be less than 160 characters for SEO']
+            isValid = false
+        }
+
+        return isValid
+    }
+
+    // Auto-refresh functionality
+    const startAutoRefresh = (intervalMs: number = 30000) => {
+        if (autoRefreshInterval.value) {
+            clearInterval(autoRefreshInterval.value)
+        }
+
+        autoRefreshEnabled.value = true
+        autoRefreshInterval.value = setInterval(async () => {
+            if (!loading.value) {
+                try {
+                    await fetchPosts(currentFilters.value)
+                    console.log('🔄 Auto-refreshed posts data')
+                } catch (error) {
+                    console.warn('⚠️ Auto-refresh failed:', error)
+                }
+            }
+        }, intervalMs)
+
+        console.log('✅ Auto-refresh enabled with interval:', intervalMs)
+    }
+
+    const stopAutoRefresh = () => {
+        if (autoRefreshInterval.value) {
+            clearInterval(autoRefreshInterval.value)
+            autoRefreshInterval.value = null
+        }
+        autoRefreshEnabled.value = false
+        console.log('🛑 Auto-refresh disabled')
+    }
+
+    // Enhanced error handling
+    const handlePostError = (error: any, operation: string, postId?: number, postTitle?: string) => {
+        console.error(`❌ ${operation} error:`, error)
+
+        let errorMessage = `${operation} failed`
+        let validationErrs: Record<string, string[]> = {}
+
+        // Handle different error types
+        if (error.data?.errors) {
+            validationErrs = error.data.errors
+            errorMessage = 'Validation errors occurred'
+        } else if (error.data?.message) {
+            errorMessage = error.data.message
+        } else if (error.message) {
+            errorMessage = error.message
+        } else if (error.status === 403) {
+            errorMessage = 'You do not have permission to perform this action'
+        } else if (error.status === 404) {
+            errorMessage = 'Post not found'
+        } else if (error.status === 429) {
+            errorMessage = 'Too many requests. Please wait before trying again'
+        } else if (error.status >= 500) {
+            errorMessage = 'Server error. Please try again later'
+        }
+
+        // Update state
+        error.value = errorMessage
+        validationErrors.value = validationErrs
+
+        // Add to history
+        addToHistory({
+            action: operation,
+            postId,
+            postTitle,
+            success: false,
+            error: errorMessage
+        })
+
+        return { message: errorMessage, validationErrors: validationErrs }
+    }
+
     // Fetch posts list
     const fetchPosts = async (filters: PostFilters = {}) => {
         return await postsLoading.withLoading(async () => {
             try {
                 error.value = null
+                clearValidationErrors()
                 console.log('📡 Fetching dashboard posts with filters:', filters)
 
                 // Require permission to view posts
@@ -90,19 +279,24 @@ export const useDashboardPosts = () => {
 
                 posts.value = response.results || []
                 totalCount.value = response.count || 0
+                lastFetch.value = new Date()
+                isDirty.value = false
+
+                // Add to history
+                addToHistory({
+                    action: 'Fetch Posts',
+                    success: true
+                })
 
                 console.log('✅ Dashboard posts fetched successfully:', {
                     count: posts.value.length,
-                    total: totalCount.value
+                    total: totalCount.value,
+                    filters: Object.keys(cleanFilters(filters))
                 })
 
                 return response
             } catch (err: any) {
-                console.error('❌ Dashboard posts fetch error:', err)
-
-                const errorInfo = handleApiError(err, 'Dashboard Posts Fetch Failed')
-                error.value = errorInfo.message
-
+                const errorInfo = handlePostError(err, 'Fetch Posts')
                 throw err
             }
         })
@@ -144,7 +338,13 @@ export const useDashboardPosts = () => {
         return await postsLoading.withLoading(async () => {
             try {
                 error.value = null
+                clearValidationErrors()
                 console.log('📝 Creating dashboard post:', postData.title)
+
+                // Validate post data
+                if (!validatePostData(postData)) {
+                    throw new Error('Validation failed')
+                }
 
                 // Require permission to create posts
                 await requirePermission('can_manage_posts')
@@ -158,21 +358,24 @@ export const useDashboardPosts = () => {
                 posts.value.unshift(response)
                 totalCount.value += 1
                 currentPost.value = response
+                isDirty.value = true
+
+                // Add to history
+                addToHistory({
+                    action: 'Create Post',
+                    postId: response.id,
+                    postTitle: response.title,
+                    success: true
+                })
+
+                // Show success message
+                const { success } = useToast()
+                success('Post Created', `"${response.title}" has been created successfully`)
 
                 console.log('✅ Dashboard post created successfully:', response.title)
                 return response
             } catch (err: any) {
-                console.error('❌ Dashboard post create error:', err)
-
-                // Handle validation errors specifically
-                if (err.data?.errors) {
-                    const errorInfo = handleValidationError(err, 'Post Creation Validation Failed')
-                    error.value = errorInfo.message
-                } else {
-                    const errorInfo = handleApiError(err, 'Dashboard Post Create Failed')
-                    error.value = errorInfo.message
-                }
-
+                const errorInfo = handlePostError(err, 'Create Post', undefined, postData.title)
                 throw err
             }
         })
@@ -187,7 +390,21 @@ export const useDashboardPosts = () => {
         return await postsLoading.withLoading(async () => {
             try {
                 error.value = null
+                clearValidationErrors()
                 console.log('📝 Updating dashboard post:', id, postData.title)
+
+                // Get current post for comparison
+                const currentPostData = posts.value.find(p => p.id === Number(id)) || currentPost.value
+
+                // Validate post data (only validate fields that are being updated)
+                const fieldsToValidate = Object.keys(postData).reduce((acc, key) => {
+                    acc[key] = postData[key as keyof DashboardPost]
+                    return acc
+                }, {} as Partial<DashboardPost>)
+
+                if (Object.keys(fieldsToValidate).length > 0 && !validatePostData(fieldsToValidate)) {
+                    throw new Error('Validation failed')
+                }
 
                 // Require permission to update posts
                 await requirePermission('can_manage_posts')
@@ -208,20 +425,24 @@ export const useDashboardPosts = () => {
                     currentPost.value = response
                 }
 
+                isDirty.value = true
+
+                // Add to history
+                addToHistory({
+                    action: 'Update Post',
+                    postId: response.id,
+                    postTitle: response.title,
+                    success: true
+                })
+
+                // Show success message
+                const { success } = useToast()
+                success('Post Updated', `"${response.title}" has been updated successfully`)
+
                 console.log('✅ Dashboard post updated successfully:', response.title)
                 return response
             } catch (err: any) {
-                console.error('❌ Dashboard post update error:', err)
-
-                // Handle validation errors specifically
-                if (err.data?.errors) {
-                    const errorInfo = handleValidationError(err, 'Post Update Validation Failed')
-                    error.value = errorInfo.message
-                } else {
-                    const errorInfo = handleApiError(err, 'Dashboard Post Update Failed')
-                    error.value = errorInfo.message
-                }
-
+                const errorInfo = handlePostError(err, 'Update Post', Number(id), postData.title)
                 throw err
             }
         })
@@ -362,6 +583,31 @@ export const useDashboardPosts = () => {
     const bulkFeature = (postIds: number[]) => bulkAction({ action: 'feature', post_ids: postIds })
     const bulkUnfeature = (postIds: number[]) => bulkAction({ action: 'unfeature', post_ids: postIds })
 
+    // Enhanced bulk actions
+    const bulkChangeCategory = (postIds: number[], categoryId: number) =>
+        bulkAction({ action: 'change_category', post_ids: postIds, data: { category_id: categoryId } })
+
+    const bulkChangeAuthor = (postIds: number[], authorId: number) =>
+        bulkAction({ action: 'change_author', post_ids: postIds, data: { author_id: authorId } })
+
+    // Bulk action with confirmation
+    const bulkActionWithConfirmation = async (action: BulkAction, confirmationMessage?: string) => {
+        const defaultMessages = {
+            delete: `Are you sure you want to delete ${action.post_ids.length} post(s)? This action cannot be undone.`,
+            archive: `Are you sure you want to archive ${action.post_ids.length} post(s)?`,
+            publish: `Are you sure you want to publish ${action.post_ids.length} post(s)?`
+        }
+
+        const message = confirmationMessage || defaultMessages[action.action as keyof typeof defaultMessages] ||
+            `Are you sure you want to perform this action on ${action.post_ids.length} post(s)?`
+
+        if (import.meta.client && !confirm(message)) {
+            return null
+        }
+
+        return await bulkAction(action)
+    }
+
     // Fetch categories for post creation/editing
     const fetchCategories = async () => {
         try {
@@ -488,6 +734,202 @@ export const useDashboardPosts = () => {
         return await updatePost(id, { status })
     }
 
+    // Schedule post publication
+    const schedulePost = async (id: number | string, publishDate: string) => {
+        return await updatePost(id, {
+            status: 'draft',
+            scheduled_publish_date: publishDate
+        })
+    }
+
+    // Get post analytics
+    const getPostAnalytics = async (id: number | string) => {
+        try {
+            console.log('📊 Fetching post analytics:', id)
+
+            const response = await dashboardApiCall<{
+                views: number
+                comments: number
+                shares: number
+                reading_time: number
+                bounce_rate: number
+                engagement_rate: number
+                traffic_sources: Array<{ source: string; visits: number }>
+                popular_sections: Array<{ section: string; time_spent: number }>
+            }>(`/dashboard/posts/${id}/analytics/`)
+
+            console.log('✅ Post analytics fetched successfully')
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Get Post Analytics', Number(id))
+            throw err
+        }
+    }
+
+    // Export posts
+    const exportPosts = async (format: 'csv' | 'json' | 'xml' = 'csv', filters?: PostFilters) => {
+        try {
+            console.log('📤 Exporting posts in format:', format)
+
+            await requirePermission('can_export_data')
+
+            const params = {
+                format,
+                ...cleanFilters(filters || currentFilters.value)
+            }
+
+            const response = await dashboardApiCall<{ download_url: string }>('/dashboard/posts/export/', {
+                params
+            })
+
+            // Trigger download
+            if (import.meta.client && response.download_url) {
+                const link = document.createElement('a')
+                link.href = response.download_url
+                link.download = `posts_export_${new Date().toISOString().split('T')[0]}.${format}`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+            }
+
+            addToHistory({
+                action: 'Export Posts',
+                success: true
+            })
+
+            console.log('✅ Posts exported successfully')
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Export Posts')
+            throw err
+        }
+    }
+
+    // Import posts
+    const importPosts = async (file: File, options: {
+        update_existing?: boolean
+        skip_duplicates?: boolean
+        default_status?: 'draft' | 'published'
+    } = {}) => {
+        try {
+            console.log('📥 Importing posts from file:', file.name)
+
+            await requirePermission('can_manage_posts')
+
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('options', JSON.stringify(options))
+
+            const response = await dashboardApiCall<{
+                imported_count: number
+                updated_count: number
+                skipped_count: number
+                errors: Array<{ row: number; error: string }>
+            }>('/dashboard/posts/import/', {
+                method: 'POST',
+                body: formData
+            })
+
+            // Refresh posts list
+            await fetchPosts(currentFilters.value)
+
+            addToHistory({
+                action: 'Import Posts',
+                success: true
+            })
+
+            const { success, warning } = useToast()
+            if (response.errors.length > 0) {
+                warning(
+                    'Import Completed with Errors',
+                    `Imported ${response.imported_count} posts, but ${response.errors.length} errors occurred`
+                )
+            } else {
+                success(
+                    'Import Successful',
+                    `Successfully imported ${response.imported_count} posts`
+                )
+            }
+
+            console.log('✅ Posts imported successfully:', response)
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Import Posts')
+            throw err
+        }
+    }
+
+    // Get SEO analysis for post
+    const getSEOAnalysis = async (id: number | string) => {
+        try {
+            console.log('🔍 Getting SEO analysis for post:', id)
+
+            const response = await dashboardApiCall<{
+                score: number
+                issues: Array<{
+                    type: 'error' | 'warning' | 'info'
+                    message: string
+                    suggestion: string
+                }>
+                recommendations: Array<{
+                    priority: 'high' | 'medium' | 'low'
+                    action: string
+                    description: string
+                }>
+                keywords: Array<{
+                    keyword: string
+                    density: number
+                    recommended_density: number
+                }>
+            }>(`/dashboard/posts/${id}/seo-analysis/`)
+
+            console.log('✅ SEO analysis completed')
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Get SEO Analysis', Number(id))
+            throw err
+        }
+    }
+
+    // Get content suggestions
+    const getContentSuggestions = async (id: number | string) => {
+        try {
+            console.log('💡 Getting content suggestions for post:', id)
+
+            const response = await dashboardApiCall<{
+                readability_score: number
+                suggestions: Array<{
+                    type: 'structure' | 'content' | 'style'
+                    message: string
+                    example?: string
+                }>
+                related_topics: Array<{
+                    topic: string
+                    relevance: number
+                }>
+                trending_keywords: Array<{
+                    keyword: string
+                    trend_score: number
+                }>
+            }>(`/dashboard/posts/${id}/content-suggestions/`)
+
+            console.log('✅ Content suggestions generated')
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Get Content Suggestions', Number(id))
+            throw err
+        }
+    }
+
+    // Cleanup function
+    const cleanup = () => {
+        stopAutoRefresh()
+        clearSelection()
+        clearValidationErrors()
+        error.value = null
+        isDirty.value = false
+    }
+
     return {
         // State
         posts: readonly(posts),
@@ -499,6 +941,11 @@ export const useDashboardPosts = () => {
         totalCount: readonly(totalCount),
         currentFilters: readonly(currentFilters),
         selectedPosts: readonly(selectedPosts),
+        lastFetch: readonly(lastFetch),
+        autoRefreshEnabled: readonly(autoRefreshEnabled),
+        operationHistory: readonly(operationHistory),
+        validationErrors: readonly(validationErrors),
+        isDirty: readonly(isDirty),
 
         // Computed
         hasSelectedPosts: readonly(hasSelectedPosts),
@@ -518,15 +965,19 @@ export const useDashboardPosts = () => {
         // Status Management
         changePostStatus,
         toggleFeatured,
+        schedulePost,
 
         // Bulk Operations
         bulkAction,
+        bulkActionWithConfirmation,
         bulkPublish,
         bulkDraft,
         bulkArchive,
         bulkDelete,
         bulkFeature,
         bulkUnfeature,
+        bulkChangeCategory,
+        bulkChangeAuthor,
 
         // Selection Management
         togglePostSelection,
@@ -546,7 +997,27 @@ export const useDashboardPosts = () => {
         fetchCategories,
         fetchPostStats,
 
+        // Analytics and Insights
+        getPostAnalytics,
+        getSEOAnalysis,
+        getContentSuggestions,
+
+        // Import/Export
+        exportPosts,
+        importPosts,
+
+        // Auto-refresh
+        startAutoRefresh,
+        stopAutoRefresh,
+
+        // Validation
+        validatePostData,
+        clearValidationErrors,
+
         // Utilities
-        cleanFilters
+        cleanFilters,
+        addToHistory,
+        handlePostError,
+        cleanup
     }
 }

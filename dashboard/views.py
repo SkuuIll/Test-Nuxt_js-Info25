@@ -22,6 +22,7 @@ from .serializers import (
 from .utils import log_activity, get_client_ip, get_dashboard_stats, get_top_performing_content
 from .api_utils import DashboardResponse
 from django_blog.api_utils import DashboardAPIResponse, BaseDashboardAPIView, HTTPStatus, ErrorMessages
+from django_blog.pagination import DashboardPagination
 
 User = get_user_model()
 
@@ -819,6 +820,7 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all().select_related('autor', 'categoria').prefetch_related('comentarios')
     serializer_class = DashboardPostSerializer
     permission_classes = [CanManagePosts]
+    pagination_class = DashboardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'categoria', 'featured', 'autor']
     search_fields = ['titulo', 'contenido', 'autor__username']
@@ -1186,6 +1188,7 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().select_related('dashboard_permission').prefetch_related('post_set', 'comentario_set')
     serializer_class = DashboardUserSerializer
     permission_classes = [CanManageUsers]
+    pagination_class = DashboardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'is_staff', 'is_superuser']
     search_fields = ['username', 'email', 'first_name', 'last_name']
@@ -1557,6 +1560,7 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
     queryset = Comentario.objects.all().select_related('usuario', 'post', 'parent').prefetch_related('replies')
     serializer_class = DashboardCommentSerializer
     permission_classes = [CanManageComments]
+    pagination_class = DashboardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['approved', 'post', 'usuario', 'parent']
     search_fields = ['contenido', 'usuario__username', 'post__titulo']
@@ -1956,6 +1960,7 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all().select_related('autor', 'categoria').prefetch_related('comentarios')
     serializer_class = DashboardPostSerializer
     permission_classes = [CanManagePosts]
+    pagination_class = DashboardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'categoria', 'featured', 'autor']
     search_fields = ['titulo', 'contenido', 'autor__username']
@@ -2392,6 +2397,7 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
     queryset = Comentario.objects.all().select_related('usuario', 'post').prefetch_related('replies')
     serializer_class = DashboardCommentSerializer
     permission_classes = [CanManageComments]
+    pagination_class = DashboardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['approved', 'post', 'usuario']
     search_fields = ['contenido', 'usuario__username', 'post__titulo']

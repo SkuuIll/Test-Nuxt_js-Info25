@@ -2,6 +2,7 @@ import type { User, LoginCredentials, AuthTokens } from '~/types'
 
 interface DashboardUser extends User {
     permissions: DashboardPermissions
+    dashboard_profile?: DashboardProfile
 }
 
 interface DashboardPermissions {
@@ -11,6 +12,18 @@ interface DashboardPermissions {
     can_view_stats: boolean
     can_moderate_content: boolean
     can_access_analytics: boolean
+    can_manage_categories: boolean
+    can_manage_media: boolean
+    can_export_data: boolean
+    can_manage_settings: boolean
+}
+
+interface DashboardProfile {
+    role: string
+    department?: string
+    last_login: string
+    login_count: number
+    preferences: Record<string, any>
 }
 
 interface DashboardAuthState {
@@ -19,35 +32,134 @@ interface DashboardAuthState {
     loading: boolean
     error: string | null
     permissions: DashboardPermissions | null
+    sessionInfo: DashboardSessionInfo
+}
+
+interface DashboardSessionInfo {
+    loginTime: number
+    lastActivity: number
+    sessionTimeout: number
+    warningShown: boolean
+    autoRefreshEnabled: boolean
+    refreshAttempts: number
+    maxRefreshAttempts: number
+}
+
+interface DashboardAuthError {
+    type: 'auth' | 'permission' | 'session' | 'network'
+    message: string
+    code?: string | number
+    timestamp: Date
+    details?: any
 }
 
 export const useDashboardAuth = () => {
-    const { handleAuthError, handleValidationError } = useErrorHandler()
+    const { handleAuthError, handleValidationError, handleNetworkError } = useErrorHandler()
     const { dashboardLoading } = useLoading()
     const api = useApi()
+    const router = useRouter()
 
-    // State
+    // Enhanced State
     const user = ref<DashboardUser | null>(null)
     const permissions = ref<DashboardPermissions | null>(null)
     const isAuthenticated = ref(false)
     const error = ref<string | null>(null)
     const initialized = ref(false)
+    const authErrors = ref<DashboardAuthError[]>([])
+
+    // Enhanced session management
+    const sessionInfo = ref<DashboardSessionInfo>({
+        loginTime: 0,
+        lastActivity: Date.now(),
+        sessionTimeout: 2 * 60 * 60 * 1000, // 2 hours for dashboard (extended)
+        warningShown: false,
+        autoRefreshEnabled: true,
+        refreshAttempts: 0,
+        maxRefreshAttempts: 5 // Increased retry attempts
+    })
 
     // Computed
     const loading = computed(() => dashboardLoading.loading.value)
     const isAdmin = computed(() => user.value?.is_staff || false)
     const isSuperuser = computed(() => user.value?.is_superuser || false)
+    const isSessionActive = computed(() => {
+        const timeSinceActivity = Date.now() - sessionInfo.value.lastActivity
+        return timeSinceActivity < sessionInfo.value.sessionTimeout
+    })
+    const timeUntilSessionExpiry = computed(() => {
+        const timeSinceActivity = Date.now() - sessionInfo.value.lastActivity
+        return Math.max(0, sessionInfo.value.sessionTimeout - timeSinceActivity)
+    })
 
     // Dashboard-specific token key
     const DASHBOARD_TOKEN_KEY = 'dashboard_auth_tokens'
+    const DASHBOARD_SESSION_KEY = 'dashboard_session_info'
 
-    // Helper function to clear dashboard auth state
+    // Enhanced error handling
+    const addDashboardError = (error: Partial<DashboardAuthError>) => {
+        const dashboardError: DashboardAuthError = {
+            type: 'auth',
+            message: 'Dashboard authentication error',
+            timestamp: new Date(),
+            ...error
+        }
+
+        authErrors.value.unshift(dashboardError)
+
+        // Keep only last 10 errors
+        if (authErrors.value.length > 10) {
+            authErrors.value = authErrors.value.slice(0, 10)
+        }
+
+        return dashboardError
+    }
+
+    const clearDashboardErrors = () => {
+        authErrors.value = []
+    }
+
+    const getLastDashboardError = (): DashboardAuthError | null => {
+        return authErrors.value[0] || null
+    }
+
+    // Activity tracking for dashboard session
+    const updateDashboardActivity = () => {
+        sessionInfo.value.lastActivity = Date.now()
+        sessionInfo.value.warningShown = false
+
+        // Save session info to localStorage
+        if (import.meta.client) {
+            try {
+                localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(sessionInfo.value))
+            } catch (error) {
+                console.warn('Failed to save dashboard session info:', error)
+            }
+        }
+    }
+
+    // Load session info from localStorage
+    const loadSessionInfo = () => {
+        if (!import.meta.client) return
+
+        try {
+            const stored = localStorage.getItem(DASHBOARD_SESSION_KEY)
+            if (stored) {
+                const savedSession = JSON.parse(stored)
+                sessionInfo.value = { ...sessionInfo.value, ...savedSession }
+            }
+        } catch (error) {
+            console.warn('Failed to load dashboard session info:', error)
+        }
+    }
+
+    // Enhanced function to clear dashboard auth state
     const clearDashboardAuthState = async () => {
         console.log('🧹 Clearing dashboard authentication state')
 
-        // Clear tokens from localStorage
+        // Clear tokens and session from localStorage
         if (import.meta.client) {
             localStorage.removeItem(DASHBOARD_TOKEN_KEY)
+            localStorage.removeItem(DASHBOARD_SESSION_KEY)
         }
 
         // Reset state
@@ -55,11 +167,23 @@ export const useDashboardAuth = () => {
         permissions.value = null
         isAuthenticated.value = false
         error.value = null
+        clearDashboardErrors()
+
+        // Reset session info
+        sessionInfo.value = {
+            loginTime: 0,
+            lastActivity: Date.now(),
+            sessionTimeout: 60 * 60 * 1000,
+            warningShown: false,
+            autoRefreshEnabled: true,
+            refreshAttempts: 0,
+            maxRefreshAttempts: 3
+        }
 
         console.log('✅ Dashboard authentication state cleared')
     }
 
-    // Get dashboard tokens from localStorage
+    // Enhanced get dashboard tokens with validation
     const getDashboardTokens = (): AuthTokens | null => {
         if (!import.meta.client) return null
 
@@ -67,7 +191,14 @@ export const useDashboardAuth = () => {
             const stored = localStorage.getItem(DASHBOARD_TOKEN_KEY)
             if (stored) {
                 const tokens = JSON.parse(stored)
-                return tokens
+
+                // Validate token structure
+                if (tokens.access && tokens.refresh) {
+                    return tokens
+                } else {
+                    console.warn('Invalid dashboard token structure, clearing...')
+                    localStorage.removeItem(DASHBOARD_TOKEN_KEY)
+                }
             }
         } catch (error) {
             console.error('Error parsing dashboard tokens:', error)
@@ -77,7 +208,7 @@ export const useDashboardAuth = () => {
         return null
     }
 
-    // Set dashboard tokens in localStorage
+    // Enhanced set dashboard tokens with session tracking
     const setDashboardTokens = (tokens: AuthTokens) => {
         if (!import.meta.client) return
 
@@ -88,18 +219,55 @@ export const useDashboardAuth = () => {
                 expires_at: api.tokenUtils.getTokenExpiryTime(tokens.access)
             }
             localStorage.setItem(DASHBOARD_TOKEN_KEY, JSON.stringify(tokenData))
+
+            // Update session info
+            sessionInfo.value.loginTime = Date.now()
+            sessionInfo.value.refreshAttempts = 0
+            updateDashboardActivity()
+
             console.log('💾 Dashboard tokens stored successfully')
         } catch (error) {
             console.error('Error storing dashboard tokens:', error)
+            addDashboardError({
+                type: 'auth',
+                message: 'Failed to store dashboard tokens',
+                details: error
+            })
         }
     }
 
-    // Dashboard login
+    // Get detailed token information
+    const getDashboardTokenInfo = () => {
+        const tokens = getDashboardTokens()
+        if (!tokens) return null
+
+        return {
+            hasTokens: true,
+            accessToken: tokens.access,
+            refreshToken: tokens.refresh,
+            isAccessExpired: api.tokenUtils.isTokenExpired(tokens.access),
+            isRefreshExpired: tokens.refresh ? api.tokenUtils.isTokenExpired(tokens.refresh) : true,
+            accessExpiryTime: api.tokenUtils.getTokenExpiryTime(tokens.access),
+            refreshExpiryTime: tokens.refresh ? api.tokenUtils.getTokenExpiryTime(tokens.refresh) : 0,
+            timeUntilExpiry: api.tokenUtils.getTokenExpiryTime(tokens.access) - Date.now(),
+            storedAt: tokens.stored_at || 0
+        }
+    }
+
+    // Enhanced dashboard login with comprehensive error handling
     const login = async (credentials: LoginCredentials) => {
         return await dashboardLoading.withLoading(async () => {
             try {
                 error.value = null
-                console.log('🔐 Starting dashboard login for:', credentials.username)
+                clearDashboardErrors()
+                updateDashboardActivity()
+
+                console.log('🔐 Starting enhanced dashboard login for:', credentials.username)
+
+                // Validate credentials before sending
+                if (!credentials.username?.trim() || !credentials.password?.trim()) {
+                    throw new Error('Username and password are required')
+                }
 
                 // Use dashboard-specific login endpoint
                 const response = await api.apiRequest<AuthTokens>('/dashboard/auth/login/', {
@@ -109,27 +277,101 @@ export const useDashboardAuth = () => {
 
                 console.log('✅ Dashboard login successful, tokens received')
 
-                // Store dashboard tokens
+                // Validate response structure
+                if (!response.access || !response.refresh) {
+                    throw new Error('Invalid token response from server')
+                }
+
+                // Store dashboard tokens and update session
                 setDashboardTokens(response)
 
-                // Fetch dashboard user profile
-                const profile = await fetchDashboardProfile()
+                // Fetch dashboard user profile with retry logic
+                let profile: DashboardUser
+                let profileAttempts = 0
+                const maxProfileAttempts = 3
+
+                while (profileAttempts < maxProfileAttempts) {
+                    try {
+                        profile = await fetchDashboardProfile()
+                        break
+                    } catch (profileError: any) {
+                        profileAttempts++
+                        console.warn(`⚠️ Dashboard profile fetch attempt ${profileAttempts} failed:`, profileError)
+
+                        if (profileAttempts >= maxProfileAttempts) {
+                            throw profileError
+                        }
+
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 1000 * profileAttempts))
+                    }
+                }
 
                 console.log('👤 Dashboard user profile fetched:', {
-                    username: profile.username,
-                    isStaff: profile.is_staff,
-                    permissions: profile.permissions
+                    username: profile!.username,
+                    isStaff: profile!.is_staff,
+                    permissions: profile!.permissions
                 })
 
+                // Validate user permissions for dashboard access
+                if (!profile!.is_staff && !profile!.is_superuser) {
+                    await clearDashboardAuthState()
+                    throw new Error('Insufficient permissions for dashboard access')
+                }
+
                 // Set authentication state
-                user.value = profile
-                permissions.value = profile.permissions
+                user.value = profile!
+                permissions.value = profile!.permissions
                 isAuthenticated.value = true
 
-                console.log('🎉 Dashboard authentication completed successfully')
-                return { tokens: response, user: profile }
+                // Setup session monitoring
+                setupDashboardSessionMonitoring()
+
+                // Log successful login for audit
+                console.log('🎉 Enhanced dashboard authentication completed successfully', {
+                    userId: profile!.id,
+                    username: profile!.username,
+                    loginTime: new Date().toISOString(),
+                    permissions: Object.keys(profile!.permissions).filter(key => profile!.permissions[key as keyof DashboardPermissions])
+                })
+
+                return { tokens: response, user: profile! }
             } catch (err: any) {
-                console.error('❌ Dashboard login error:', err)
+                console.error('❌ Enhanced dashboard login error:', err)
+
+                // Categorize and handle different types of errors
+                let errorType: DashboardAuthError['type'] = 'auth'
+                let errorMessage = 'Dashboard login failed'
+
+                if (err?.status === 401 || err?.statusCode === 401) {
+                    errorType = 'auth'
+                    errorMessage = 'Invalid dashboard credentials. Please check your username and password.'
+                } else if (err?.status === 403 || err?.statusCode === 403) {
+                    errorType = 'permission'
+                    errorMessage = 'Insufficient permissions for dashboard access. Contact your administrator.'
+                } else if (err?.status === 429 || err?.statusCode === 429) {
+                    errorType = 'auth'
+                    errorMessage = 'Too many login attempts. Please wait before trying again.'
+                } else if (err?.status >= 500 || err?.statusCode >= 500) {
+                    errorType = 'network'
+                    errorMessage = 'Dashboard server error. Please try again later.'
+                } else if (!err?.status && !err?.statusCode) {
+                    errorType = 'network'
+                    errorMessage = 'Network error. Please check your connection and try again.'
+                } else if (err.message?.includes('permissions')) {
+                    errorType = 'permission'
+                    errorMessage = err.message
+                } else if (err.message?.includes('required')) {
+                    errorType = 'auth'
+                    errorMessage = err.message
+                }
+
+                addDashboardError({
+                    type: errorType,
+                    message: errorMessage,
+                    code: err?.status || err?.statusCode,
+                    details: err
+                })
 
                 // Handle auth error with enhanced error handler
                 const errorInfo = handleAuthError(err, 'Dashboard Login Failed')
@@ -143,11 +385,23 @@ export const useDashboardAuth = () => {
         })
     }
 
-    // Dashboard logout
-    const logout = async (redirectTo: string = '/dashboard/login') => {
+    // Enhanced dashboard logout with comprehensive cleanup
+    const logout = async (options: {
+        redirectTo?: string
+        reason?: 'user' | 'session_expired' | 'token_invalid' | 'permission_denied' | 'security'
+        showMessage?: boolean
+    } = {}) => {
+        const { redirectTo = '/dashboard/login', reason = 'user', showMessage = true } = options
+
         return await dashboardLoading.withLoading(async () => {
             try {
-                console.log('👋 Starting dashboard logout process')
+                console.log(`👋 Starting enhanced dashboard logout (reason: ${reason})...`)
+
+                // Clear dashboard errors
+                clearDashboardErrors()
+
+                // Cleanup session monitoring
+                cleanupDashboardSessionMonitoring()
 
                 const tokens = getDashboardTokens()
 
@@ -170,26 +424,72 @@ export const useDashboardAuth = () => {
                 // Clear authentication state
                 await clearDashboardAuthState()
 
-                console.log('👋 Dashboard logout completed successfully')
+                // Show appropriate message
+                if (showMessage) {
+                    const { success, warning, info } = useToast()
+
+                    switch (reason) {
+                        case 'session_expired':
+                            warning('Dashboard Session Expired', 'Your dashboard session has expired. Please log in again.')
+                            break
+                        case 'token_invalid':
+                            warning('Dashboard Authentication Error', 'Your dashboard session is no longer valid. Please log in again.')
+                            break
+                        case 'permission_denied':
+                            warning('Access Denied', 'Your dashboard permissions have been revoked.')
+                            break
+                        case 'security':
+                            info('Security Logout', 'You have been logged out of the dashboard for security reasons.')
+                            break
+                        case 'user':
+                        default:
+                            success('Dashboard Logout', 'You have been successfully logged out of the dashboard.')
+                            break
+                    }
+                }
+
+                console.log('👋 Enhanced dashboard logout completed successfully')
 
                 // Redirect to specified route
-                if (redirectTo) {
+                if (redirectTo && redirectTo !== router.currentRoute.value.path) {
                     await navigateTo(redirectTo)
                 }
 
             } catch (err: any) {
-                console.error('❌ Dashboard logout error:', err)
+                console.error('❌ Enhanced dashboard logout error:', err)
 
-                // Even if logout fails, clear local state
-                await clearDashboardAuthState()
+                // Even if logout fails, ensure local state is cleared
+                try {
+                    await clearDashboardAuthState()
+                    cleanupDashboardSessionMonitoring()
+                } catch (clearError) {
+                    console.error('❌ Failed to clear dashboard auth state:', clearError)
+                }
+
+                addDashboardError({
+                    type: 'auth',
+                    message: 'Dashboard logout error occurred',
+                    details: err
+                })
 
                 // Still redirect on error
-                if (redirectTo) {
+                if (redirectTo && redirectTo !== router.currentRoute.value.path) {
                     await navigateTo(redirectTo)
                 }
 
                 throw err
             }
+        })
+    }
+
+    // Force dashboard logout (for security or admin actions)
+    const forceDashboardLogout = async (reason: string = 'Security logout') => {
+        console.log(`🚨 Force dashboard logout initiated: ${reason}`)
+
+        await logout({
+            redirectTo: '/dashboard/login',
+            reason: 'security',
+            showMessage: true
         })
     }
 
@@ -232,38 +532,256 @@ export const useDashboardAuth = () => {
         }
     }
 
-    // Refresh dashboard tokens
-    const refreshDashboardTokens = async (): Promise<boolean> => {
+    // Enhanced dashboard token refresh with retry logic
+    const refreshDashboardTokens = async (options: {
+        force?: boolean
+        retryOnFailure?: boolean
+    } = {}): Promise<boolean> => {
+        const { force = false, retryOnFailure = true } = options
+
         const tokens = getDashboardTokens()
         if (!tokens?.refresh) {
             console.log('🚫 No dashboard refresh token available')
             return false
         }
 
+        // Check if refresh token is expired
+        if (api.tokenUtils.isTokenExpired(tokens.refresh)) {
+            console.log('🚫 Dashboard refresh token is expired')
+            addDashboardError({
+                type: 'session',
+                message: 'Refresh token expired',
+                code: 'REFRESH_TOKEN_EXPIRED'
+            })
+            await clearDashboardAuthState()
+            return false
+        }
+
+        // Check if we've exceeded max refresh attempts (unless forced)
+        if (!force && sessionInfo.value.refreshAttempts >= sessionInfo.value.maxRefreshAttempts) {
+            console.log('🚫 Max dashboard token refresh attempts exceeded')
+            addDashboardError({
+                type: 'session',
+                message: 'Maximum token refresh attempts exceeded',
+                code: 'MAX_REFRESH_ATTEMPTS'
+            })
+            await clearDashboardAuthState()
+            return false
+        }
+
         try {
-            console.log('🔄 Refreshing dashboard tokens...')
+            console.log(`🔄 Refreshing dashboard tokens (attempt ${sessionInfo.value.refreshAttempts + 1}/${sessionInfo.value.maxRefreshAttempts})...`)
+
+            sessionInfo.value.refreshAttempts++
 
             const newTokens = await api.apiRequest<AuthTokens>('/dashboard/auth/refresh/', {
                 method: 'POST',
-                body: { refresh: tokens.refresh }
+                body: { refresh: tokens.refresh },
+                timeout: 10000 // 10 second timeout for refresh
             })
 
+            // Validate new tokens
+            if (!newTokens.access || !newTokens.refresh) {
+                throw new Error('Invalid token response from refresh endpoint')
+            }
+
             setDashboardTokens(newTokens)
-            console.log('✅ Dashboard tokens refreshed successfully')
+            sessionInfo.value.refreshAttempts = 0 // Reset on success
+            updateDashboardActivity()
+
+            console.log('✅ Dashboard tokens refreshed successfully', {
+                newAccessExpiry: api.tokenUtils.getTokenExpiryTime(newTokens.access),
+                newRefreshExpiry: api.tokenUtils.getTokenExpiryTime(newTokens.refresh)
+            })
+
             return true
-        } catch (error) {
+        } catch (error: any) {
             console.error('❌ Dashboard token refresh failed:', error)
-            await clearDashboardAuthState()
+
+            const errorCode = error?.status || error?.statusCode
+            let shouldClearState = false
+            let errorMessage = 'Dashboard token refresh failed'
+
+            // Categorize refresh errors
+            if (errorCode === 401 || errorCode === 403) {
+                shouldClearState = true
+                errorMessage = 'Refresh token is invalid or expired'
+            } else if (errorCode === 429) {
+                errorMessage = 'Too many refresh attempts. Please wait before trying again.'
+            } else if (errorCode >= 500) {
+                errorMessage = 'Server error during token refresh'
+            } else if (!errorCode) {
+                errorMessage = 'Network error during token refresh'
+            }
+
+            addDashboardError({
+                type: 'session',
+                message: errorMessage,
+                code: errorCode,
+                details: error
+            })
+
+            // Clear state for authentication errors
+            if (shouldClearState) {
+                console.log('🚫 Dashboard refresh token invalid, clearing state')
+                await clearDashboardAuthState()
+                return false
+            }
+
+            // For network errors, we might retry later if enabled
+            if (retryOnFailure && sessionInfo.value.refreshAttempts < sessionInfo.value.maxRefreshAttempts) {
+                console.log('🔄 Will retry token refresh later due to network error')
+                return false
+            }
+
+            // If we've exhausted retries, clear state
+            if (sessionInfo.value.refreshAttempts >= sessionInfo.value.maxRefreshAttempts) {
+                console.log('🚫 Max refresh attempts reached, clearing state')
+                await clearDashboardAuthState()
+            }
+
             return false
         }
     }
 
-    // Initialize dashboard authentication
-    const initializeDashboardAuth = async () => {
+    // Dashboard session monitoring setup
+    let sessionMonitoringInterval: NodeJS.Timeout | null = null
+    let activityListeners: (() => void)[] = []
+
+    const setupDashboardSessionMonitoring = () => {
+        if (!import.meta.client || !sessionInfo.value.autoRefreshEnabled) return
+
+        console.log('🔄 Setting up dashboard session monitoring...')
+
+        // Set up activity listeners
+        const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+
+        const handleActivity = () => {
+            updateDashboardActivity()
+        }
+
+        // Add event listeners
+        activityEvents.forEach(event => {
+            const listener = () => handleActivity()
+            document.addEventListener(event, listener, { passive: true })
+            activityListeners.push(() => document.removeEventListener(event, listener))
+        })
+
+        // Set up periodic session check
+        sessionMonitoringInterval = setInterval(async () => {
+            if (!isAuthenticated.value) {
+                cleanupDashboardSessionMonitoring()
+                return
+            }
+
+            const timeSinceActivity = Date.now() - sessionInfo.value.lastActivity
+            const warningTime = sessionInfo.value.sessionTimeout - (10 * 60 * 1000) // 10 minutes before expiry
+
+            // Show warning if session will expire soon
+            if (timeSinceActivity > warningTime && !sessionInfo.value.warningShown) {
+                sessionInfo.value.warningShown = true
+
+                const { warning } = useToast()
+                warning(
+                    'Dashboard Session Expiring',
+                    'Your dashboard session will expire in 10 minutes due to inactivity. Please interact with the page to extend your session.'
+                )
+            }
+
+            // Auto-logout if session expired
+            if (timeSinceActivity > sessionInfo.value.sessionTimeout) {
+                cleanupDashboardSessionMonitoring()
+                await logout({
+                    reason: 'session_expired',
+                    redirectTo: '/dashboard/login'
+                })
+                return
+            }
+
+            // Check if token needs refresh (5 minutes before expiry)
+            const tokenInfo = getDashboardTokenInfo()
+            if (tokenInfo && tokenInfo.timeUntilExpiry < 5 * 60 * 1000 && tokenInfo.timeUntilExpiry > 0) {
+                console.log('🔄 Dashboard token expiring soon, attempting refresh...')
+                const refreshed = await refreshDashboardTokens()
+                if (!refreshed) {
+                    console.log('❌ Dashboard token refresh failed, logging out...')
+                    cleanupDashboardSessionMonitoring()
+                    await logout({
+                        reason: 'token_invalid',
+                        redirectTo: '/dashboard/login'
+                    })
+                }
+            }
+        }, 60000) // Check every minute
+
+        console.log('✅ Dashboard session monitoring setup complete')
+    }
+
+    const cleanupDashboardSessionMonitoring = () => {
+        console.log('🧹 Cleaning up dashboard session monitoring...')
+
+        // Clear interval
+        if (sessionMonitoringInterval) {
+            clearInterval(sessionMonitoringInterval)
+            sessionMonitoringInterval = null
+        }
+
+        // Remove event listeners
+        activityListeners.forEach(cleanup => cleanup())
+        activityListeners = []
+
+        console.log('✅ Dashboard session monitoring cleanup complete')
+    }
+
+    // Extend dashboard session
+    const extendDashboardSession = () => {
+        updateDashboardActivity()
+        sessionInfo.value.warningShown = false
+        console.log('🔄 Dashboard session extended')
+    }
+
+    // Get dashboard session information
+    const getDashboardSessionInfo = () => {
+        const timeSinceActivity = Date.now() - sessionInfo.value.lastActivity
+        return {
+            isActive: timeSinceActivity < sessionInfo.value.sessionTimeout,
+            timeSinceLastActivity: timeSinceActivity,
+            timeUntilExpiry: Math.max(0, sessionInfo.value.sessionTimeout - timeSinceActivity),
+            loginTime: sessionInfo.value.loginTime,
+            warningShown: sessionInfo.value.warningShown,
+            refreshAttempts: sessionInfo.value.refreshAttempts,
+            autoRefreshEnabled: sessionInfo.value.autoRefreshEnabled
+        }
+    }
+
+    // Enhanced dashboard authentication initialization
+    const initializeDashboardAuth = async (options: {
+        enableSessionMonitoring?: boolean
+        sessionTimeout?: number
+        skipProfileFetch?: boolean
+        retryOnError?: boolean
+    } = {}) => {
         if (!import.meta.client || initialized.value) return
 
+        const {
+            enableSessionMonitoring = true,
+            sessionTimeout = 2 * 60 * 60 * 1000, // 2 hours
+            skipProfileFetch = false,
+            retryOnError = true
+        } = options
+
         try {
-            console.log('🔄 Initializing dashboard authentication...')
+            console.log('🔄 Initializing enhanced dashboard authentication...')
+
+            // Clear any existing errors
+            clearDashboardErrors()
+
+            // Load session info from localStorage
+            loadSessionInfo()
+
+            // Configure session timeout
+            sessionInfo.value.sessionTimeout = sessionTimeout
+            sessionInfo.value.autoRefreshEnabled = enableSessionMonitoring
 
             const tokens = getDashboardTokens()
             if (!tokens?.access) {
@@ -273,15 +791,22 @@ export const useDashboardAuth = () => {
                 return
             }
 
-            console.log('🔍 Found existing dashboard tokens, validating...')
+            console.log('🔍 Found existing dashboard tokens, validating...', {
+                accessExpired: api.tokenUtils.isTokenExpired(tokens.access),
+                refreshExpired: tokens.refresh ? api.tokenUtils.isTokenExpired(tokens.refresh) : true,
+                accessExpiry: api.tokenUtils.getTokenExpiryTime(tokens.access),
+                refreshExpiry: tokens.refresh ? api.tokenUtils.getTokenExpiryTime(tokens.refresh) : 0
+            })
 
             // Check if access token is expired
             if (api.tokenUtils.isTokenExpired(tokens.access)) {
                 console.log('⏰ Dashboard access token expired, attempting refresh...')
 
                 if (tokens.refresh && !api.tokenUtils.isTokenExpired(tokens.refresh)) {
-                    const refreshed = await refreshDashboardTokens()
+                    const refreshed = await refreshDashboardTokens({ force: true })
                     if (!refreshed) {
+                        console.log('❌ Token refresh failed during initialization')
+                        await clearDashboardAuthState()
                         initialized.value = true
                         return
                     }
@@ -293,31 +818,112 @@ export const useDashboardAuth = () => {
                 }
             }
 
-            // Try to fetch profile to validate token and get user data
-            try {
-                const profile = await fetchDashboardProfile()
-                user.value = profile
-                permissions.value = profile.permissions
+            // Skip profile fetch if requested (for performance)
+            if (skipProfileFetch) {
+                console.log('⏭️ Skipping profile fetch as requested')
                 isAuthenticated.value = true
-                console.log('✅ Dashboard authentication initialized successfully')
-            } catch (profileError: any) {
-                console.warn('⚠️ Dashboard profile fetch error during initialization:', profileError)
+                initialized.value = true
 
-                // If it's an authentication error, clear state
-                if (profileError.statusCode === 401 || profileError.status === 401) {
-                    console.log('🔒 Dashboard authentication failed, clearing state')
-                    await clearDashboardAuthState()
-                } else {
-                    // For other errors, log but don't clear authentication
-                    console.log('ℹ️ Maintaining dashboard authenticated state despite profile error')
+                if (enableSessionMonitoring) {
+                    setupDashboardSessionMonitoring()
+                }
+                return
+            }
+
+            // Try to fetch profile to validate token and get user data
+            let profileAttempts = 0
+            const maxProfileAttempts = retryOnError ? 3 : 1
+
+            while (profileAttempts < maxProfileAttempts) {
+                try {
+                    console.log(`📡 Fetching dashboard profile (attempt ${profileAttempts + 1}/${maxProfileAttempts})...`)
+
+                    const profile = await fetchDashboardProfile()
+
+                    // Validate profile data
+                    if (!profile.id || !profile.username) {
+                        throw new Error('Invalid profile data received')
+                    }
+
+                    user.value = profile
+                    permissions.value = profile.permissions
                     isAuthenticated.value = true
+
+                    // Setup session monitoring if authenticated
+                    if (enableSessionMonitoring) {
+                        setupDashboardSessionMonitoring()
+                    }
+
+                    console.log('✅ Enhanced dashboard authentication initialized successfully', {
+                        userId: profile.id,
+                        username: profile.username,
+                        isStaff: profile.is_staff,
+                        permissionCount: Object.keys(profile.permissions || {}).length
+                    })
+
+                    break // Success, exit retry loop
+                } catch (profileError: any) {
+                    profileAttempts++
+                    console.warn(`⚠️ Dashboard profile fetch attempt ${profileAttempts} failed:`, profileError)
+
+                    // If it's an authentication error, clear state immediately
+                    if (profileError.statusCode === 401 || profileError.status === 401) {
+                        console.log('🔒 Dashboard authentication failed, clearing state')
+                        await clearDashboardAuthState()
+
+                        addDashboardError({
+                            type: 'auth',
+                            message: 'Dashboard session expired during initialization',
+                            code: profileError.statusCode || profileError.status
+                        })
+
+                        initialized.value = true
+                        return
+                    }
+
+                    // For other errors, retry if attempts remain
+                    if (profileAttempts < maxProfileAttempts) {
+                        console.log(`🔄 Retrying profile fetch in ${profileAttempts * 1000}ms...`)
+                        await new Promise(resolve => setTimeout(resolve, profileAttempts * 1000))
+                        continue
+                    }
+
+                    // If all attempts failed and it's not an auth error
+                    console.warn('⚠️ All profile fetch attempts failed, but maintaining auth state')
+
+                    // For network errors, maintain authenticated state but log error
+                    isAuthenticated.value = true
+
+                    addDashboardError({
+                        type: 'network',
+                        message: 'Profile fetch failed during initialization',
+                        details: profileError
+                    })
+
+                    // Still setup session monitoring
+                    if (enableSessionMonitoring) {
+                        setupDashboardSessionMonitoring()
+                    }
                 }
             }
-        } catch (err) {
-            console.error('❌ Dashboard authentication initialization error:', err)
+        } catch (err: any) {
+            console.error('❌ Enhanced dashboard authentication initialization error:', err)
+
+            addDashboardError({
+                type: 'auth',
+                message: 'Dashboard authentication initialization failed',
+                details: err
+            })
+
             await clearDashboardAuthState()
         } finally {
             initialized.value = true
+            console.log('🏁 Dashboard authentication initialization completed', {
+                isAuthenticated: isAuthenticated.value,
+                hasUser: !!user.value,
+                hasPermissions: !!permissions.value,
+                errorCount: authErrors.value.length
+            })
         }
     }
 
@@ -429,6 +1035,141 @@ export const useDashboardAuth = () => {
         }
     }
 
+    // Enhanced dashboard health check
+    const checkDashboardHealth = async (): Promise<{
+        isHealthy: boolean
+        tokenStatus: 'valid' | 'expired' | 'missing' | 'invalid'
+        profileStatus: 'valid' | 'invalid' | 'unreachable'
+        sessionStatus: 'active' | 'expired' | 'warning'
+        errors: DashboardAuthError[]
+    }> => {
+        const result = {
+            isHealthy: false,
+            tokenStatus: 'missing' as const,
+            profileStatus: 'invalid' as const,
+            sessionStatus: 'expired' as const,
+            errors: [...authErrors.value]
+        }
+
+        try {
+            // Check token status
+            const tokens = getDashboardTokens()
+            if (!tokens?.access) {
+                result.tokenStatus = 'missing'
+            } else if (api.tokenUtils.isTokenExpired(tokens.access)) {
+                result.tokenStatus = 'expired'
+            } else {
+                result.tokenStatus = 'valid'
+            }
+
+            // Check session status
+            const sessionStatus = getDashboardSessionInfo()
+            if (!sessionStatus.isActive) {
+                result.sessionStatus = 'expired'
+            } else if (sessionStatus.timeUntilExpiry < 10 * 60 * 1000) { // Less than 10 minutes
+                result.sessionStatus = 'warning'
+            } else {
+                result.sessionStatus = 'active'
+            }
+
+            // Check profile status if we have valid tokens
+            if (result.tokenStatus === 'valid') {
+                try {
+                    await fetchDashboardProfile()
+                    result.profileStatus = 'valid'
+                } catch (error) {
+                    result.profileStatus = 'unreachable'
+                }
+            }
+
+            // Overall health
+            result.isHealthy = result.tokenStatus === 'valid' &&
+                result.profileStatus === 'valid' &&
+                result.sessionStatus !== 'expired'
+
+        } catch (error) {
+            console.error('Dashboard health check failed:', error)
+        }
+
+        return result
+    }
+
+    // Refresh dashboard session
+    const refreshDashboardSession = async (): Promise<boolean> => {
+        try {
+            console.log('🔄 Refreshing dashboard session...')
+
+            // Refresh tokens if needed
+            const tokenInfo = getDashboardTokenInfo()
+            if (tokenInfo && tokenInfo.timeUntilExpiry < 15 * 60 * 1000) { // Less than 15 minutes
+                const refreshed = await refreshDashboardTokens()
+                if (!refreshed) {
+                    return false
+                }
+            }
+
+            // Update activity and extend session
+            updateDashboardActivity()
+
+            // Optionally refresh profile data
+            if (user.value) {
+                try {
+                    const profile = await fetchDashboardProfile()
+                    user.value = profile
+                    permissions.value = profile.permissions
+                } catch (error) {
+                    console.warn('Profile refresh failed during session refresh:', error)
+                }
+            }
+
+            console.log('✅ Dashboard session refreshed successfully')
+            return true
+        } catch (error) {
+            console.error('❌ Dashboard session refresh failed:', error)
+            return false
+        }
+    }
+
+    // Get comprehensive dashboard status
+    const getDashboardStatus = () => {
+        const tokenInfo = getDashboardTokenInfo()
+        const sessionInfo = getDashboardSessionInfo()
+
+        return {
+            // Authentication status
+            isAuthenticated: isAuthenticated.value,
+            isInitialized: initialized.value,
+
+            // User information
+            user: user.value ? {
+                id: user.value.id,
+                username: user.value.username,
+                email: user.value.email,
+                isStaff: user.value.is_staff,
+                isSuperuser: user.value.is_superuser
+            } : null,
+
+            // Permissions
+            permissions: permissions.value,
+            permissionCount: permissions.value ? Object.keys(permissions.value).filter(key =>
+                permissions.value![key as keyof DashboardPermissions]
+            ).length : 0,
+
+            // Token information
+            tokens: tokenInfo,
+
+            // Session information
+            session: sessionInfo,
+
+            // Error information
+            errors: authErrors.value,
+            lastError: getLastDashboardError(),
+
+            // Loading state
+            loading: loading.value
+        }
+    }
+
     return {
         // State
         user: readonly(user),
@@ -437,10 +1178,13 @@ export const useDashboardAuth = () => {
         loading: readonly(loading),
         error: readonly(error),
         initialized: readonly(initialized),
+        authErrors: readonly(authErrors),
 
         // Computed
         isAdmin: readonly(isAdmin),
         isSuperuser: readonly(isSuperuser),
+        isSessionActive: readonly(isSessionActive),
+        timeUntilSessionExpiry: readonly(timeUntilSessionExpiry),
 
         // Actions
         login,
@@ -448,6 +1192,7 @@ export const useDashboardAuth = () => {
         fetchDashboardProfile,
         refreshDashboardTokens,
         initializeDashboardAuth,
+        forceDashboardLogout,
 
         // Permission checking
         hasPermission,
@@ -463,6 +1208,22 @@ export const useDashboardAuth = () => {
 
         // Token management
         getDashboardTokens,
-        setDashboardTokens
+        setDashboardTokens,
+        getDashboardTokenInfo,
+
+        // Session management
+        updateDashboardActivity,
+        extendDashboardSession,
+        getDashboardSessionInfo,
+        refreshDashboardSession,
+
+        // Error management
+        addDashboardError,
+        clearDashboardErrors,
+        getLastDashboardError,
+
+        // Health and status
+        checkDashboardHealth,
+        getDashboardStatus
     }
 }

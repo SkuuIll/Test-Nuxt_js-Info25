@@ -54,6 +54,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django_blog.middleware.cors_middleware.CORSLoggingMiddleware',
+    'django_blog.middleware.cors_middleware.CORSPreflightMiddleware',
     'django_blog.middleware.SecurityHeadersMiddleware',
     'django_blog.middleware.ResponseTimeMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -66,6 +68,8 @@ MIDDLEWARE = [
     'django_blog.middleware.RequestLoggingMiddleware',
     'django_blog.middleware.APIErrorHandlingMiddleware',
     'django_blog.middleware.APIVersionMiddleware',
+    'django_blog.middleware.cors_middleware.EnhancedCORSMiddleware',
+    'django_blog.middleware.cors_middleware.CORSSecurityMiddleware',
 ]
 
 ROOT_URLCONF = 'django_blog.urls'
@@ -303,9 +307,13 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-# CORS Configuration
-# Environment-based configuration
-import os
+# Enhanced CORS Configuration
+from .cors_settings import configure_cors
+
+# Apply CORS configuration
+cors_config = configure_cors()
+for key, value in cors_config.items():
+    globals()[key] = value
 
 # Get environment variables
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

@@ -18,16 +18,11 @@ User = get_user_model()
 class CategorySerializer(CategoryBasicSerializer):
     """Serializador para categorías con información completa"""
     
-    class Meta:
+    class Meta(CategoryBasicSerializer.Meta):
         model = Categoria
-        fields = [
-            'id', 'nombre', 'descripcion', 'posts_count',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'posts_count', 'created_at', 'updated_at']
 
 class PostSerializer(PostBasicSerializer, SEOSerializer):
-    """Serializador completo para posts"""
+    """Serializador completo para posts con todos los campos necesarios"""
     category = CategorySerializer(source='categoria', read_only=True)
     tags = serializers.SerializerMethodField()
     meta_data = serializers.SerializerMethodField()

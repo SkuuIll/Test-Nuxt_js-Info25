@@ -6,7 +6,7 @@ import django_filters
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import Post, Category, Comment
+from .models import Post, Categoria, Comentario
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -24,7 +24,7 @@ class PostFilter(django_filters.FilterSet):
     # Filtros por categoría
     category = django_filters.ModelChoiceFilter(
         field_name='categoria',
-        queryset=Category.objects.all(),
+        queryset=Categoria.objects.all(),
         help_text='Filtrar por categoría (ID)'
     )
     category_name = django_filters.CharFilter(
@@ -313,7 +313,7 @@ class CategoryFilter(django_filters.FilterSet):
     )
     
     class Meta:
-        model = Category
+        model = Categoria
         fields = []
     
     def filter_has_posts(self, queryset, name, value):
@@ -383,7 +383,7 @@ class CommentFilter(django_filters.FilterSet):
     )
     
     class Meta:
-        model = Comment
+        model = Comentario
         fields = []
     
     def filter_has_replies(self, queryset, name, value):
@@ -492,7 +492,7 @@ class AdvancedSearchFilter:
             })
         
         # Sugerencias de categorías
-        categories = Category.objects.filter(
+        categories = Categoria.objects.filter(
             nombre__icontains=query
         ).values_list('nombre', flat=True)[:limit//4]
         
@@ -537,4 +537,50 @@ class AdvancedSearchFilter:
                 'category': 'Popular'
             }
             for term in popular_terms[:limit]
+        ]
+    
+    @staticmethod
+    def get_related_terms(query, posts_queryset):
+        """
+        Obtener términos relacionados basados en los posts encontrados
+        """
+        if not posts_queryset:
+            return []
+        
+        related_terms = set()
+        
+        # Extraer categorías de los posts encontrados
+        categories = posts_queryset.values_list('categoria__nombre', flat=True).distinct()
+        for category in categories:
+            if category and category.lower() not in query.lower():
+                related_terms.add(category)
+        
+        # Extraer autores de los posts encontrados
+        authors = posts_queryset.values_list('autor__username', flat=True).distinct()
+        for author in authors:
+            if author and author.lower() not in query.lower():
+                related_terms.add(author)
+        
+        # Extraer palabras clave comunes de los títulos
+        titles = posts_queryset.values_list('titulo', flat=True)
+        common_words = set()
+        for title in titles:
+            if title:
+                words = title.lower().split()
+                for word in words:
+                    if len(word) > 3 and word not in query.lower():
+                        common_words.add(word)
+        
+        # Agregar las palabras más comunes
+        if common_words:
+            # En una implementación real, contarías la frecuencia
+            related_terms.update(list(common_words)[:3])
+        
+        return [
+            {
+                'text': term,
+                'type': 'related',
+                'category': 'Relacionado'
+            }
+            for term in list(related_terms)[:8]
         ]

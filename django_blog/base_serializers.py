@@ -22,7 +22,42 @@ class BaseModelSerializer(serializers.ModelSerializer):
         attrs = super().validate(attrs)
         
         # Add any common validation logic here
+        self._validate_common_fields(attrs)
         return attrs
+    
+    def _validate_common_fields(self, attrs):
+        """Common field validation"""
+        # Validate text fields for XSS and basic security
+        text_fields = ['titulo', 'title', 'nombre', 'name', 'contenido', 'content']
+        for field in text_fields:
+            if field in attrs and attrs[field]:
+                attrs[field] = self._sanitize_text(attrs[field])
+        
+        return attrs
+    
+    def _sanitize_text(self, text):
+        """Basic text sanitization"""
+        if not text:
+            return text
+        
+        # Remove null bytes and control characters
+        import re
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', str(text))
+        
+        # Basic XSS protection for non-HTML fields
+        dangerous_patterns = [
+            r'<script[^>]*>.*?</script>',
+            r'javascript:',
+            r'vbscript:',
+            r'onload\s*=',
+            r'onerror\s*=',
+            r'onclick\s*='
+        ]
+        
+        for pattern in dangerous_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.DOTALL)
+        
+        return text.strip()
     
     def to_internal_value(self, data):
         """Override to provide better error messages"""
@@ -48,8 +83,45 @@ class BaseModelSerializer(serializers.ModelSerializer):
             'This field may not be null.': 'Este campo no puede ser nulo.',
             'Enter a valid email address.': 'Ingresa una dirección de email válida.',
             'Enter a valid URL.': 'Ingresa una URL válida.',
+            'Ensure this field has no more than': 'Este campo no puede tener más de',
+            'Ensure this field has at least': 'Este campo debe tener al menos',
+            'Invalid choice.': 'Opción inválida.',
+            'Not a valid integer.': 'No es un número entero válido.',
+            'Not a valid boolean.': 'No es un valor booleano válido.',
         }
-        return error_mappings.get(message, message)
+        
+        for key, value in error_mappings.items():
+            if key in message:
+                return message.replace(key, value)
+        
+        return message
+    
+    def to_representation(self, instance):
+        """Override to add consistent response formatting"""
+        data = super().to_representation(instance)
+        
+        # Add metadata if requested
+        request = self.context.get('request')
+        if request and hasattr(request, 'query_params') and request.query_params.get('include_meta', '').lower() == 'true':
+            data['_meta'] = self._get_instance_metadata(instance)
+        
+        return data
+    
+    def _get_instance_metadata(self, instance):
+        """Get metadata for the instance"""
+        meta = {}
+        
+        # Add timestamps if available
+        if hasattr(instance, 'created_at'):
+            meta['created_at'] = instance.created_at
+        if hasattr(instance, 'updated_at'):
+            meta['updated_at'] = instance.updated_at
+        
+        # Add model info
+        meta['model'] = instance._meta.model_name
+        meta['app'] = instance._meta.app_label
+        
+        return meta
 
 
 class TimestampedSerializer(serializers.Serializer):
@@ -230,16 +302,38 @@ class CommentBasicSerializer(BaseModelSerializer, TimestampedSerializer):
 
 
 class PaginatedResponseSerializer(serializers.Serializer):
-    """Serializer for paginated responses"""
-    count = serializers.IntegerField(help_text="Total number of items")
-    next = serializers.URLField(allow_null=True, help_text="URL to next page")
-    previous = serializers.URLField(allow_null=True, help_text="URL to previous page")
-    page_size = serializers.IntegerField(help_text="Number of items per page")
-    current_page = serializers.IntegerField(help_text="Current page number")
-    total_pages = serializers.IntegerField(help_text="Total number of pages")
-    has_next = serializers.BooleanField(help_text="Whether there is a next page")
-    has_previous = serializers.BooleanField(help_text="Whether there is a previous page")
-    results = serializers.ListField(help_text="List of items for current page")
+    """Serializer for consistent paginated responses"""
+    success = serializers.BooleanField(default=True)
+    data = serializers.ListField(help_text="List of items for current page")
+    pagination = serializers.DictField(help_text="Pagination metadata")
+    
+    def to_representation(self, instance):
+        """Custom representation for paginated responses"""
+        if hasattr(instance, 'results'):
+            # Django paginator object
+            return {
+                'success': True,
+                'data': instance.results,
+                'pagination': {
+                    'count': instance.paginator.count,
+                    'next': instance.next_page_number() if instance.has_next() else None,
+                    'previous': instance.previous_page_number() if instance.has_previous() else None,
+                    'current_page': instance.number,
+                    'total_pages': instance.paginator.num_pages,
+                    'page_size': instance.paginator.per_page,
+                    'has_next': instance.has_next(),
+                    'has_previous': instance.has_previous(),
+                    'start_index': instance.start_index(),
+                    'end_index': instance.end_index()
+                }
+            }
+        
+        # Manual pagination data
+        return {
+            'success': True,
+            'data': instance.get('data', []),
+            'pagination': instance.get('pagination', {})
+        }
 
 
 class SuccessResponseSerializer(serializers.Serializer):
