@@ -15,16 +15,24 @@ urlpatterns = [
     
     # Search and tags endpoints
     path('search/advanced/', api_views.AdvancedSearchAPIView.as_view(), name='advanced_search'),
-    path('search/suggestions/', api_views.search_suggestions, name='search_suggestions'),
+    path('search/suggestions/', api_views.get_search_suggestions, name='search_suggestions'),
     path('search/popular/', api_views.popular_searches, name='popular_searches'),
     path('search/filters/', api_views.search_filters, name='search_filters'),
     path('search/stats/', api_views.search_stats, name='search_stats'),
     path('tags/', api_views.get_tags, name='get_tags'),
     
-    # Categories endpoints
-    path('categories/<int:pk>/posts/', api_views.CategoryPostsAPIView.as_view(), name='category_posts'),
+    # Additional content endpoints
+    path('posts/<int:post_id>/related/', api_views.get_related_posts, name='related_posts'),
+    path('posts/trending/', api_views.get_trending_posts, name='trending_posts'),
+    path('archive/', api_views.get_archive_data, name='archive_data'),
+    
+    # Categories endpoints - support both ID and slug
+    path('categories/<str:pk>/posts/', api_views.CategoryPostsAPIView.as_view(), name='category_posts'),
     path('categories/<int:pk>/', api_views.CategoryDetailAPIView.as_view(), name='category_detail'),
     path('categories/', api_views.CategoryListAPIView.as_view(), name='category_list'),
+    
+    # Authors endpoints
+    path('authors/<str:author_id>/posts/', api_views.AuthorPostsAPIView.as_view(), name='author_posts'),
     
     # Comments endpoints
     path('comments/<int:pk>/', api_views.CommentDetailAPIView.as_view(), name='comment_detail'),

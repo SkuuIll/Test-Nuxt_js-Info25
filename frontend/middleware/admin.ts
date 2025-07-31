@@ -1,38 +1,74 @@
 /**
- * Admin middleware for admin-only routes
+ * Enhanced admin authentication middleware
  * Ensures user is authenticated and has admin privileges
  */
 export default defineNuxtRouteMiddleware(async (to, from) => {
-  const { isAuthenticated, isAdmin, initializeAuth, getAuthStatus } = useAuth()
+  const {
+    isAuthenticated,
+    isAdmin,
+    hasRole,
+    requireAdmin,
+    updateActivity,
+    getAuthStatus,
+    checkAuthHealth
+  } = useAuth()
 
-  // Initialize auth on client side if not already done
-  if (import.meta.client && !isAuthenticated.value) {
-    try {
-      await initializeAuth()
-    } catch (error) {
-      console.warn('Auth initialization failed in admin middleware:', error)
+  try {
+    // Update activity for session tracking
+    updateActivity()
+
+    // First ensure basic authentication
+    if (!isAuthenticated.value) {
+      console.log('🔒 Admin route requires authentication, redirecting to login')
+
+      const redirectTo = to.fullPath !== '/login' ? to.fullPath : undefined
+      return navigateTo({
+        path: '/login',
+        query: redirectTo ? { redirect: redirectTo } : undefined
+      })
     }
-  }
 
-  // Check authentication status
-  const authStatus = getAuthStatus()
+    // Check authentication health
+    const healthCheck = await checkAuthHealth()
+    if (healthCheck.status === 'critical') {
+      console.log('🚨 Critical authentication issues for admin route:', healthCheck.issues)
 
-  if (!isAuthenticated.value || !authStatus.hasValidTokens) {
-    console.log('🔒 Authentication required for admin route, redirecting to login')
+      const redirectTo = to.fullPath !== '/login' ? to.fullPath : undefined
+      return navigateTo({
+        path: '/login',
+        query: redirectTo ? { redirect: redirectTo } : undefined
+      })
+    }
 
-    return navigateTo({
-      path: '/login',
-      query: { redirect: to.fullPath }
-    })
-  }
+    // Check admin privileges
+    if (!isAdmin.value && !hasRole('admin') && !hasRole('staff')) {
+      console.log('🚫 Admin access denied - insufficient privileges')
 
-  // Check admin privileges
-  if (!isAdmin.value) {
-    console.log('🚫 Admin privileges required, access denied')
+      // Redirect to unauthorized page or dashboard
+      return navigateTo('/unauthorized')
+    }
 
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Admin access required'
-    })
+    // Use the enhanced requireAdmin function for comprehensive checking
+    try {
+      await requireAdmin({
+        redirectTo: '/unauthorized',
+        message: 'Administrator access required'
+      })
+
+      console.log('✅ Admin access verified for route:', to.path)
+    } catch (error) {
+      console.error('❌ Admin verification failed:', error)
+
+      // The requireAdmin function handles redirection, but we catch any errors
+      if (!error.statusCode) {
+        return navigateTo('/unauthorized')
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Admin middleware error:', error)
+
+    // On any error, redirect to unauthorized page
+    return navigateTo('/unauthorized')
   }
 })

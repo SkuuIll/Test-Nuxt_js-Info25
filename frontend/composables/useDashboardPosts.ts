@@ -842,12 +842,140 @@ export const useDashboardPosts = () => {
             if (response.errors.length > 0) {
                 warning(
                     'Import Completed with Errors',
-                    `Imported ${response.imported_count} posts, but ${response.errors.length} errors occurred`
+                    `Imported ${response.imported_count} posts, updated ${response.updated_count}, skipped ${response.skipped_count}. ${response.errors.length} errors occurred.`
                 )
             } else {
                 success(
                     'Import Successful',
-                    `Successfully imported ${response.imported_count} posts`
+                    `Imported ${response.imported_count} posts, updated ${response.updated_count}, skipped ${response.skipped_count}.`
+                )
+            }
+
+            console.log('✅ Posts imported successfully:', response)
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Import Posts')
+            throw err
+        }
+    }
+
+    // SEO Analysis
+    const getSEOAnalysis = async (id: number | string) => {
+        try {
+            console.log('🔍 Getting SEO analysis for post:', id)
+
+            await requirePermission('can_view_analytics')
+
+            const response = await dashboardApiCall<{
+                seo_score: number
+                title_analysis: {
+                    length: number
+                    optimal: boolean
+                    suggestions: string[]
+                }
+                meta_description_analysis: {
+                    length: number
+                    optimal: boolean
+                    suggestions: string[]
+                }
+                content_analysis: {
+                    word_count: number
+                    reading_time: number
+                    readability_score: number
+                    keyword_density: Array<{ keyword: string; density: number }>
+                    suggestions: string[]
+                }
+                technical_seo: {
+                    has_alt_tags: boolean
+                    has_internal_links: boolean
+                    has_external_links: boolean
+                    image_optimization: number
+                    suggestions: string[]
+                }
+                overall_suggestions: string[]
+            }>(`/dashboard/posts/${id}/seo-analysis/`)
+
+            console.log('✅ SEO analysis completed')
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Get SEO Analysis', Number(id))
+            throw err
+        }
+    }
+
+    // Content Suggestions
+    const getContentSuggestions = async (id: number | string) => {
+        try {
+            console.log('💡 Getting content suggestions for post:', id)
+
+            await requirePermission('can_view_analytics')
+
+            const response = await dashboardApiCall<{
+                writing_suggestions: Array<{
+                    type: 'grammar' | 'style' | 'clarity' | 'engagement'
+                    message: string
+                    severity: 'low' | 'medium' | 'high'
+                    position?: { start: number; end: number }
+                }>
+                content_improvements: Array<{
+                    suggestion: string
+                    impact: 'low' | 'medium' | 'high'
+                    effort: 'low' | 'medium' | 'high'
+                }>
+                related_topics: Array<{
+                    topic: string
+                    relevance: number
+                    search_volume: number
+                }>
+                trending_keywords: Array<{
+                    keyword: string
+                    trend: 'rising' | 'stable' | 'declining'
+                    competition: 'low' | 'medium' | 'high'
+                }>
+                engagement_tips: string[]
+            }>(`/dashboard/posts/${id}/content-suggestions/`)
+
+            console.log('✅ Content suggestions generated')
+            return response
+        } catch (err: any) {
+            const errorInfo = handlePostError(err, 'Get Content Suggestions', Number(id))
+            throw err
+        }
+    }
+
+    // Cleanup function
+    const cleanup = () => {
+        // Stop auto-refresh
+        stopAutoRefresh()
+
+        // Clear state
+        posts.value = []
+        currentPost.value = null
+        categories.value = []
+        postStats.value = null
+        selectedPosts.value = []
+        operationHistory.value = []
+        validationErrors.value = {}
+        currentFilters.value = {}
+        error.value = null
+        isDirty.value = false
+        lastFetch.value = null
+
+        console.log('🧹 Dashboard posts composable cleaned up')
+    }
+
+    // Auto-cleanup on unmount
+    if (import.meta.client) {
+        onUnmounted(() => {
+            cleanup()
+        })
+    } ported_count
+} posts, but ${ response.errors.length } errors occurred`
+                )
+            } else {
+                success(
+                    'Import Successful',
+                    `Successfully imported ${ response.imported_count } posts`
                 )
             }
 
@@ -881,7 +1009,7 @@ export const useDashboardPosts = () => {
                     density: number
                     recommended_density: number
                 }>
-            }>(`/dashboard/posts/${id}/seo-analysis/`)
+            }>(`/ dashboard / posts / ${ id } /seo-analysis/`)
 
             console.log('✅ SEO analysis completed')
             return response
@@ -911,7 +1039,7 @@ export const useDashboardPosts = () => {
                     keyword: string
                     trend_score: number
                 }>
-            }>(`/dashboard/posts/${id}/content-suggestions/`)
+            }>(`/ dashboard / posts / ${ id } /content-suggestions/`)
 
             console.log('✅ Content suggestions generated')
             return response

@@ -5,6 +5,7 @@ interface AuthState {
   lastActivity: number
   sessionTimeout: number
   autoRefreshEnabled: boolean
+  cleanup?: () => void
 }
 
 interface AuthError {
@@ -757,6 +758,7 @@ export const useAuth = () => {
     checkSession?: boolean
   } = {}) => {
     const { redirectTo = '/login', message = 'Authentication required', checkSession = true } = options
+    const { handleAuthRequired } = useAuthRedirect()
 
     try {
       updateActivity()
@@ -764,13 +766,11 @@ export const useAuth = () => {
       if (!authStore.isAuthenticated) {
         console.log('🔒 Authentication required, redirecting to login...')
 
-        // Store the current route for redirect after login
-        const currentRoute = router.currentRoute.value.fullPath
-        if (currentRoute !== '/' && currentRoute !== redirectTo) {
-          await navigateTo(`${redirectTo}?redirect=${encodeURIComponent(currentRoute)}`)
-        } else {
-          await navigateTo(redirectTo)
-        }
+        await handleAuthRequired({
+          message,
+          storeRoute: true,
+          loginUrl: redirectTo
+        })
 
         throw createError({
           statusCode: 401,
@@ -785,11 +785,12 @@ export const useAuth = () => {
       console.error('❌ Authentication guard failed:', error)
 
       if (error.statusCode !== 401) {
-        // If it's not already a 401 error, redirect to login
-        const currentRoute = router.currentRoute.value.fullPath
-        if (currentRoute !== redirectTo) {
-          await navigateTo(`${redirectTo}?redirect=${encodeURIComponent(currentRoute)}`)
-        }
+        // If it's not already a 401 error, handle auth required
+        await handleAuthRequired({
+          message,
+          storeRoute: true,
+          loginUrl: redirectTo
+        })
       }
 
       throw error
@@ -802,6 +803,7 @@ export const useAuth = () => {
     message?: string
   } = {}) => {
     const { redirectTo = '/unauthorized', message = 'Admin access required' } = options
+    const { handleInsufficientPermissions } = useAuthRedirect()
 
     // First ensure user is authenticated
     await requireAuth()
@@ -815,7 +817,11 @@ export const useAuth = () => {
         code: 403
       })
 
-      await navigateTo(redirectTo)
+      await handleInsufficientPermissions({
+        message,
+        requiredPermissions: ['admin'],
+        redirectUrl: redirectTo
+      })
 
       throw createError({
         statusCode: 403,
@@ -862,6 +868,7 @@ export const useAuth = () => {
     message?: string
   } = {}) => {
     const { redirectTo = '/unauthorized', message = `Permission '${permission}' required` } = options
+    const { handleInsufficientPermissions } = useAuthRedirect()
 
     // First ensure user is authenticated
     await requireAuth()
@@ -875,7 +882,11 @@ export const useAuth = () => {
         code: 403
       })
 
-      await navigateTo(redirectTo)
+      await handleInsufficientPermissions({
+        message,
+        requiredPermissions: [permission],
+        redirectUrl: redirectTo
+      })
 
       throw createError({
         statusCode: 403,
@@ -967,11 +978,11 @@ export const useAuth = () => {
         const { warning } = useToast()
         warning(
           'Session Expiring',
-          'Your session will expire in 5 minutes due to inactivity. Please interact with the page to extend your session.'
+          'Your session will expire in 5 minutes due to inactivity. Please interact with the page to extend it.'
         )
       }
 
-      // Auto-logout if session expired
+      // Auto logout if session expired
       if (timeSinceActivity > authState.value.sessionTimeout) {
         clearInterval(sessionCheckInterval)
         safeLogout({
@@ -983,42 +994,49 @@ export const useAuth = () => {
 
     // Cleanup function
     const cleanup = () => {
+      clearInterval(sessionCheckInterval)
       activityEvents.forEach(event => {
         document.removeEventListener(event, handleActivity)
       })
-      clearInterval(sessionCheckInterval)
     }
 
     // Store cleanup function for later use
-    if (!window.__authCleanup) {
-      window.__authCleanup = cleanup
-    }
+    authState.value.cleanup = cleanup
   }
 
-  // Session management utilities
+  // Session extension function
   const extendSession = () => {
     updateActivity()
     isSessionExpired.value = false
     sessionWarningShown.value = false
-    console.log('🔄 Session extended')
+
+    const { success } = useToast()
+    success('Session Extended', 'Your session has been extended.')
   }
 
+  // Get session information
   const getSessionInfo = () => {
+    const timeSinceActivity = getTimeSinceLastActivity()
+    const timeUntilExpiry = authState.value.sessionTimeout - timeSinceActivity
+
     return {
       isActive: isSessionActive(),
-      timeSinceLastActivity: getTimeSinceLastActivity(),
-      timeUntilExpiry: Math.max(0, authState.value.sessionTimeout - getTimeSinceLastActivity()),
-      isExpired: isSessionExpired.value,
-      warningShown: sessionWarningShown.value
+      timeSinceLastActivity,
+      timeUntilExpiry: Math.max(0, timeUntilExpiry),
+      sessionTimeout: authState.value.sessionTimeout,
+      lastActivity: new Date(authState.value.lastActivity),
+      willExpireAt: new Date(authState.value.lastActivity + authState.value.sessionTimeout),
+      isExpiringSoon: timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0,
+      isExpired: timeUntilExpiry <= 0
     }
   }
 
-  // Cleanup function for component unmounting
+  // Cleanup function
   const cleanup = () => {
-    if (window.__authCleanup) {
-      window.__authCleanup()
-      delete window.__authCleanup
+    if (authState.value.cleanup) {
+      authState.value.cleanup()
     }
+    clearAuthErrors()
   }
 
   // Auto-initialize on client side
@@ -1034,19 +1052,19 @@ export const useAuth = () => {
 
   return {
     // Enhanced State
-    user: readonly(authStore.user),
-    isAuthenticated: readonly(authStore.isAuthenticated),
-    loading: readonly(authStore.loading),
-    error: readonly(authStore.error),
+    isAuthenticated: computed(() => authStore.isAuthenticated),
+    user: computed(() => authStore.user),
+    isAdmin: computed(() => authStore.isAdmin),
+    isLoading: computed(() => authStore.isLoading),
+    error: computed(() => authStore.error),
+
+    // Enhanced Auth State
     authState: readonly(authState),
     authErrors: readonly(authErrors),
     isSessionExpired: readonly(isSessionExpired),
+    sessionWarningShown: readonly(sessionWarningShown),
 
-    // Enhanced Getters
-    isAdmin: readonly(authStore.isAdmin),
-    userInitials: readonly(authStore.userInitials),
-
-    // Enhanced Authentication Actions
+    // Enhanced Authentication Methods
     login: loginWithErrorHandling,
     register: registerWithErrorHandling,
     logout: safeLogout,
@@ -1098,4 +1116,140 @@ export const useAuth = () => {
     // Cleanup
     cleanup
   }
+}ue
+
+const { warning } = useToast()
+warning(
+  'Session Expiring',
+  'Your session will expire in 5 minutes due to inactivity. Please interact with the page to extend your session.'
+)
+      }
+
+// Auto-logout if session expired
+if (timeSinceActivity > authState.value.sessionTimeout) {
+  clearInterval(sessionCheckInterval)
+  safeLogout({
+    reason: 'session_expired',
+    redirectTo: '/login'
+  })
+}
+    }, 60000) // Check every minute
+
+// Cleanup function
+const cleanup = () => {
+  activityEvents.forEach(event => {
+    document.removeEventListener(event, handleActivity)
+  })
+  clearInterval(sessionCheckInterval)
+}
+
+// Store cleanup function for later use
+if (!window.__authCleanup) {
+  window.__authCleanup = cleanup
+}
+  }
+
+// Session management utilities
+const extendSession = () => {
+  updateActivity()
+  isSessionExpired.value = false
+  sessionWarningShown.value = false
+  console.log('🔄 Session extended')
+}
+
+const getSessionInfo = () => {
+  return {
+    isActive: isSessionActive(),
+    timeSinceLastActivity: getTimeSinceLastActivity(),
+    timeUntilExpiry: Math.max(0, authState.value.sessionTimeout - getTimeSinceLastActivity()),
+    isExpired: isSessionExpired.value,
+    warningShown: sessionWarningShown.value
+  }
+}
+
+// Cleanup function for component unmounting
+const cleanup = () => {
+  if (window.__authCleanup) {
+    window.__authCleanup()
+    delete window.__authCleanup
+  }
+}
+
+// Auto-initialize on client side
+if (import.meta.client) {
+  onMounted(() => {
+    initializeAuth()
+  })
+
+  onUnmounted(() => {
+    cleanup()
+  })
+}
+
+return {
+  // Enhanced State
+  user: readonly(authStore.user),
+  isAuthenticated: readonly(authStore.isAuthenticated),
+  loading: readonly(authStore.loading),
+  error: readonly(authStore.error),
+  authState: readonly(authState),
+  authErrors: readonly(authErrors),
+  isSessionExpired: readonly(isSessionExpired),
+
+  // Enhanced Getters
+  isAdmin: readonly(authStore.isAdmin),
+  userInitials: readonly(authStore.userInitials),
+
+  // Enhanced Authentication Actions
+  login: loginWithErrorHandling,
+  register: registerWithErrorHandling,
+  logout: safeLogout,
+  forceLogout,
+  fetchProfile: authStore.fetchProfile,
+  updateProfile: authStore.updateProfile,
+  changePassword: authStore.changePassword,
+  requestPasswordReset: authStore.requestPasswordReset,
+  resetPassword: authStore.resetPassword,
+  initializeAuth,
+
+  // Enhanced Permission System
+  hasRole,
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+
+  // Enhanced Guards
+  requireAuth,
+  requireAdmin,
+  requireRole,
+  requirePermission,
+
+  // Enhanced Token Management
+  getTokenInfo,
+  isTokenValid,
+  canRefreshToken,
+  validateTokens,
+  refreshTokenWithRetry,
+
+  // Enhanced Session Management
+  updateActivity,
+  extendSession,
+  getSessionInfo,
+  isSessionActive,
+
+  // Enhanced Status and Utilities
+  getAuthStatus,
+  checkAuthHealth,
+  ensureAuthenticated,
+  getLastAuthError,
+  clearAuthErrors,
+  addAuthError,
+
+  // Store Utilities (Enhanced)
+  clearAuthState: authStore.clearAuthState,
+  refreshAuthIfNeeded: authStore.refreshAuthIfNeeded,
+
+  // Cleanup
+  cleanup
+}
 }

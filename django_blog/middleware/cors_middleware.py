@@ -4,6 +4,7 @@ Provides additional CORS handling beyond django-cors-headers
 """
 
 import re
+import time
 from django.http import HttpResponse
 from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings

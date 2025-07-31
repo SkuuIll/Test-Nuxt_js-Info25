@@ -222,37 +222,106 @@ class CategoryDetailAPIView(BaseAPIView, generics.RetrieveAPIView):
             return self.not_found_response("Category not found")
 
 class CategoryPostsAPIView(BaseAPIView, generics.ListAPIView):
-    serializer_class = PostSerializer
+    serializer_class = PostListSerializer
     pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = PostFilter
     
     def get_queryset(self):
-        category_id = self.kwargs['pk']
+        category_identifier = self.kwargs['pk']
+        
         try:
-            # Verify category exists
-            Categoria.objects.get(pk=category_id)
+            # Try to get category by ID first
+            if category_identifier.isdigit():
+                category = Categoria.objects.get(pk=int(category_identifier))
+            else:
+                # Try to extract ID from slug format (id-name)
+                try:
+                    category_id = int(category_identifier.split('-')[0])
+                    category = Categoria.objects.get(pk=category_id)
+                except (ValueError, IndexError):
+                    # Fallback to name search
+                    category = Categoria.objects.get(nombre__iexact=category_identifier.replace('-', ' '))
+            
+            # Return posts with proper annotations
             return Post.objects.filter(
-                categoria_id=category_id, 
+                categoria=category, 
                 status='published'
+            ).select_related('autor', 'categoria').annotate(
+                comments_count=Count('comentarios', filter=Q(comentarios__approved=True))
             ).order_by('-fecha_publicacion')
+            
         except Categoria.DoesNotExist:
             return Post.objects.none()
     
     def list(self, request, *args, **kwargs):
         try:
-            # Check if category exists
-            category_id = self.kwargs['pk']
-            Categoria.objects.get(pk=category_id)
+            category_identifier = self.kwargs['pk']
             
-            queryset = self.get_queryset()
+            # Get category object for metadata
+            if category_identifier.isdigit():
+                category = Categoria.objects.get(pk=int(category_identifier))
+            else:
+                try:
+                    category_id = int(category_identifier.split('-')[0])
+                    category = Categoria.objects.get(pk=category_id)
+                except (ValueError, IndexError):
+                    category = Categoria.objects.get(nombre__iexact=category_identifier.replace('-', ' '))
+            
+            # Apply additional filters if provided
+            queryset = self.filter_queryset(self.get_queryset())
+            
+            # Apply custom ordering
+            ordering = request.query_params.get('ordering', '-fecha_publicacion')
+            valid_orderings = [
+                'fecha_publicacion', '-fecha_publicacion',
+                'titulo', '-titulo',
+                'autor__username', '-autor__username',
+                'comments_count', '-comments_count',
+                'fecha_actualizacion', '-fecha_actualizacion'
+            ]
+            
+            if ordering in valid_orderings:
+                queryset = queryset.order_by(ordering)
+            
+            # Pagination
             page = self.paginate_queryset(queryset)
+            category_serializer = CategorySerializer(category, context={'request': request})
+            
             if page is not None:
                 serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
+                response = self.get_paginated_response(serializer.data)
+                response.data['category'] = category_serializer.data
+                response.data['category_stats'] = {
+                    'total_posts': queryset.count(),
+                    'published_posts': Post.objects.filter(categoria=category, status='published').count(),
+                    'recent_posts': Post.objects.filter(
+                        categoria=category, 
+                        status='published',
+                        fecha_publicacion__gte=timezone.now() - timezone.timedelta(days=30)
+                    ).count()
+                }
+                return response
             
             serializer = self.get_serializer(queryset, many=True)
-            return self.success_response(serializer.data)
+            return self.success_response({
+                'category': category_serializer.data,
+                'posts': serializer.data,
+                'category_stats': {
+                    'total_posts': queryset.count(),
+                    'published_posts': Post.objects.filter(categoria=category, status='published').count(),
+                    'recent_posts': Post.objects.filter(
+                        categoria=category, 
+                        status='published',
+                        fecha_publicacion__gte=timezone.now() - timezone.timedelta(days=30)
+                    ).count()
+                }
+            })
+            
         except Categoria.DoesNotExist:
             return self.not_found_response("Category not found")
+        except Exception as e:
+            return self.error_response(f"Error fetching category posts: {str(e)}")
 
 class CommentDetailAPIView(BaseAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Comentario.objects.filter(approved=True)
@@ -600,8 +669,11 @@ class AdvancedSearchAPIView(BaseAPIView, generics.ListAPIView):
     filterset_class = PostFilter
     
     def get_queryset(self):
-        """Obtener queryset base para búsqueda"""
-        return Post.objects.filter(status='published').select_related('autor', 'categoria')
+        """Obtener queryset base para búsqueda con anotaciones"""
+        return Post.objects.filter(status='published').select_related('autor', 'categoria').annotate(
+            comments_count=Count('comentarios', filter=Q(comentarios__approved=True)),
+            reading_time=Count('contenido') / 200
+        )
     
     def list(self, request, *args, **kwargs):
         """Lista con metadatos de búsqueda mejorados"""
@@ -609,25 +681,46 @@ class AdvancedSearchAPIView(BaseAPIView, generics.ListAPIView):
             # Obtener parámetros de búsqueda
             search_query = request.query_params.get('search') or request.query_params.get('q')
             
+            # Validar parámetros
+            if search_query and len(search_query.strip()) < 2:
+                return self.error_response('La búsqueda debe tener al menos 2 caracteres')
+            
             # Si hay query de búsqueda, usar búsqueda con relevancia
             if search_query:
                 filters = {
                     key: value for key, value in request.query_params.items()
-                    if key not in ['search', 'q', 'page', 'page_size'] and value
+                    if key not in ['search', 'q', 'page', 'page_size', 'ordering'] and value
                 }
                 
                 queryset, search_metadata = AdvancedSearchFilter.search_posts_with_relevance(
-                    self.get_queryset(), search_query, filters
+                    self.get_queryset(), search_query.strip(), filters
                 )
+                
+                # Aplicar ordenamiento personalizado si se especifica
+                ordering = request.query_params.get('ordering')
+                if ordering and ordering != 'relevance':
+                    queryset = self._apply_custom_ordering(queryset, ordering)
+                    search_metadata['custom_ordering'] = ordering
+                
             else:
                 # Usar filtros normales
                 queryset = self.filter_queryset(self.get_queryset())
+                
+                # Aplicar ordenamiento por defecto
+                ordering = request.query_params.get('ordering', '-fecha_publicacion')
+                queryset = self._apply_custom_ordering(queryset, ordering)
+                
                 search_metadata = {
                     'query': None,
                     'total_results': queryset.count(),
                     'search_time': timezone.now().isoformat(),
-                    'filters_applied': bool(request.query_params)
+                    'filters_applied': bool([k for k in request.query_params.keys() if k not in ['page', 'page_size', 'ordering']]),
+                    'applied_filters': [k for k in request.query_params.keys() if k not in ['page', 'page_size', 'ordering'] and request.query_params[k]],
+                    'ordering': ordering
                 }
+            
+            # Agregar estadísticas de filtros
+            search_metadata.update(self._get_filter_stats(request.query_params))
             
             # Paginación
             page = self.paginate_queryset(queryset)
@@ -635,16 +728,100 @@ class AdvancedSearchAPIView(BaseAPIView, generics.ListAPIView):
                 serializer = self.get_serializer(page, many=True)
                 response = self.get_paginated_response(serializer.data)
                 response.data['search_metadata'] = search_metadata
+                
+                # Agregar información adicional para búsquedas
+                if search_query:
+                    response.data['search_enhancements'] = self._get_search_enhancements(search_query, queryset)
+                
                 return response
             
             serializer = self.get_serializer(queryset, many=True)
-            return self.success_response({
+            result_data = {
                 'results': serializer.data,
                 'search_metadata': search_metadata
-            })
+            }
+            
+            # Agregar información adicional para búsquedas
+            if search_query:
+                result_data['search_enhancements'] = self._get_search_enhancements(search_query, queryset)
+            
+            return self.success_response(result_data)
             
         except Exception as e:
             return self.error_response(f"Error en búsqueda avanzada: {str(e)}")
+    
+    def _apply_custom_ordering(self, queryset, ordering):
+        """Aplicar ordenamiento personalizado"""
+        # Mapeo de campos de ordenamiento
+        field_mapping = {
+            'title': 'titulo',
+            'date': 'fecha_publicacion',
+            'updated': 'fecha_actualizacion',
+            'author': 'autor__username',
+            'category': 'categoria__nombre',
+            'comments': 'comments_count',
+            'reading_time': 'reading_time'
+        }
+        
+        ordering_field = ordering.lstrip('-')
+        if ordering_field in field_mapping:
+            mapped_field = field_mapping[ordering_field]
+            ordering = f"{'-' if ordering.startswith('-') else ''}{mapped_field}"
+        
+        # Validar campo de ordenamiento
+        valid_fields = [
+            'titulo', 'fecha_publicacion', 'fecha_actualizacion', 
+            'autor__username', 'categoria__nombre', 'comments_count', 
+            'reading_time', 'relevance_score'
+        ]
+        
+        if ordering.lstrip('-') in valid_fields:
+            return queryset.order_by(ordering)
+        else:
+            return queryset.order_by('-fecha_publicacion')
+    
+    def _get_filter_stats(self, query_params):
+        """Obtener estadísticas de los filtros aplicados"""
+        stats = {
+            'active_filters': {},
+            'filter_count': 0
+        }
+        
+        filter_fields = [
+            'category', 'category_name', 'author', 'author_username', 
+            'status', 'featured', 'date_from', 'date_to', 'time_range',
+            'min_comments', 'max_comments', 'has_comments'
+        ]
+        
+        for field in filter_fields:
+            value = query_params.get(field)
+            if value:
+                stats['active_filters'][field] = value
+                stats['filter_count'] += 1
+        
+        return stats
+    
+    def _get_search_enhancements(self, query, queryset):
+        """Obtener mejoras para la búsqueda"""
+        enhancements = {}
+        
+        # Sugerencias si hay pocos resultados
+        if queryset.count() < 5:
+            enhancements['suggestions'] = AdvancedSearchFilter.get_search_suggestions(query, 5)
+        
+        # Términos relacionados si hay resultados
+        if queryset.count() > 0:
+            enhancements['related_terms'] = AdvancedSearchFilter.get_related_terms(query, queryset[:10])
+        
+        # Estadísticas de la búsqueda
+        enhancements['search_stats'] = {
+            'query_length': len(query),
+            'terms_count': len(query.split()),
+            'has_special_chars': bool([c for c in query if not c.isalnum() and not c.isspace()]),
+            'is_phrase_search': '"' in query
+        }
+        
+        return enhancements
 
 @api_view(['GET'])
 def post_comments(request, post_id):
@@ -806,6 +983,118 @@ def get_trending_posts(request):
         return StandardAPIResponse.error(f"Error fetching trending posts: {str(e)}")
 
 
+class AuthorPostsAPIView(BaseAPIView, generics.ListAPIView):
+    """
+    Vista para obtener posts de un autor específico
+    """
+    serializer_class = PostListSerializer
+    pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = PostFilter
+    
+    def get_queryset(self):
+        author_identifier = self.kwargs['author_id']
+        
+        try:
+            # Try to get author by ID first
+            if author_identifier.isdigit():
+                author = User.objects.get(pk=int(author_identifier))
+            else:
+                # Try to get by username
+                author = User.objects.get(username=author_identifier)
+            
+            # Return posts with proper annotations
+            return Post.objects.filter(
+                autor=author, 
+                status='published'
+            ).select_related('autor', 'categoria').annotate(
+                comments_count=Count('comentarios', filter=Q(comentarios__approved=True))
+            ).order_by('-fecha_publicacion')
+            
+        except User.DoesNotExist:
+            return Post.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        try:
+            author_identifier = self.kwargs['author_id']
+            
+            # Get author object for metadata
+            if author_identifier.isdigit():
+                author = User.objects.get(pk=int(author_identifier))
+            else:
+                author = User.objects.get(username=author_identifier)
+            
+            # Apply additional filters if provided
+            queryset = self.filter_queryset(self.get_queryset())
+            
+            # Apply custom ordering
+            ordering = request.query_params.get('ordering', '-fecha_publicacion')
+            valid_orderings = [
+                'fecha_publicacion', '-fecha_publicacion',
+                'titulo', '-titulo',
+                'categoria__nombre', '-categoria__nombre',
+                'comments_count', '-comments_count',
+                'fecha_actualizacion', '-fecha_actualizacion'
+            ]
+            
+            if ordering in valid_orderings:
+                queryset = queryset.order_by(ordering)
+            
+            # Pagination
+            page = self.paginate_queryset(queryset)
+            
+            # Author data
+            author_data = {
+                'id': author.id,
+                'username': author.username,
+                'full_name': f"{author.first_name} {author.last_name}".strip() or author.username,
+                'email': author.email if request.user.is_staff else None,
+                'date_joined': author.date_joined,
+                'is_staff': author.is_staff
+            }
+            
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                response = self.get_paginated_response(serializer.data)
+                response.data['author'] = author_data
+                response.data['author_stats'] = {
+                    'total_posts': queryset.count(),
+                    'published_posts': Post.objects.filter(autor=author, status='published').count(),
+                    'recent_posts': Post.objects.filter(
+                        autor=author, 
+                        status='published',
+                        fecha_publicacion__gte=timezone.now() - timezone.timedelta(days=30)
+                    ).count(),
+                    'categories_count': Post.objects.filter(
+                        autor=author, status='published'
+                    ).values('categoria').distinct().count()
+                }
+                return response
+            
+            serializer = self.get_serializer(queryset, many=True)
+            return self.success_response({
+                'author': author_data,
+                'posts': serializer.data,
+                'author_stats': {
+                    'total_posts': queryset.count(),
+                    'published_posts': Post.objects.filter(autor=author, status='published').count(),
+                    'recent_posts': Post.objects.filter(
+                        autor=author, 
+                        status='published',
+                        fecha_publicacion__gte=timezone.now() - timezone.timedelta(days=30)
+                    ).count(),
+                    'categories_count': Post.objects.filter(
+                        autor=author, status='published'
+                    ).values('categoria').distinct().count()
+                }
+            })
+            
+        except User.DoesNotExist:
+            return self.not_found_response("Author not found")
+        except Exception as e:
+            return self.error_response(f"Error fetching author posts: {str(e)}")
+
+
 @api_view(['GET'])
 def get_archive_data(request):
     """Get archive data for posts by year and month"""
@@ -843,6 +1132,28 @@ def get_archive_data(request):
                     'year': year,
                     'total_posts': 0,
                     'months': []
+                }
+            
+            year_data['months'].append({
+                'month': month.month,
+                'month_name': month.strftime('%B'),
+                'posts_count': count,
+                'date': month.isoformat()
+            })
+            year_data['total_posts'] += count
+        
+        # Add the last year
+        if year_data:
+            formatted_archive.append(year_data)
+        
+        return StandardAPIResponse.success({
+            'archive': formatted_archive,
+            'total_years': len(formatted_archive),
+            'total_posts': sum(year['total_posts'] for year in formatted_archive)
+        })
+        
+    except Exception as e:
+        return StandardAPIResponse.error(f"Error fetching archive data: {str(e)}") []
                 }
             
             year_data['total_posts'] += count

@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db.models import Q, Count
 from django.core.exceptions import ValidationError
+from io import StringIO
 from posts.models import Post, Categoria, Comentario
 from .models import DashboardPermission, ActivityLog
 from .permissions import IsDashboardUser, CanViewStats, CanManagePosts, CanManageUsers, CanManageComments, IsOwnerOrCanManage
@@ -2207,6 +2208,473 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
                 'error': True,
                 'message': f'Error al duplicar post: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'])
+    def bulk_action(self, request):
+        """
+        Realizar acciones en lote sobre múltiples posts
+        """
+        action_type = request.data.get('action')
+        post_ids = request.data.get('post_ids', [])
+        data = request.data.get('data', {})
+        
+        if not action_type or not post_ids:
+            return DashboardAPIResponse.error(
+                'action y post_ids son requeridos',
+                status_code=HTTPStatus.BAD_REQUEST
+            )
+        
+        try:
+            posts = Post.objects.filter(id__in=post_ids)
+            updated_count = 0
+            
+            if action_type == 'publish':
+                updated_count = posts.update(status='published')
+            elif action_type == 'draft':
+                updated_count = posts.update(status='draft')
+            elif action_type == 'archive':
+                updated_count = posts.update(status='archived')
+            elif action_type == 'delete':
+                updated_count = posts.count()
+                posts.delete()
+            elif action_type == 'feature':
+                updated_count = posts.update(featured=True)
+            elif action_type == 'unfeature':
+                updated_count = posts.update(featured=False)
+            elif action_type == 'change_category':
+                category_id = data.get('category_id')
+                if category_id:
+                    updated_count = posts.update(categoria_id=category_id)
+            elif action_type == 'change_author':
+                author_id = data.get('author_id')
+                if author_id:
+                    updated_count = posts.update(autor_id=author_id)
+            else:
+                return DashboardAPIResponse.error(
+                    'Acción no válida',
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+            
+            # Registrar actividad
+            log_activity(
+                user=request.user,
+                action=f'bulk_{action_type}',
+                description=f'Acción en lote {action_type} aplicada a {updated_count} posts',
+                request=request
+            )
+            
+            return DashboardAPIResponse.success({
+                'updated_count': updated_count,
+                'message': f'{updated_count} posts actualizados exitosamente'
+            })
+            
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error en acción en lote: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """
+        Obtener estadísticas de posts
+        """
+        try:
+            from django.db.models import Count, Q
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            now = timezone.now()
+            thirty_days_ago = now - timedelta(days=30)
+            
+            stats = {
+                'total_posts': Post.objects.count(),
+                'published_posts': Post.objects.filter(status='published').count(),
+                'draft_posts': Post.objects.filter(status='draft').count(),
+                'archived_posts': Post.objects.filter(status='archived').count(),
+                'featured_posts': Post.objects.filter(featured=True).count(),
+                'trending_posts': Post.objects.filter(
+                    fecha_publicacion__gte=thirty_days_ago,
+                    status='published'
+                ).annotate(
+                    comments_count=Count('comentarios')
+                ).filter(comments_count__gt=0).count(),
+                'posts_this_month': Post.objects.filter(
+                    fecha_creacion__gte=thirty_days_ago
+                ).count(),
+                'posts_this_week': Post.objects.filter(
+                    fecha_creacion__gte=now - timedelta(days=7)
+                ).count(),
+                'total_views': 0,  # Placeholder - would need analytics integration
+                'total_comments': Comentario.objects.filter(
+                    post__in=Post.objects.all()
+                ).count(),
+                'avg_reading_time': 5,  # Placeholder - would calculate based on content
+                'top_categories': list(
+                    Categoria.objects.annotate(
+                        count=Count('post', filter=Q(post__status='published'))
+                    ).filter(count__gt=0).order_by('-count')[:5].values('nombre', 'count')
+                ),
+                'recent_activity': []  # Would be populated from activity log
+            }
+            
+            return DashboardAPIResponse.success(stats)
+            
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error obteniendo estadísticas: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def analytics(self, request, pk=None):
+        """
+        Obtener analytics de un post específico
+        """
+        try:
+            post = self.get_object()
+            
+            # Placeholder analytics - would integrate with real analytics service
+            analytics = {
+                'views': 0,  # Would come from analytics service
+                'comments': post.comentarios.filter(approved=True).count(),
+                'shares': 0,  # Would come from social media APIs
+                'reading_time': max(1, len(post.contenido.split()) // 200),  # Estimate
+                'bounce_rate': 0.0,  # Would come from analytics
+                'engagement_rate': 0.0,  # Would be calculated
+                'traffic_sources': [],  # Would come from analytics
+                'popular_sections': []  # Would come from scroll tracking
+            }
+            
+            return DashboardAPIResponse.success(analytics)
+            
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error obteniendo analytics: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def seo_analysis(self, request, pk=None):
+        """
+        Obtener análisis SEO de un post
+        """
+        try:
+            post = self.get_object()
+            
+            # Análisis básico de SEO
+            title_length = len(post.titulo) if post.titulo else 0
+            meta_desc_length = len(post.meta_description) if post.meta_description else 0
+            content_words = len(post.contenido.split()) if post.contenido else 0
+            
+            seo_analysis = {
+                'seo_score': 75,  # Placeholder score
+                'title_analysis': {
+                    'length': title_length,
+                    'optimal': 30 <= title_length <= 60,
+                    'suggestions': [
+                        'El título debería tener entre 30-60 caracteres' if not (30 <= title_length <= 60) else 'Longitud del título es óptima'
+                    ]
+                },
+                'meta_description_analysis': {
+                    'length': meta_desc_length,
+                    'optimal': 120 <= meta_desc_length <= 160,
+                    'suggestions': [
+                        'La meta descripción debería tener entre 120-160 caracteres' if not (120 <= meta_desc_length <= 160) else 'Longitud de meta descripción es óptima'
+                    ]
+                },
+                'content_analysis': {
+                    'word_count': content_words,
+                    'reading_time': max(1, content_words // 200),
+                    'readability_score': 70,  # Placeholder
+                    'keyword_density': [],  # Would analyze keywords
+                    'suggestions': [
+                        'Contenido tiene buena longitud' if content_words > 300 else 'Considera agregar más contenido (mínimo 300 palabras)'
+                    ]
+                },
+                'technical_seo': {
+                    'has_alt_tags': 'img' in post.contenido and 'alt=' in post.contenido,
+                    'has_internal_links': 'href=' in post.contenido,
+                    'has_external_links': 'http' in post.contenido,
+                    'image_optimization': 80,  # Placeholder
+                    'suggestions': []
+                },
+                'overall_suggestions': [
+                    'Optimizar imágenes para mejor rendimiento',
+                    'Agregar más enlaces internos',
+                    'Mejorar estructura de encabezados'
+                ]
+            }
+            
+            return DashboardAPIResponse.success(seo_analysis)
+            
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error en análisis SEO: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def content_suggestions(self, request, pk=None):
+        """
+        Obtener sugerencias de contenido para un post
+        """
+        try:
+            post = self.get_object()
+            
+            # Sugerencias básicas de contenido
+            suggestions = {
+                'writing_suggestions': [
+                    {
+                        'type': 'style',
+                        'message': 'Considera usar más subtítulos para mejorar la legibilidad',
+                        'severity': 'medium'
+                    },
+                    {
+                        'type': 'engagement',
+                        'message': 'Agregar preguntas al final puede aumentar los comentarios',
+                        'severity': 'low'
+                    }
+                ],
+                'content_improvements': [
+                    {
+                        'suggestion': 'Agregar ejemplos prácticos',
+                        'impact': 'high',
+                        'effort': 'medium'
+                    },
+                    {
+                        'suggestion': 'Incluir imágenes relevantes',
+                        'impact': 'medium',
+                        'effort': 'low'
+                    }
+                ],
+                'related_topics': [
+                    {
+                        'topic': 'Temas relacionados con ' + (post.categoria.nombre if post.categoria else 'la categoría'),
+                        'relevance': 85,
+                        'search_volume': 1200
+                    }
+                ],
+                'trending_keywords': [
+                    {
+                        'keyword': 'desarrollo web',
+                        'trend': 'rising',
+                        'competition': 'medium'
+                    }
+                ],
+                'engagement_tips': [
+                    'Hacer preguntas directas a los lectores',
+                    'Incluir llamadas a la acción claras',
+                    'Responder rápidamente a los comentarios'
+                ]
+            }
+            
+            return DashboardAPIResponse.success(suggestions)
+            
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error obteniendo sugerencias: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """
+        Exportar posts en diferentes formatos
+        """
+        try:
+            import csv
+            import json
+            from django.http import HttpResponse
+            from io import StringIO
+            
+            format_type = request.query_params.get('format', 'csv')
+            
+            # Aplicar filtros si se proporcionan
+            queryset = self.filter_queryset(self.get_queryset())
+            
+            if format_type == 'csv':
+                response = HttpResponse(content_type='text/csv')
+                response['Content-Disposition'] = 'attachment; filename="posts_export.csv"'
+                
+                writer = csv.writer(response)
+                writer.writerow(['ID', 'Título', 'Autor', 'Categoría', 'Estado', 'Fecha Publicación', 'Destacado'])
+                
+                for post in queryset:
+                    writer.writerow([
+                        post.id,
+                        post.titulo,
+                        post.autor.username,
+                        post.categoria.nombre if post.categoria else '',
+                        post.status,
+                        post.fecha_publicacion.strftime('%Y-%m-%d') if post.fecha_publicacion else '',
+                        'Sí' if post.featured else 'No'
+                    ])
+                
+                return response
+                
+            elif format_type == 'json':
+                posts_data = []
+                for post in queryset:
+                    posts_data.append({
+                        'id': post.id,
+                        'titulo': post.titulo,
+                        'contenido': post.contenido,
+                        'autor': post.autor.username,
+                        'categoria': post.categoria.nombre if post.categoria else None,
+                        'status': post.status,
+                        'featured': post.featured,
+                        'fecha_publicacion': post.fecha_publicacion.isoformat() if post.fecha_publicacion else None,
+                        'meta_title': post.meta_title,
+                        'meta_description': post.meta_description
+                    })
+                
+                response = HttpResponse(
+                    json.dumps(posts_data, indent=2, ensure_ascii=False),
+                    content_type='application/json'
+                )
+                response['Content-Disposition'] = 'attachment; filename="posts_export.json"'
+                return response
+            
+            else:
+                return DashboardAPIResponse.error(
+                    'Formato no soportado. Use csv o json',
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+                
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error exportando posts: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def import_posts(self, request):
+        """
+        Importar posts desde archivo
+        """
+        try:
+            import csv
+            import json
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            
+            file = request.FILES.get('file')
+            options = json.loads(request.data.get('options', '{}'))
+            
+            if not file:
+                return DashboardAPIResponse.error(
+                    'Archivo requerido',
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+            
+            imported_count = 0
+            updated_count = 0
+            skipped_count = 0
+            errors = []
+            
+            # Determinar formato del archivo
+            if file.name.endswith('.csv'):
+                # Procesar CSV
+                content = file.read().decode('utf-8')
+                csv_reader = csv.DictReader(StringIO(content))
+                
+                for row_num, row in enumerate(csv_reader, start=2):
+                    try:
+                        # Procesar cada fila del CSV
+                        titulo = row.get('titulo', '').strip()
+                        if not titulo:
+                            errors.append({'row': row_num, 'error': 'Título requerido'})
+                            continue
+                        
+                        # Verificar si el post ya existe
+                        existing_post = Post.objects.filter(titulo=titulo).first()
+                        
+                        if existing_post and not options.get('update_existing', False):
+                            if options.get('skip_duplicates', True):
+                                skipped_count += 1
+                                continue
+                        
+                        # Crear o actualizar post
+                        post_data = {
+                            'titulo': titulo,
+                            'contenido': row.get('contenido', ''),
+                            'status': options.get('default_status', 'draft'),
+                            'autor': request.user
+                        }
+                        
+                        # Buscar categoría
+                        categoria_nombre = row.get('categoria', '').strip()
+                        if categoria_nombre:
+                            categoria, _ = Categoria.objects.get_or_create(
+                                nombre=categoria_nombre,
+                                defaults={'descripcion': f'Categoría creada automáticamente: {categoria_nombre}'}
+                            )
+                            post_data['categoria'] = categoria
+                        
+                        if existing_post and options.get('update_existing', False):
+                            for key, value in post_data.items():
+                                if key != 'autor':  # No cambiar autor en actualizaciones
+                                    setattr(existing_post, key, value)
+                            existing_post.save()
+                            updated_count += 1
+                        else:
+                            Post.objects.create(**post_data)
+                            imported_count += 1
+                            
+                    except Exception as e:
+                        errors.append({'row': row_num, 'error': str(e)})
+            
+            elif file.name.endswith('.json'):
+                # Procesar JSON
+                content = file.read().decode('utf-8')
+                posts_data = json.loads(content)
+                
+                for index, post_data in enumerate(posts_data):
+                    try:
+                        titulo = post_data.get('titulo', '').strip()
+                        if not titulo:
+                            errors.append({'row': index + 1, 'error': 'Título requerido'})
+                            continue
+                        
+                        # Similar lógica que CSV...
+                        # (implementación simplificada)
+                        Post.objects.create(
+                            titulo=titulo,
+                            contenido=post_data.get('contenido', ''),
+                            status=options.get('default_status', 'draft'),
+                            autor=request.user
+                        )
+                        imported_count += 1
+                        
+                    except Exception as e:
+                        errors.append({'row': index + 1, 'error': str(e)})
+            
+            else:
+                return DashboardAPIResponse.error(
+                    'Formato de archivo no soportado. Use CSV o JSON',
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+            
+            # Registrar actividad
+            log_activity(
+                user=request.user,
+                action='import_posts',
+                description=f'Importados {imported_count} posts, actualizados {updated_count}, omitidos {skipped_count}',
+                request=request
+            )
+            
+            return DashboardAPIResponse.success({
+                'imported_count': imported_count,
+                'updated_count': updated_count,
+                'skipped_count': skipped_count,
+                'errors': errors
+            })
+            
+        except Exception as e:
+            return DashboardAPIResponse.error(
+                f'Error importando posts: {str(e)}',
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
 
 # ============================================================================
