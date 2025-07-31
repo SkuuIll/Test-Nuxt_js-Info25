@@ -19,7 +19,17 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
-from django_blog.middleware.cors_middleware import cors_test_view
+import time
+
+def cors_test_view(request):
+    """Simple CORS test view"""
+    return JsonResponse({
+        'method': request.method,
+        'origin': request.META.get('HTTP_ORIGIN', 'No origin'),
+        'cors_enabled': True,
+        'timestamp': int(time.time() * 1000),
+        'message': 'CORS test successful'
+    })
 
 def api_root(request):
     return JsonResponse({

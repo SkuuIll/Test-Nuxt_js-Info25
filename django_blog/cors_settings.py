@@ -343,7 +343,7 @@ def configure_cors():
         'CORS_ALLOW_ALL_ORIGINS': CORS_ALLOW_ALL_ORIGINS,
         'CORS_URLS_REGEX': r'^/(api|media|admin|dashboard|tinymce)/.*',
         'CORS_ALLOW_PRIVATE_NETWORK': CORS_ALLOW_PRIVATE_NETWORK,
-        'CORS_REPLACE_HTTPS_REFERER': not DEBUG,
+        # 'CORS_REPLACE_HTTPS_REFERER': not DEBUG,  # Removed in newer versions
     }
 
 

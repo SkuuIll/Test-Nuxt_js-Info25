@@ -425,6 +425,22 @@ export const useApi = () => {
         }
       }
 
+      // Helper function to extract error message from response
+      const extractErrorMessage = (errorData: any): string | null => {
+        if (!errorData) return null
+
+        // Try different error message formats
+        if (errorData.error) return errorData.error
+        if (errorData.message) return errorData.message
+        if (errorData.detail) return errorData.detail
+        if (errorData.non_field_errors && Array.isArray(errorData.non_field_errors)) {
+          return errorData.non_field_errors[0]
+        }
+        if (typeof errorData === 'string') return errorData
+
+        return null
+      }
+
       // Create enhanced error object with better error extraction
       const enhancedError = createError({
         statusCode: response.status,
@@ -444,8 +460,6 @@ export const useApi = () => {
         handleApiError(enhancedError, 'API Permission Error')
       } else if (response.status === 404) {
         handleApiError(enhancedError, 'API Not Found Error')
-      } else if (response.status === 422) {
-        handleValidationError(enhancedError, 'API Validation Error')
       } else if (response.status >= 500) {
         handleNetworkError(enhancedError, 'API Server Error')
       } else {
@@ -455,25 +469,7 @@ export const useApi = () => {
       throw enhancedError
     }
 
-    // Helper function to extract error message from response
-    const extractErrorMessage = (errorData: any): string | null => {
-      if (!errorData) return null
-
-      // Try different error message formats
-      if (errorData.error) return errorData.error
-      if (errorData.message) return errorData.message
-      if (errorData.detail) return errorData.detail
-
-      // Handle validation errors
-      if (errorData.errors && typeof errorData.errors === 'object') {
-        const errorMessages = Object.values(errorData.errors).flat()
-        if (errorMessages.length > 0) {
-          return errorMessages.join(', ')
-        }
-      }
-
-      return null
-    }
+    // extractErrorMessage function moved above
   })
 
   // Enhanced auth endpoints
@@ -952,25 +948,11 @@ export const useApi = () => {
         }
 
         // For other errors, don't retry
-        // Use global error handler for consistent error handling
-        const { handleError } = useGlobalErrorHandler()
-
-        handleError(error, {
-          context: {
-            component: 'api',
-            action: 'api_request_failed',
-            additionalData: {
-              endpoint,
-              method: options.method || 'GET',
-              status: statusCode,
-              attempt: attempt + 1,
-              maxRetries: maxRetries + 1
-            }
-          },
-          showToast: false, // Let individual API calls decide about toasts
-          logError: true,
-          reportError: statusCode >= 500 // Only report server errors
-        })
+        if (statusCode >= 500) {
+          handleNetworkError(error, 'API Server Error')
+        } else {
+          handleApiError(error, 'API Request Failed')
+        }
 
         throw error
       }

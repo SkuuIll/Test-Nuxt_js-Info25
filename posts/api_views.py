@@ -1153,26 +1153,6 @@ def get_archive_data(request):
         })
         
     except Exception as e:
-        return StandardAPIResponse.error(f"Error fetching archive data: {str(e)}") []
-                }
-            
-            year_data['total_posts'] += count
-            year_data['months'].append({
-                'month': month.month,
-                'month_name': month.strftime('%B'),
-                'posts_count': count,
-                'date': month.isoformat()
-            })
-        
-        if year_data:
-            formatted_archive.append(year_data)
-        
-        return StandardAPIResponse.success({
-            'archive': formatted_archive,
-            'total_years': len(formatted_archive)
-        })
-        
-    except Exception as e:
         return StandardAPIResponse.error(f"Error fetching archive data: {str(e)}")
 
 

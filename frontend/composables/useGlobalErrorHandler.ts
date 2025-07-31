@@ -594,7 +594,7 @@ export const useGlobalErrorHandler = () => {
         createErrorBoundary,
         processRetryQueue,
 
-        // Network status
-        isOnline
+        // Network status (already included above)
+        // isOnline: readonly(isOnline)
     }
 }
