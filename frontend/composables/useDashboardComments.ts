@@ -1,4 +1,5 @@
 import type { Comment, Post, User, ApiResponse } from '~/types'
+import { handleApiError, handleValidationError } from '~/utils/errorHandling'
 
 interface DashboardComment extends Comment {
     // Dashboard-specific fields
@@ -80,7 +81,7 @@ interface ModerationAction {
 
 export const useDashboardComments = () => {
     const { dashboardApiCall, requirePermission } = useDashboardAuth()
-    const { handleApiError, handleValidationError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
 
     // State

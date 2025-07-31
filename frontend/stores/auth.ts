@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import type { User, LoginCredentials, RegisterData, AuthTokens } from '~/types'
+import { handleAuthError, handleValidationError } from '~/utils/errorHandling'
 
 export const useAuthStore = defineStore('auth', () => {
-  const { handleAuthError, handleValidationError } = useErrorHandler()
+  // Error handlers imported from utils to avoid circular dependencies
   const { authLoading } = useLoading()
   const api = useApi()
 

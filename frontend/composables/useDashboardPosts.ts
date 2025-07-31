@@ -1,4 +1,5 @@
 import type { Post, Category, User, ApiResponse } from '~/types'
+import { handleApiError, handleValidationError } from '~/utils/errorHandling'
 
 interface DashboardPost extends Post {
     // Dashboard-specific fields
@@ -67,7 +68,7 @@ interface PostStats {
 
 export const useDashboardPosts = () => {
     const { dashboardApiCall, requirePermission } = useDashboardAuth()
-    const { handleApiError, handleValidationError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
 
     // Create loading wrapper for posts operations
@@ -949,23 +950,11 @@ export const useDashboardPosts = () => {
         } catch (err: any) {
             const errorInfo = handlePostError(err, 'Get Content Suggestions', Number(id))
             throw err
-        } ported_count
-    } posts, updated ${ response.updated_count }, skipped ${ response.skipped_count }.${ response.errors.length } errors occurred.`
-                )
-            } else {
-                success(
-                    'Import Successful',
-                    `Imported ${ response.imported_count } posts, updated ${ response.updated_count }, skipped ${ response.skipped_count }.`
-                )
-            }
-
-            console.log('✅ Posts imported successfully:', response)
-            return response
-        } catch (err: any) {
-            const errorInfo = handlePostError(err, 'Import Posts')
-            throw err
         }
+    }
 
+    // Cleanup function
+    const cleanup = () => {
         currentFilters.value = {}
         error.value = null
         isDirty.value = false
@@ -974,209 +963,103 @@ export const useDashboardPosts = () => {
         console.log('🧹 Dashboard posts composable cleaned up')
     }
 
-    const { success, warning } = useToast()
-    if (response.errors.length > 0) {
-        warning(
-            'Import Completed with Errors',
-            `Imported ${ response.imported_count } posts, updated ${ response.updated_count }, skipped ${ response.skipped_count }. ${ response.errors.length } errors occurred.`
-        )
-    } else {
-        success(
-            'Import Successful',
-            `Imported ${ response.imported_count } posts, updated ${ response.updated_count }, skipped ${ response.skipped_count }.`
-        )
+
+
+    // Auto-cleanup on unmount
+    if (import.meta.client) {
+        onUnmounted(() => {
+            cleanup()
+        })
     }
 
-    console.log('✅ Posts imported successfully:', response)
-    return response
-} catch (err: any) {
-    const errorInfo = handlePostError(err, 'Import Posts')
-    throw err
-}
+    return {
+        // State
+        posts: readonly(posts),
+        currentPost: readonly(currentPost),
+        categories: readonly(categories),
+        postStats: readonly(postStats),
+        loading: readonly(loading),
+        error: readonly(error),
+        totalCount: readonly(totalCount),
+        currentFilters: readonly(currentFilters),
+        selectedPosts: readonly(selectedPosts),
+        lastFetch: readonly(lastFetch),
+        autoRefreshEnabled: readonly(autoRefreshEnabled),
+        operationHistory: readonly(operationHistory),
+        validationErrors: readonly(validationErrors),
+        isDirty: readonly(isDirty),
+
+        // Computed
+        hasSelectedPosts: readonly(hasSelectedPosts),
+        publishedPosts: readonly(publishedPosts),
+        draftPosts: readonly(draftPosts),
+        archivedPosts: readonly(archivedPosts),
+        featuredPosts: readonly(featuredPosts),
+
+        // CRUD Operations
+        fetchPosts,
+        fetchPost,
+        createPost,
+        updatePost,
+        deletePost,
+        duplicatePost,
+
+        // Status Management
+        changePostStatus,
+        toggleFeatured,
+        schedulePost,
+
+        // Bulk Operations
+        bulkAction,
+        bulkActionWithConfirmation,
+        bulkPublish,
+        bulkDraft,
+        bulkArchive,
+        bulkDelete,
+        bulkFeature,
+        bulkUnfeature,
+        bulkChangeCategory,
+        bulkChangeAuthor,
+
+        // Selection Management
+        togglePostSelection,
+        selectAllPosts,
+        clearSelection,
+        isPostSelected,
+
+        // Search and Filter
+        searchPosts,
+        filterByStatus,
+        filterByCategory,
+        filterByAuthor,
+        sortPosts,
+        resetFilters,
+
+        // Additional Data
+        fetchCategories,
+        fetchPostStats,
+
+        // Analytics and Insights
+        getPostAnalytics,
+        getSEOAnalysis,
+        getContentSuggestions,
+
+        // Import/Export
+        exportPosts,
+        importPosts,
+
+        // Auto-refresh
+        startAutoRefresh,
+        stopAutoRefresh,
+
+        // Validation
+        validatePostData,
+        clearValidationErrors,
+
+        // Utilities
+        cleanFilters,
+        addToHistory,
+        handlePostError,
+        cleanup
     }
-
-// Get SEO analysis for post
-const getSEOAnalysis = async (id: number | string) => {
-    try {
-        console.log('🔍 Getting SEO analysis for post:', id)
-
-        const response = await dashboardApiCall<{
-            score: number
-            issues: Array<{
-                type: 'error' | 'warning' | 'info'
-                message: string
-                suggestion: string
-            }>
-            recommendations: Array<{
-                priority: 'high' | 'medium' | 'low'
-                action: string
-                description: string
-            }>
-            keywords: Array<{
-                keyword: string
-                density: number
-                recommended_density: number
-            }>
-        }>(`/ dashboard / posts / ${ id } /seo-analysis/`)
-
-        console.log('✅ SEO analysis completed')
-        return response
-    } catch (err: any) {
-        const errorInfo = handlePostError(err, 'Get SEO Analysis', Number(id))
-        throw err
-    }
-}
-
-// Get content suggestions
-const getContentSuggestions = async (id: number | string) => {
-    try {
-        console.log('💡 Getting content suggestions for post:', id)
-
-        const response = await dashboardApiCall<{
-            readability_score: number
-            suggestions: Array<{
-                type: 'structure' | 'content' | 'style'
-                message: string
-                example?: string
-            }>
-            related_topics: Array<{
-                topic: string
-                relevance: number
-            }>
-            trending_keywords: Array<{
-                keyword: string
-                trend_score: number
-            }>
-        }>(`/ dashboard / posts / ${ id } /content-suggestions/`)
-
-        console.log('✅ Content suggestions generated')
-        return response
-    } catch (err: any) {
-        const errorInfo = handlePostError(err, 'Get Content Suggestions', Number(id))
-        throw err
-    }
-}
-
-// Cleanup function
-const cleanup = () => {
-    // Stop auto-refresh
-    stopAutoRefresh()
-
-    // Clear selection
-    clearSelection()
-    clearValidationErrors()
-
-    // Clear state
-    posts.value = []
-    currentPost.value = null
-    categories.value = []
-    postStats.value = null
-    selectedPosts.value = []
-    operationHistory.value = []
-    validationErrors.value = {}
-    currentFilters.value = {}
-    error.value = null
-    isDirty.value = false
-    lastFetch.value = null
-
-    console.log('🧹 Dashboard posts composable cleaned up')
-}
-
-// Auto-cleanup on unmount
-if (import.meta.client) {
-    onUnmounted(() => {
-        cleanup()
-    })
-}
-
-return {
-    // State
-    posts: readonly(posts),
-    currentPost: readonly(currentPost),
-    categories: readonly(categories),
-    postStats: readonly(postStats),
-    loading: readonly(loading),
-    error: readonly(error),
-    totalCount: readonly(totalCount),
-    currentFilters: readonly(currentFilters),
-    selectedPosts: readonly(selectedPosts),
-    lastFetch: readonly(lastFetch),
-    autoRefreshEnabled: readonly(autoRefreshEnabled),
-    operationHistory: readonly(operationHistory),
-    validationErrors: readonly(validationErrors),
-    isDirty: readonly(isDirty),
-
-    // Computed
-    hasSelectedPosts: readonly(hasSelectedPosts),
-    publishedPosts: readonly(publishedPosts),
-    draftPosts: readonly(draftPosts),
-    archivedPosts: readonly(archivedPosts),
-    featuredPosts: readonly(featuredPosts),
-
-    // CRUD Operations
-    fetchPosts,
-    fetchPost,
-    createPost,
-    updatePost,
-    deletePost,
-    duplicatePost,
-
-    // Status Management
-    changePostStatus,
-    toggleFeatured,
-    schedulePost,
-
-    // Bulk Operations
-    bulkAction,
-    bulkActionWithConfirmation,
-    bulkPublish,
-    bulkDraft,
-    bulkArchive,
-    bulkDelete,
-    bulkFeature,
-    bulkUnfeature,
-    bulkChangeCategory,
-    bulkChangeAuthor,
-
-    // Selection Management
-    togglePostSelection,
-    selectAllPosts,
-    clearSelection,
-    isPostSelected,
-
-    // Search and Filter
-    searchPosts,
-    filterByStatus,
-    filterByCategory,
-    filterByAuthor,
-    sortPosts,
-    resetFilters,
-
-    // Additional Data
-    fetchCategories,
-    fetchPostStats,
-
-    // Analytics and Insights
-    getPostAnalytics,
-    getSEOAnalysis,
-    getContentSuggestions,
-
-    // Import/Export
-    exportPosts,
-    importPosts,
-
-    // Auto-refresh
-    startAutoRefresh,
-    stopAutoRefresh,
-
-    // Validation
-    validatePostData,
-    clearValidationErrors,
-
-    // Utilities
-    cleanFilters,
-    addToHistory,
-    handlePostError,
-    cleanup
-}
 }

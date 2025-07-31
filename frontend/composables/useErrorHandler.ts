@@ -66,13 +66,6 @@ export const useErrorHandler = () => {
     persistent: false
   }
 
-  // Initialize network monitoring
-  if (import.meta.client) {
-    updateNetworkInfo()
-    window.addEventListener('online', updateNetworkInfo)
-    window.addEventListener('offline', updateNetworkInfo)
-  }
-
   // Update network information
   const updateNetworkInfo = () => {
     if (!import.meta.client) return
@@ -84,6 +77,13 @@ export const useErrorHandler = () => {
       downlink: (navigator as any).connection?.downlink,
       rtt: (navigator as any).connection?.rtt
     }
+  }
+
+  // Initialize network monitoring
+  if (import.meta.client) {
+    updateNetworkInfo()
+    window.addEventListener('online', updateNetworkInfo)
+    window.addEventListener('offline', updateNetworkInfo)
   }
 
   // Generate unique error ID

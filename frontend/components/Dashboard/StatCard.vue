@@ -71,20 +71,7 @@
 </template>
 
 <script setup>
-interface Props {
-  title: string
-  value: number | string
-  icon: string
-  color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'indigo'
-  change?: number
-  loading?: boolean
-  trend?: number[]
-  trendLabel?: string
-  trendChange?: number
-  format?: 'number' | 'currency' | 'percentage'
-}
-
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps(), {
   color: 'blue',
   loading: false,
   format: 'number'
@@ -171,7 +158,7 @@ const trendPoints = computed(() => {
   
   return props.trend
     .map((value, index) => {
-      const x = (index / (props.trend!.length - 1)) * 100
+      const x = (index / (props.trend.length - 1)) * 100
       const y = 32 - ((value - min) / range) * 32
       return `${x},${y}`
     })

@@ -58,17 +58,50 @@ interface SearchResponse<T = any> extends PaginatedApiResponse<T> {
 export const useApi = () => {
   const config = useRuntimeConfig()
 
-  // Helper function to get error handler when needed
-  const getErrorHandler = () => {
-    try {
-      return useErrorHandler()
-    } catch (error) {
-      console.warn('Error handler not available, using fallback')
-      return {
-        handleApiError: (err: any, context?: string) => console.error('API Error:', err, context),
-        handleAuthError: (err: any, context?: string) => console.error('Auth Error:', err, context),
-        handleNetworkError: (err: any, context?: string) => console.error('Network Error:', err, context)
+  // Independent error handling - NO dependency on useErrorHandler to avoid circular imports
+  const handleApiError = (error: any, context?: string) => {
+    console.error('🚨 API Error:', context || 'Unknown context', error)
+
+    // Extract meaningful error message
+    const message = error?.data?.message || error?.data?.error || error?.message || error?.statusMessage || 'Error desconocido'
+
+    // Log detailed error info for debugging
+    console.error('Error details:', {
+      status: error?.statusCode || error?.status,
+      message,
+      context,
+      url: error?.data?.url,
+      timestamp: new Date().toISOString()
+    })
+  }
+
+  const handleAuthError = (error: any, context?: string) => {
+    console.error('🔐 Auth Error:', context || 'Unknown context', error)
+
+    // Handle auth errors independently
+    if (import.meta.client) {
+      // Clear any stored tokens on auth error
+      try {
+        localStorage.removeItem('auth_tokens')
+      } catch (e) {
+        // Ignore localStorage errors
       }
+
+      // Redirect to login if we're on a protected route
+      const currentPath = window.location.pathname
+      if (currentPath.startsWith('/dashboard') || currentPath.startsWith('/profile')) {
+        console.log('🔄 Redirecting to login due to auth error')
+        window.location.href = '/login'
+      }
+    }
+  }
+
+  const handleNetworkError = (error: any, context?: string) => {
+    console.error('🌐 Network Error:', context || 'Unknown context', error)
+
+    // Could implement retry logic or offline handling here
+    if (import.meta.client && navigator.onLine === false) {
+      console.warn('🔌 Device appears to be offline')
     }
   }
 
@@ -81,6 +114,22 @@ export const useApi = () => {
       }
     }
     return cleaned
+  }
+
+  // Helper function to extract error message from response
+  const extractErrorMessage = (errorData: any): string | null => {
+    if (!errorData) return null
+
+    // Try different error message formats
+    if (errorData.error) return errorData.error
+    if (errorData.message) return errorData.message
+    if (errorData.detail) return errorData.detail
+    if (errorData.non_field_errors && Array.isArray(errorData.non_field_errors)) {
+      return errorData.non_field_errors[0]
+    }
+    if (typeof errorData === 'string') return errorData
+
+    return null
   }
 
   // Helper function to transform paginated response to legacy format
@@ -422,7 +471,7 @@ export const useApi = () => {
                 refresh_error: refreshError
               }
             })
-            getErrorHandler().handleAuthError(authError, 'Token Refresh Failed')
+            handleAuthError(authError, 'Token Refresh Failed')
             throw authError
           }
         } else {
@@ -433,26 +482,12 @@ export const useApi = () => {
             statusMessage: 'Session expired',
             data: { ...errorData, no_refresh_token: true }
           })
-          getErrorHandler().handleAuthError(authError, 'No Refresh Token')
+          handleAuthError(authError, 'No Refresh Token')
           throw authError
         }
       }
 
-      // Helper function to extract error message from response
-      const extractErrorMessage = (errorData: any): string | null => {
-        if (!errorData) return null
 
-        // Try different error message formats
-        if (errorData.error) return errorData.error
-        if (errorData.message) return errorData.message
-        if (errorData.detail) return errorData.detail
-        if (errorData.non_field_errors && Array.isArray(errorData.non_field_errors)) {
-          return errorData.non_field_errors[0]
-        }
-        if (typeof errorData === 'string') return errorData
-
-        return null
-      }
 
       // Create enhanced error object with better error extraction
       const enhancedError = createError({
@@ -466,24 +501,23 @@ export const useApi = () => {
         }
       })
 
-      // Handle different types of errors with appropriate error handlers
-      const errorHandler = getErrorHandler()
+      // Handle different types of errors with direct error handlers
       if (response.status === 401) {
-        errorHandler.handleAuthError(enhancedError, 'API Authentication Error')
+        handleAuthError(enhancedError, 'API Authentication Error')
       } else if (response.status === 403) {
-        errorHandler.handleApiError(enhancedError, 'API Permission Error')
+        handleApiError(enhancedError, 'API Permission Error')
       } else if (response.status === 404) {
-        errorHandler.handleApiError(enhancedError, 'API Not Found Error')
+        handleApiError(enhancedError, 'API Not Found Error')
       } else if (response.status >= 500) {
-        errorHandler.handleNetworkError(enhancedError, 'API Server Error')
+        handleNetworkError(enhancedError, 'API Server Error')
       } else {
-        errorHandler.handleApiError(enhancedError, 'API Error')
+        handleApiError(enhancedError, 'API Error')
       }
 
       throw enhancedError
     }
 
-    // extractErrorMessage function moved above
+
   })
 
   // Enhanced auth endpoints
@@ -962,11 +996,10 @@ export const useApi = () => {
         }
 
         // For other errors, don't retry
-        const errorHandler = getErrorHandler()
         if (statusCode >= 500) {
-          errorHandler.handleNetworkError(error, 'API Server Error')
+          handleNetworkError(error, 'API Server Error')
         } else {
-          errorHandler.handleApiError(error, 'API Request Failed')
+          handleApiError(error, 'API Request Failed')
         }
 
         throw error

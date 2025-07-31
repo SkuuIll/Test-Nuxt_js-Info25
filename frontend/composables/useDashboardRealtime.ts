@@ -37,7 +37,7 @@ interface SystemAlert {
 
 export const useDashboardRealtime = () => {
     const { requirePermission } = useDashboardAuth()
-    const { handleApiError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
     const config = useRuntimeConfig()
 
     // State

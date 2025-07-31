@@ -31,14 +31,11 @@ cd frontend && npm run dev
 - **👨‍💼 Django Admin**: http://localhost:8000/admin/
 - **📊 Dashboard**: http://localhost:3000/dashboard
 
-## 👤 Usuarios de Prueba
+## 👤 Usuario Disponible
 
 | Usuario | Email | Contraseña | Tipo |
 |---------|-------|------------|------|
-| admin | admin@test.com | (usar Django admin) | Superuser |
-| skull | a@a.com | (usar Django admin) | Superuser |
-| editor | editor@test.com | password123 | Staff |
-| author | author@test.com | password123 | Normal |
+| admin | admin@test.com | admin123 | Superuser |
 
 ## 🧪 Páginas de Prueba
 

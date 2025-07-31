@@ -18,7 +18,7 @@ interface CorsError {
 
 export const useCors = () => {
     const config = useRuntimeConfig()
-    const { handleApiError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
 
     // CORS configuration
     const corsConfig: CorsConfig = {

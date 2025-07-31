@@ -1,4 +1,5 @@
 import type { User, LoginCredentials, AuthTokens } from '~/types'
+import { handleAuthError, handleValidationError, handleNetworkError } from '~/utils/errorHandling'
 
 interface DashboardUser extends User {
     permissions: DashboardPermissions
@@ -54,7 +55,7 @@ interface DashboardAuthError {
 }
 
 export const useDashboardAuth = () => {
-    const { handleAuthError, handleValidationError, handleNetworkError } = useErrorHandler()
+    // Error handlers are now imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
     const api = useApi()
     const router = useRouter()

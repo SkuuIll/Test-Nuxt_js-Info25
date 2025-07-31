@@ -161,28 +161,7 @@
 </template>
 
 <script setup>
-interface ChartData {
-  label: string
-  value: number
-}
-
-interface Period {
-  label: string
-  value: string
-}
-
-interface Props {
-  title: string
-  subtitle?: string
-  type: 'line' | 'bar'
-  data: ChartData[]
-  loading?: boolean
-  color?: string
-  filled?: boolean
-  periods?: Period[]
-}
-
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps(), {
   loading: false,
   color: '#3B82F6',
   filled: false,
@@ -193,9 +172,7 @@ const props = withDefaults(defineProps<Props>(), {
   ]
 })
 
-const emit = defineEmits<{
-  periodChange: [period: string]
-}>()
+const emit = defineEmits(['periodChange'])
 
 // State
 const selectedPeriod = ref(props.periods[0]?.value || '7d')
@@ -241,25 +218,25 @@ const displayLabels = computed(() => {
 })
 
 // Methods
-const getX = (index: number) => {
+const getX = (index) => {
   return padding + (index / (chartData.value.length - 1)) * (chartWidth - 2 * padding)
 }
 
-const getY = (value: number) => {
+const getY = (value) => {
   const range = maxValue.value - minValue.value || 1
   return chartHeight - padding - ((value - minValue.value) / range) * (chartHeight - 2 * padding)
 }
 
-const getBarX = (index: number) => {
+const getBarX = (index) => {
   return padding + (index / chartData.value.length) * (chartWidth - 2 * padding) + (barWidth.value * 0.1)
 }
 
-const getBarHeight = (value: number) => {
+const getBarHeight = (value) => {
   const range = maxValue.value - minValue.value || 1
   return ((value - minValue.value) / range) * (chartHeight - 2 * padding)
 }
 
-const getBarColor = (index: number) => {
+const getBarColor = (index) => {
   // Vary opacity for visual interest
   const opacity = 0.7 + (index % 3) * 0.1
   return props.color + Math.floor(opacity * 255).toString(16).padStart(2, '0')
@@ -281,7 +258,7 @@ const areaPath = computed(() => {
   return `M${firstPoint} L${points.join(' L')} L${lastPoint} Z`
 })
 
-const showTooltip = (index: number, event: MouseEvent) => {
+const showTooltip = (index, event) => {
   const point = chartData.value[index]
   if (!point) return
   

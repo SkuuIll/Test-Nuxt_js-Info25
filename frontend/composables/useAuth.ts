@@ -18,9 +18,38 @@ interface AuthError {
 
 export const useAuth = () => {
   const authStore = useAuthStore()
-  const { handleAuthError, handleValidationError, handleNetworkError } = useErrorHandler()
   const api = useApi()
   const router = useRouter()
+
+  // Independent error handling to avoid circular dependencies
+  const handleAuthError = (error: any, context?: string) => {
+    console.error('🔐 Auth Error:', context || 'Unknown context', error)
+
+    // Clear auth state on auth errors
+    authStore.clearAuth()
+
+    // Redirect to login if needed
+    if (import.meta.client && !window.location.pathname.includes('/login')) {
+      router.push('/login')
+    }
+  }
+
+  const handleValidationError = (error: any, context?: string) => {
+    console.error('📝 Validation Error:', context || 'Unknown context', error)
+
+    // Extract validation errors for display
+    const validationErrors = error?.data?.errors || error?.errors || {}
+    console.log('Validation errors:', validationErrors)
+  }
+
+  const handleNetworkError = (error: any, context?: string) => {
+    console.error('🌐 Network Error:', context || 'Unknown context', error)
+
+    // Handle network connectivity issues
+    if (import.meta.client && navigator.onLine === false) {
+      console.warn('🔌 Device appears to be offline')
+    }
+  }
 
   // Enhanced authentication state management
   const authState = ref<AuthState>({

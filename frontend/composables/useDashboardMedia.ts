@@ -40,7 +40,7 @@ interface UploadProgress {
 
 export const useDashboardMedia = () => {
     const { dashboardApiCall, requirePermission } = useDashboardAuth()
-    const { handleApiError, handleValidationError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
 
     // State

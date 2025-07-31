@@ -122,44 +122,21 @@
 </template>
 
 <script setup>
-interface ActivityMetadata {
-  user?: string
-  ip?: string
-  status?: 'success' | 'warning' | 'error'
-  [key: string]: any
-}
-
-interface Activity {
-  id: string
-  type: 'post' | 'user' | 'comment' | 'login' | 'system' | 'error'
-  title: string
-  description: string
-  timestamp: string
-  metadata?: ActivityMetadata
-  actionUrl?: string
-}
-
-interface Props {
-  limit?: number
-  autoRefresh?: boolean
-  refreshInterval?: number
-}
-
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps(), {
   limit: 10,
   autoRefresh: false,
   refreshInterval: 30000 // 30 seconds
 })
 
 // State
-const activities = ref<Activity[]>([])
+const activities = ref([])
 const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
 
 // Auto refresh
-let refreshTimer: NodeJS.Timeout | null = null
+let refreshTimer = null
 
 // Methods
 const fetchActivities = async (reset = false) => {
@@ -211,7 +188,7 @@ const loadMore = () => {
   }
 }
 
-const getActivityIcon = (type: string) => {
+const getActivityIcon = (type) => {
   const icons = {
     post: 'document-text',
     user: 'user',
@@ -223,7 +200,7 @@ const getActivityIcon = (type: string) => {
   return icons[type] || 'information-circle'
 }
 
-const getActivityIconBg = (type: string) => {
+const getActivityIconBg = (type) => {
   const classes = {
     post: 'bg-blue-100 dark:bg-blue-900',
     user: 'bg-green-100 dark:bg-green-900',
@@ -235,7 +212,7 @@ const getActivityIconBg = (type: string) => {
   return classes[type] || 'bg-gray-100 dark:bg-gray-700'
 }
 
-const getActivityIconColor = (type: string) => {
+const getActivityIconColor = (type) => {
   const classes = {
     post: 'text-blue-600 dark:text-blue-400',
     user: 'text-green-600 dark:text-green-400',
@@ -247,7 +224,7 @@ const getActivityIconColor = (type: string) => {
   return classes[type] || 'text-gray-600 dark:text-gray-400'
 }
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status) => {
   const classes = {
     success: 'bg-green-400',
     warning: 'bg-yellow-400',
@@ -256,7 +233,7 @@ const getStatusColor = (status: string) => {
   return classes[status] || 'bg-gray-400'
 }
 
-const formatTime = (timestamp: string) => {
+const formatTime = (timestamp) => {
   const date = new Date(timestamp)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
@@ -277,7 +254,7 @@ const formatTime = (timestamp: string) => {
 }
 
 // Mock data generator for development
-const generateMockActivities = (): Activity[] => {
+const generateMockActivities = () => {
   const mockActivities = [
     {
       id: '1',

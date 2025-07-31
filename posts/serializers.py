@@ -283,6 +283,7 @@ class CommentCreateUpdateSerializer(BaseModelSerializer):
 
 class PostListSerializer(PostBasicSerializer):
     """Serializador optimizado para listas de posts"""
+    category = CategorySerializer(source='categoria', read_only=True)
     
     class Meta:
         model = Post

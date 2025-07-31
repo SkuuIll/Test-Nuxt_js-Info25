@@ -51,8 +51,14 @@ declare global {
   const getAppManifest: typeof import('../../node_modules/nuxt/dist/app/composables/manifest')['getAppManifest']
   const getCurrentInstance: typeof import('../../node_modules/vue')['getCurrentInstance']
   const getCurrentScope: typeof import('../../node_modules/vue')['getCurrentScope']
+  const getErrorMessage: typeof import('../../utils/errorHandling')['getErrorMessage']
   const getRouteRules: typeof import('../../node_modules/nuxt/dist/app/composables/manifest')['getRouteRules']
   const h: typeof import('../../node_modules/vue')['h']
+  const handleApiError: typeof import('../../utils/errorHandling')['handleApiError']
+  const handleAuthError: typeof import('../../utils/errorHandling')['handleAuthError']
+  const handleError: typeof import('../../utils/errorHandling')['handleError']
+  const handleNetworkError: typeof import('../../utils/errorHandling')['handleNetworkError']
+  const handleValidationError: typeof import('../../utils/errorHandling')['handleValidationError']
   const hasInjectionContext: typeof import('../../node_modules/vue')['hasInjectionContext']
   const ignorableWatch: typeof import('@vueuse/core')['ignorableWatch']
   const inject: typeof import('../../node_modules/vue')['inject']
@@ -65,12 +71,14 @@ declare global {
   const isReactive: typeof import('../../node_modules/vue')['isReactive']
   const isReadonly: typeof import('../../node_modules/vue')['isReadonly']
   const isRef: typeof import('../../node_modules/vue')['isRef']
+  const isRetryableError: typeof import('../../utils/errorHandling')['isRetryableError']
   const isShallow: typeof import('../../node_modules/vue')['isShallow']
   const isValidId: typeof import('../../utils/validation')['isValidId']
   const isValidSlug: typeof import('../../utils/validation')['isValidSlug']
   const isVue2: typeof import('../../node_modules/nuxt/dist/app/compat/vue-demi')['isVue2']
   const isVue3: typeof import('../../node_modules/nuxt/dist/app/compat/vue-demi')['isVue3']
   const loadPayload: typeof import('../../node_modules/nuxt/dist/app/composables/payload')['loadPayload']
+  const logError: typeof import('../../utils/errorHandling')['logError']
   const makeDestructurable: typeof import('@vueuse/core')['makeDestructurable']
   const markRaw: typeof import('../../node_modules/vue')['markRaw']
   const mergeModels: typeof import('../../node_modules/vue')['mergeModels']
@@ -432,6 +440,9 @@ declare global {
   // @ts-ignore
   export type { Component, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from '../../node_modules/vue'
   import('../../node_modules/vue')
+  // @ts-ignore
+  export type { ErrorInfo } from '../../utils/errorHandling'
+  import('../../utils/errorHandling')
 }
 // for vue template auto import
 import { UnwrapRef } from 'vue'
@@ -487,8 +498,14 @@ declare module 'vue' {
     readonly getAppManifest: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/manifest')['getAppManifest']>
     readonly getCurrentInstance: UnwrapRef<typeof import('../../node_modules/vue')['getCurrentInstance']>
     readonly getCurrentScope: UnwrapRef<typeof import('../../node_modules/vue')['getCurrentScope']>
+    readonly getErrorMessage: UnwrapRef<typeof import('../../utils/errorHandling')['getErrorMessage']>
     readonly getRouteRules: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/manifest')['getRouteRules']>
     readonly h: UnwrapRef<typeof import('../../node_modules/vue')['h']>
+    readonly handleApiError: UnwrapRef<typeof import('../../utils/errorHandling')['handleApiError']>
+    readonly handleAuthError: UnwrapRef<typeof import('../../utils/errorHandling')['handleAuthError']>
+    readonly handleError: UnwrapRef<typeof import('../../utils/errorHandling')['handleError']>
+    readonly handleNetworkError: UnwrapRef<typeof import('../../utils/errorHandling')['handleNetworkError']>
+    readonly handleValidationError: UnwrapRef<typeof import('../../utils/errorHandling')['handleValidationError']>
     readonly hasInjectionContext: UnwrapRef<typeof import('../../node_modules/vue')['hasInjectionContext']>
     readonly ignorableWatch: UnwrapRef<typeof import('@vueuse/core')['ignorableWatch']>
     readonly inject: UnwrapRef<typeof import('../../node_modules/vue')['inject']>
@@ -501,12 +518,14 @@ declare module 'vue' {
     readonly isReactive: UnwrapRef<typeof import('../../node_modules/vue')['isReactive']>
     readonly isReadonly: UnwrapRef<typeof import('../../node_modules/vue')['isReadonly']>
     readonly isRef: UnwrapRef<typeof import('../../node_modules/vue')['isRef']>
+    readonly isRetryableError: UnwrapRef<typeof import('../../utils/errorHandling')['isRetryableError']>
     readonly isShallow: UnwrapRef<typeof import('../../node_modules/vue')['isShallow']>
     readonly isValidId: UnwrapRef<typeof import('../../utils/validation')['isValidId']>
     readonly isValidSlug: UnwrapRef<typeof import('../../utils/validation')['isValidSlug']>
     readonly isVue2: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/compat/vue-demi')['isVue2']>
     readonly isVue3: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/compat/vue-demi')['isVue3']>
     readonly loadPayload: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/payload')['loadPayload']>
+    readonly logError: UnwrapRef<typeof import('../../utils/errorHandling')['logError']>
     readonly makeDestructurable: UnwrapRef<typeof import('@vueuse/core')['makeDestructurable']>
     readonly markRaw: UnwrapRef<typeof import('../../node_modules/vue')['markRaw']>
     readonly mergeModels: UnwrapRef<typeof import('../../node_modules/vue')['mergeModels']>

@@ -53,6 +53,7 @@ export { useLogger } from '../composables/useLogger';
 export { usePageLoading } from '../composables/usePageLoading';
 export { useTheme } from '../composables/useTheme';
 export { useToast } from '../composables/useToast';
+export { handleApiError, handleAuthError, handleValidationError, handleNetworkError, handleError, getErrorMessage, isRetryableError, logError, ErrorInfo } from '../utils/errorHandling';
 export { isValidSlug, isValidId, sanitizeSlug, generateSlug, validateRouteParams, createPostUrl } from '../utils/validation';
 export { useAuthStore } from '../stores/auth';
 export { useBlogStore } from '../stores/blog';

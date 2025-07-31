@@ -1,4 +1,5 @@
 import type { Post, User, Comment } from '~/types'
+import { handleApiError } from '~/utils/errorHandling'
 
 interface DashboardOverview {
     total_posts: number
@@ -148,7 +149,7 @@ interface SystemHealth {
 
 export const useDashboardStats = () => {
     const { dashboardApiCall, requirePermission } = useDashboardAuth()
-    const { handleApiError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
 
     // State

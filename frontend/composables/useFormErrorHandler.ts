@@ -37,7 +37,7 @@ export const useFormErrorHandler = (options: FormErrorOptions = {}) => {
         fieldLabels = {}
     } = options
 
-    const { handleValidationError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
 
     // State
     const formErrorState = ref<FormErrorState>({

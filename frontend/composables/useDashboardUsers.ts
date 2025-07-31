@@ -1,4 +1,5 @@
 import type { User, ApiResponse } from '~/types'
+import { handleApiError, handleValidationError } from '~/utils/errorHandling'
 
 interface DashboardUser extends User {
     // Dashboard-specific fields
@@ -78,7 +79,7 @@ interface UserStats {
 
 export const useDashboardUsers = () => {
     const { dashboardApiCall, requirePermission } = useDashboardAuth()
-    const { handleApiError, handleValidationError } = useErrorHandler()
+    // Error handlers imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
 
     // State
