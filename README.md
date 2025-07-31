@@ -1,214 +1,217 @@
-# Blog de Noticias - Vue.js + Nuxt.js + Django
+# 📰 Blog de Noticias - Full Stack Application
 
-Un blog moderno y responsive construido con Vue.js 3, Nuxt.js 3, Tailwind CSS y Django REST Framework.
+Una aplicación web completa de blog de noticias construida con **Django REST Framework** en el backend y **Nuxt.js 3** en el frontend, con un dashboard administrativo completo.
 
-## 🚀 Características
+## 🚀 Características Principales
 
-### Frontend (Vue.js + Nuxt.js)
-- ✅ **Diseño Moderno**: Interfaz limpia y responsive con Tailwind CSS
-- ✅ **Modo Oscuro**: Sistema de temas con persistencia
-- ✅ **Autenticación JWT**: Login/registro con manejo de tokens
-- ✅ **Búsqueda Avanzada**: Filtros por categoría, fecha y etiquetas
-- ✅ **Scroll Infinito**: Carga automática de contenido
-- ✅ **Progreso de Lectura**: Barra de progreso y tabla de contenidos
-- ✅ **Compartir Social**: Botones para redes sociales
-- ✅ **PWA Ready**: Optimizado para dispositivos móviles
-- ✅ **SEO Optimizado**: Meta tags dinámicos y sitemap
-- ✅ **TypeScript**: Tipado estático para mejor desarrollo
+### 🔐 **Sistema de Autenticación**
+- Autenticación JWT con refresh tokens
+- Registro y login de usuarios
+- Gestión de perfiles de usuario
+- Sistema de permisos y roles
 
-### Backend (Django REST Framework)
-- ✅ **API REST**: Endpoints completos para posts, categorías, usuarios
-- ✅ **Autenticación JWT**: Sistema seguro de tokens
-- ✅ **Admin Interface**: Panel de administración personalizado
-- ✅ **Base de Datos**: SQLite para desarrollo, PostgreSQL para producción
-- ✅ **Media Handling**: Gestión de imágenes y archivos
+### 📝 **Gestión de Contenido**
+- CRUD completo de posts con editor TinyMCE
+- Sistema de categorías y etiquetas
+- Comentarios con moderación
+- Subida de imágenes y archivos multimedia
+- SEO optimizado con meta tags
 
-## 📁 Estructura del Proyecto
+### 🎛️ **Dashboard Administrativo**
+- Panel de control con estadísticas en tiempo real
+- Gestión de usuarios con permisos granulares
+- Moderación de comentarios con detección de spam
+- Analytics de posts con métricas de engagement
+- Sistema de notificaciones
+
+### 🛠️ **Características Técnicas**
+- API REST estandarizada con paginación
+- Manejo global de errores con logging
+- Estados de carga con skeleton loading
+- Testing integral de endpoints
+- Configuración CORS para desarrollo y producción
+- Responsive design con Tailwind CSS
+
+## 🏗️ Arquitectura del Proyecto
 
 ```
-├── frontend/                 # Aplicación Vue.js + Nuxt.js
-│   ├── components/          # Componentes Vue reutilizables
-│   ├── composables/         # Composables de Vue
-│   ├── layouts/             # Layouts de Nuxt
-│   ├── middleware/          # Middleware de autenticación
-│   ├── pages/               # Páginas de la aplicación
-│   ├── plugins/             # Plugins de Nuxt
-│   ├── stores/              # Stores de Pinia
-│   └── types/               # Tipos de TypeScript
-├── django_blog/             # Configuración principal de Django
-├── posts/                   # App de posts
-├── users/                   # App de usuarios
-├── custom_admin/            # Admin personalizado
-└── media/                   # Archivos multimedia
+proyecto/
+├── django_blog/          # Backend Django
+│   ├── settings.py       # Configuración principal
+│   ├── urls.py          # URLs principales
+│   └── middleware/      # Middleware personalizado
+├── posts/               # App de posts
+├── users/               # App de usuarios
+├── dashboard/           # App del dashboard
+├── accounts/            # App de cuentas
+├── comments/            # App de comentarios
+├── media_files/         # App de archivos multimedia
+└── frontend/            # Frontend Nuxt.js
+    ├── components/      # Componentes Vue
+    ├── composables/     # Composables de Nuxt
+    ├── pages/          # Páginas de la aplicación
+    ├── plugins/        # Plugins de Nuxt
+    └── types/          # Tipos TypeScript
 ```
 
 ## 🛠️ Tecnologías Utilizadas
 
-### Frontend
-- **Vue.js 3** - Framework JavaScript reactivo
-- **Nuxt.js 3** - Framework full-stack para Vue
-- **TypeScript** - Tipado estático
-- **Tailwind CSS** - Framework de CSS utility-first
-- **Pinia** - Gestión de estado
-- **VueUse** - Composables utilitarios
-- **Vitest** - Testing unitario
-- **Playwright** - Testing E2E
-
 ### Backend
-- **Django 4.x** - Framework web de Python
+- **Django 5.2** - Framework web de Python
 - **Django REST Framework** - API REST
-- **SQLite/PostgreSQL** - Base de datos
-- **Pillow** - Procesamiento de imágenes
-- **django-cors-headers** - Manejo de CORS
+- **Django CORS Headers** - Configuración CORS
+- **SimpleJWT** - Autenticación JWT
+- **TinyMCE** - Editor de texto enriquecido
+- **SQLite** - Base de datos (desarrollo)
+
+### Frontend
+- **Nuxt.js 3** - Framework de Vue.js
+- **Vue 3** - Framework JavaScript reactivo
+- **TypeScript** - Tipado estático
+- **Tailwind CSS** - Framework de CSS
+- **Pinia** - Gestión de estado
+- **VueUse** - Utilidades para Vue
+
+## 📋 Requisitos Previos
+
+- **Python 3.8+**
+- **Node.js 18+**
+- **npm** o **yarn**
+- **Git**
 
 ## 🚀 Instalación y Configuración
 
-### Prerrequisitos
-- Python 3.8+
-- Node.js 18+
-- npm o yarn
+### 1. Clonar el Repositorio
 
-### Backend (Django)
-
-1. **Crear entorno virtual**:
 ```bash
+git clone https://github.com/tu-usuario/blog-noticias.git
+cd blog-noticias
+```
+
+### 2. Configurar el Backend (Django)
+
+```bash
+# Crear entorno virtual
 python -m venv entorno
-source entorno/bin/activate  # Linux/Mac
-# o
-entorno\Scripts\activate     # Windows
-```
+source entorno/bin/activate  # En Windows: entorno\Scripts\activate
 
-2. **Instalar dependencias**:
-```bash
+# Instalar dependencias
 pip install -r requirements.txt
-```
 
-3. **Configurar base de datos**:
-```bash
+# Configurar base de datos
 python manage.py makemigrations
 python manage.py migrate
-```
 
-4. **Crear superusuario**:
-```bash
+# Crear superusuario
 python manage.py createsuperuser
-```
 
-5. **Ejecutar servidor**:
-```bash
+# Ejecutar servidor de desarrollo
 python manage.py runserver
 ```
 
-### Frontend (Nuxt.js)
+### 3. Configurar el Frontend (Nuxt.js)
 
-1. **Navegar al directorio frontend**:
 ```bash
+# Navegar al directorio frontend
 cd frontend
-```
 
-2. **Instalar dependencias**:
-```bash
+# Instalar dependencias
 npm install
-```
 
-3. **Ejecutar en desarrollo**:
-```bash
+# Ejecutar servidor de desarrollo
 npm run dev
 ```
 
-4. **Construir para producción**:
-```bash
-npm run build
+## 🌐 URLs de la Aplicación
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000/api/v1/
+- **Django Admin**: http://localhost:8000/admin/
+- **Dashboard**: http://localhost:3000/dashboard
+
+## 📚 Documentación de la API
+
+### Endpoints Principales
+
+#### Autenticación
+```
+POST /api/v1/auth/login/          # Login
+POST /api/v1/auth/register/       # Registro
+POST /api/v1/auth/token/refresh/  # Refresh token
+GET  /api/v1/auth/user/           # Perfil usuario
 ```
 
-## 🔧 Scripts Disponibles
-
-### Frontend
-```bash
-npm run dev          # Servidor de desarrollo
-npm run build        # Construir para producción
-npm run preview      # Vista previa de producción
-npm run lint         # Linter ESLint
-npm run lint:fix     # Corregir errores de linting
-npm run test         # Tests unitarios
-npm run test:e2e     # Tests E2E con Playwright
+#### Posts
+```
+GET    /api/v1/posts/             # Listar posts
+POST   /api/v1/posts/             # Crear post
+GET    /api/v1/posts/{id}/        # Obtener post
+PUT    /api/v1/posts/{id}/        # Actualizar post
+DELETE /api/v1/posts/{id}/        # Eliminar post
 ```
 
-### Backend
-```bash
-python manage.py runserver    # Servidor de desarrollo
-python manage.py test         # Ejecutar tests
-python manage.py collectstatic # Recopilar archivos estáticos
+#### Dashboard
 ```
-
-## 🌐 URLs Principales
-
-### Frontend (Nuxt.js)
-- **Inicio**: http://localhost:3000/
-- **Posts**: http://localhost:3000/posts
-- **Búsqueda**: http://localhost:3000/search
-- **Login**: http://localhost:3000/login
-
-### Backend (Django)
-- **API**: http://localhost:8000/api/v1/
-- **Admin**: http://localhost:8000/admin/
-- **API Docs**: http://localhost:8000/api/docs/
-
-## 📱 Características Responsive
-
-- **Mobile First**: Diseño optimizado para móviles
-- **Breakpoints**: sm (640px), md (768px), lg (1024px), xl (1280px)
-- **Touch Friendly**: Navegación táctil optimizada
-- **PWA**: Funcionalidades de aplicación web progresiva
-
-## 🎨 Sistema de Diseño
-
-### Colores
-- **Primary**: Azul (#2563eb)
-- **Gray Scale**: Escala de grises completa
-- **Dark Mode**: Soporte completo para modo oscuro
-
-### Tipografía
-- **Font**: Inter (sistema de respaldo)
-- **Escalas**: Responsive con Tailwind CSS
-
-## 🔐 Autenticación
-
-- **JWT Tokens**: Autenticación basada en tokens
-- **Refresh Tokens**: Renovación automática de sesiones
-- **Middleware**: Protección de rutas
-- **Persistencia**: Almacenamiento local seguro
-
-## 📊 Performance
-
-- **Lazy Loading**: Carga diferida de imágenes
-- **Code Splitting**: División automática de código
-- **Tree Shaking**: Eliminación de código no utilizado
-- **Caching**: Estrategias de caché optimizadas
+GET /api/v1/dashboard/stats/      # Estadísticas
+GET /api/v1/dashboard/posts/      # Posts del dashboard
+GET /api/v1/dashboard/users/      # Usuarios del dashboard
+GET /api/v1/dashboard/comments/   # Comentarios del dashboard
+```
 
 ## 🧪 Testing
 
-- **Unit Tests**: Vitest para componentes
-- **E2E Tests**: Playwright para flujos completos
-- **Coverage**: Reportes de cobertura de código
+### Páginas de Prueba Incluidas
 
-## 🚀 Despliegue
+- **`/dashboard/users/test`** - Testing de gestión de usuarios
+- **`/dashboard/comments/test`** - Testing de gestión de comentarios
+- **`/dashboard/posts/test`** - Testing de gestión de posts
+- **`/test/integration`** - Testing integral del sistema
 
-### Frontend
-- **Vercel/Netlify**: Despliegue estático
-- **Docker**: Contenedorización
-- **CDN**: Distribución de contenido
+### Ejecutar Tests
 
-### Backend
-- **Heroku/Railway**: Plataformas cloud
-- **Docker**: Contenedorización
-- **PostgreSQL**: Base de datos en producción
+```bash
+# Backend
+python manage.py test
 
-## 📝 Licencia
+# Frontend
+cd frontend
+npm run test
+```
 
-Este proyecto está bajo la Licencia MIT.
+## 🔧 Configuración de Producción
 
-## 🤝 Contribución
+### Variables de Entorno
+
+Crear archivo `.env` en la raíz del proyecto:
+
+```env
+# Django
+SECRET_KEY=tu-clave-secreta-muy-segura
+DEBUG=False
+ALLOWED_HOSTS=tu-dominio.com,www.tu-dominio.com
+
+# Base de datos
+DATABASE_URL=postgresql://usuario:password@localhost/blog_db
+
+# Frontend URLs
+FRONTEND_URL=https://tu-dominio.com
+DASHBOARD_URL=https://tu-dominio.com
+
+# Email (opcional)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=tu-email@gmail.com
+EMAIL_HOST_PASSWORD=tu-password
+```
+
+### Despliegue
+
+1. **Backend**: Configurar con Gunicorn + Nginx
+2. **Frontend**: Build estático con `npm run build`
+3. **Base de datos**: Migrar a PostgreSQL para producción
+4. **Archivos estáticos**: Configurar almacenamiento en la nube
+
+## 🤝 Contribuir
 
 1. Fork el proyecto
 2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
@@ -216,10 +219,52 @@ Este proyecto está bajo la Licencia MIT.
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
-## 📞 Soporte
+## 📝 Funcionalidades Destacadas
 
-Para soporte y preguntas, por favor abre un issue en el repositorio.
+### 🎨 **Frontend Avanzado**
+- **Skeleton Loading**: Indicadores de carga elegantes
+- **Error Handling Global**: Manejo centralizado de errores
+- **Estados de Carga**: Progress bars y spinners personalizados
+- **Responsive Design**: Optimizado para móviles y desktop
+
+### ⚡ **Backend Robusto**
+- **API Estandarizada**: Respuestas consistentes con paginación
+- **Middleware Personalizado**: Logging, CORS, y manejo de errores
+- **Autenticación Segura**: JWT con blacklist de tokens
+- **Permisos Granulares**: Control de acceso por roles
+
+### 🔍 **Dashboard Completo**
+- **Analytics en Tiempo Real**: Métricas de posts, usuarios y comentarios
+- **Gestión de Contenido**: CRUD completo con validaciones
+- **Moderación Avanzada**: Detección automática de spam
+- **Reportes Detallados**: Exportación de datos en múltiples formatos
+
+## 📊 Métricas del Proyecto
+
+- **18 Tareas Completadas** ✅
+- **50+ Endpoints API** implementados
+- **15+ Composables** de Vue/Nuxt
+- **20+ Componentes** reutilizables
+- **100% TypeScript** en frontend
+- **Testing Integral** incluido
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+
+## 👨‍💻 Autor
+
+**Tu Nombre**
+- GitHub: [@tu-usuario](https://github.com/tu-usuario)
+- Email: tu-email@ejemplo.com
+
+## 🙏 Agradecimientos
+
+- Django REST Framework por la excelente documentación
+- Nuxt.js por el framework increíble
+- TinyMCE por el editor de texto
+- Tailwind CSS por el sistema de diseño
 
 ---
 
-**Desarrollado con ❤️ usando Vue.js, Nuxt.js y Django**
+⭐ **¡Si te gusta este proyecto, dale una estrella en GitHub!** ⭐

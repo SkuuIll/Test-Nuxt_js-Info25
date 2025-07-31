@@ -48,6 +48,13 @@ interface _GlobalComponents {
     'SocialShare': typeof import("../components/SocialShare.vue")['default']
     'TableOfContents': typeof import("../components/TableOfContents.vue")['default']
     'ThemeToggle': typeof import("../components/ThemeToggle.vue")['default']
+    'UiErrorBoundary': typeof import("../components/ui/ErrorBoundary.vue")['default']
+    'UiErrorDisplay': typeof import("../components/ui/ErrorDisplay.vue")['default']
+    'UiErrorMessage': typeof import("../components/ui/ErrorMessage.vue")['default']
+    'UiLoadingIndicator': typeof import("../components/ui/LoadingIndicator.vue")['default']
+    'UiLoadingSpinner': typeof import("../components/ui/LoadingSpinner.vue")['default']
+    'UiProgressBar': typeof import("../components/ui/ProgressBar.vue")['default']
+    'UiSkeletonLoader': typeof import("../components/ui/SkeletonLoader.vue")['default']
     'NuxtWelcome': typeof import("../node_modules/nuxt/dist/app/components/welcome.vue")['default']
     'NuxtLayout': typeof import("../node_modules/nuxt/dist/app/components/nuxt-layout")['default']
     'NuxtErrorBoundary': typeof import("../node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']
@@ -108,6 +115,13 @@ interface _GlobalComponents {
     'LazySocialShare': LazyComponent<typeof import("../components/SocialShare.vue")['default']>
     'LazyTableOfContents': LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
     'LazyThemeToggle': LazyComponent<typeof import("../components/ThemeToggle.vue")['default']>
+    'LazyUiErrorBoundary': LazyComponent<typeof import("../components/ui/ErrorBoundary.vue")['default']>
+    'LazyUiErrorDisplay': LazyComponent<typeof import("../components/ui/ErrorDisplay.vue")['default']>
+    'LazyUiErrorMessage': LazyComponent<typeof import("../components/ui/ErrorMessage.vue")['default']>
+    'LazyUiLoadingIndicator': LazyComponent<typeof import("../components/ui/LoadingIndicator.vue")['default']>
+    'LazyUiLoadingSpinner': LazyComponent<typeof import("../components/ui/LoadingSpinner.vue")['default']>
+    'LazyUiProgressBar': LazyComponent<typeof import("../components/ui/ProgressBar.vue")['default']>
+    'LazyUiSkeletonLoader': LazyComponent<typeof import("../components/ui/SkeletonLoader.vue")['default']>
     'LazyNuxtWelcome': LazyComponent<typeof import("../node_modules/nuxt/dist/app/components/welcome.vue")['default']>
     'LazyNuxtLayout': LazyComponent<typeof import("../node_modules/nuxt/dist/app/components/nuxt-layout")['default']>
     'LazyNuxtErrorBoundary': LazyComponent<typeof import("../node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']>
@@ -174,6 +188,13 @@ export const SkeletonLoader: typeof import("../components/SkeletonLoader.vue")['
 export const SocialShare: typeof import("../components/SocialShare.vue")['default']
 export const TableOfContents: typeof import("../components/TableOfContents.vue")['default']
 export const ThemeToggle: typeof import("../components/ThemeToggle.vue")['default']
+export const UiErrorBoundary: typeof import("../components/ui/ErrorBoundary.vue")['default']
+export const UiErrorDisplay: typeof import("../components/ui/ErrorDisplay.vue")['default']
+export const UiErrorMessage: typeof import("../components/ui/ErrorMessage.vue")['default']
+export const UiLoadingIndicator: typeof import("../components/ui/LoadingIndicator.vue")['default']
+export const UiLoadingSpinner: typeof import("../components/ui/LoadingSpinner.vue")['default']
+export const UiProgressBar: typeof import("../components/ui/ProgressBar.vue")['default']
+export const UiSkeletonLoader: typeof import("../components/ui/SkeletonLoader.vue")['default']
 export const NuxtWelcome: typeof import("../node_modules/nuxt/dist/app/components/welcome.vue")['default']
 export const NuxtLayout: typeof import("../node_modules/nuxt/dist/app/components/nuxt-layout")['default']
 export const NuxtErrorBoundary: typeof import("../node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']
@@ -234,6 +255,13 @@ export const LazySkeletonLoader: LazyComponent<typeof import("../components/Skel
 export const LazySocialShare: LazyComponent<typeof import("../components/SocialShare.vue")['default']>
 export const LazyTableOfContents: LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
 export const LazyThemeToggle: LazyComponent<typeof import("../components/ThemeToggle.vue")['default']>
+export const LazyUiErrorBoundary: LazyComponent<typeof import("../components/ui/ErrorBoundary.vue")['default']>
+export const LazyUiErrorDisplay: LazyComponent<typeof import("../components/ui/ErrorDisplay.vue")['default']>
+export const LazyUiErrorMessage: LazyComponent<typeof import("../components/ui/ErrorMessage.vue")['default']>
+export const LazyUiLoadingIndicator: LazyComponent<typeof import("../components/ui/LoadingIndicator.vue")['default']>
+export const LazyUiLoadingSpinner: LazyComponent<typeof import("../components/ui/LoadingSpinner.vue")['default']>
+export const LazyUiProgressBar: LazyComponent<typeof import("../components/ui/ProgressBar.vue")['default']>
+export const LazyUiSkeletonLoader: LazyComponent<typeof import("../components/ui/SkeletonLoader.vue")['default']>
 export const LazyNuxtWelcome: LazyComponent<typeof import("../node_modules/nuxt/dist/app/components/welcome.vue")['default']>
 export const LazyNuxtLayout: LazyComponent<typeof import("../node_modules/nuxt/dist/app/components/nuxt-layout")['default']>
 export const LazyNuxtErrorBoundary: LazyComponent<typeof import("../node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']>

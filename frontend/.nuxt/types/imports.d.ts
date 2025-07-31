@@ -159,6 +159,7 @@ declare global {
   const useActiveElement: typeof import('@vueuse/core')['useActiveElement']
   const useAnimate: typeof import('@vueuse/core')['useAnimate']
   const useApi: typeof import('../../composables/useApi')['useApi']
+  const useApiTesting: typeof import('../../composables/useApiTesting')['useApiTesting']
   const useAppConfig: typeof import('../../node_modules/nuxt/dist/app/config')['useAppConfig']
   const useArrayDifference: typeof import('@vueuse/core')['useArrayDifference']
   const useArrayEvery: typeof import('@vueuse/core')['useArrayEvery']
@@ -177,6 +178,7 @@ declare global {
   const useAsyncState: typeof import('@vueuse/core')['useAsyncState']
   const useAttrs: typeof import('../../node_modules/vue')['useAttrs']
   const useAuth: typeof import('../../composables/useAuth')['useAuth']
+  const useAuthRedirect: typeof import('../../composables/useAuthRedirect')['useAuthRedirect']
   const useAuthStore: typeof import('../../stores/auth')['useAuthStore']
   const useBase64: typeof import('@vueuse/core')['useBase64']
   const useBattery: typeof import('@vueuse/core')['useBattery']
@@ -193,6 +195,7 @@ declare global {
   const useConfirmDialog: typeof import('@vueuse/core')['useConfirmDialog']
   const useCookie: typeof import('../../node_modules/nuxt/dist/app/composables/cookie')['useCookie']
   const useCors: typeof import('../../composables/useCors')['useCors']
+  const useCorsTest: typeof import('../../composables/useCorsTest')['useCorsTest']
   const useCounter: typeof import('@vueuse/core')['useCounter']
   const useCssModule: typeof import('../../node_modules/vue')['useCssModule']
   const useCssVar: typeof import('@vueuse/core')['useCssVar']
@@ -238,10 +241,12 @@ declare global {
   const useFileSystemAccess: typeof import('@vueuse/core')['useFileSystemAccess']
   const useFocus: typeof import('@vueuse/core')['useFocus']
   const useFocusWithin: typeof import('@vueuse/core')['useFocusWithin']
+  const useFormErrorHandler: typeof import('../../composables/useFormErrorHandler')['useFormErrorHandler']
   const useFps: typeof import('@vueuse/core')['useFps']
   const useFullscreen: typeof import('@vueuse/core')['useFullscreen']
   const useGamepad: typeof import('@vueuse/core')['useGamepad']
   const useGeolocation: typeof import('@vueuse/core')['useGeolocation']
+  const useGlobalErrorHandler: typeof import('../../composables/useGlobalErrorHandler')['useGlobalErrorHandler']
   const useHead: typeof import('../../node_modules/nuxt/dist/app/composables/head')['useHead']
   const useHeadSafe: typeof import('../../node_modules/nuxt/dist/app/composables/head')['useHeadSafe']
   const useHydration: typeof import('../../node_modules/nuxt/dist/app/composables/hydrate')['useHydration']
@@ -259,6 +264,7 @@ declare global {
   const useLink: typeof import('../../node_modules/vue-router')['useLink']
   const useLoading: typeof import('../../composables/useLoading')['useLoading']
   const useLoadingIndicator: typeof import('../../node_modules/nuxt/dist/app/composables/loading-indicator')['useLoadingIndicator']
+  const useLoadingStates: typeof import('../../composables/useLoadingStates')['useLoadingStates']
   const useLocalStorage: typeof import('@vueuse/core')['useLocalStorage']
   const useLogger: typeof import('../../composables/useLogger')['useLogger']
   const useMagicKeys: typeof import('@vueuse/core')['useMagicKeys']
@@ -283,6 +289,7 @@ declare global {
   const useOffsetPagination: typeof import('@vueuse/core')['useOffsetPagination']
   const useOnline: typeof import('@vueuse/core')['useOnline']
   const usePageLeave: typeof import('@vueuse/core')['usePageLeave']
+  const usePageLoading: typeof import('../../composables/usePageLoading')['usePageLoading']
   const useParallax: typeof import('@vueuse/core')['useParallax']
   const useParentElement: typeof import('@vueuse/core')['useParentElement']
   const usePerformanceObserver: typeof import('@vueuse/core')['usePerformanceObserver']
@@ -588,6 +595,7 @@ declare module 'vue' {
     readonly useActiveElement: UnwrapRef<typeof import('@vueuse/core')['useActiveElement']>
     readonly useAnimate: UnwrapRef<typeof import('@vueuse/core')['useAnimate']>
     readonly useApi: UnwrapRef<typeof import('../../composables/useApi')['useApi']>
+    readonly useApiTesting: UnwrapRef<typeof import('../../composables/useApiTesting')['useApiTesting']>
     readonly useAppConfig: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/config')['useAppConfig']>
     readonly useArrayDifference: UnwrapRef<typeof import('@vueuse/core')['useArrayDifference']>
     readonly useArrayEvery: UnwrapRef<typeof import('@vueuse/core')['useArrayEvery']>
@@ -606,6 +614,7 @@ declare module 'vue' {
     readonly useAsyncState: UnwrapRef<typeof import('@vueuse/core')['useAsyncState']>
     readonly useAttrs: UnwrapRef<typeof import('../../node_modules/vue')['useAttrs']>
     readonly useAuth: UnwrapRef<typeof import('../../composables/useAuth')['useAuth']>
+    readonly useAuthRedirect: UnwrapRef<typeof import('../../composables/useAuthRedirect')['useAuthRedirect']>
     readonly useAuthStore: UnwrapRef<typeof import('../../stores/auth')['useAuthStore']>
     readonly useBase64: UnwrapRef<typeof import('@vueuse/core')['useBase64']>
     readonly useBattery: UnwrapRef<typeof import('@vueuse/core')['useBattery']>
@@ -622,6 +631,7 @@ declare module 'vue' {
     readonly useConfirmDialog: UnwrapRef<typeof import('@vueuse/core')['useConfirmDialog']>
     readonly useCookie: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/cookie')['useCookie']>
     readonly useCors: UnwrapRef<typeof import('../../composables/useCors')['useCors']>
+    readonly useCorsTest: UnwrapRef<typeof import('../../composables/useCorsTest')['useCorsTest']>
     readonly useCounter: UnwrapRef<typeof import('@vueuse/core')['useCounter']>
     readonly useCssModule: UnwrapRef<typeof import('../../node_modules/vue')['useCssModule']>
     readonly useCssVar: UnwrapRef<typeof import('@vueuse/core')['useCssVar']>
@@ -667,10 +677,12 @@ declare module 'vue' {
     readonly useFileSystemAccess: UnwrapRef<typeof import('@vueuse/core')['useFileSystemAccess']>
     readonly useFocus: UnwrapRef<typeof import('@vueuse/core')['useFocus']>
     readonly useFocusWithin: UnwrapRef<typeof import('@vueuse/core')['useFocusWithin']>
+    readonly useFormErrorHandler: UnwrapRef<typeof import('../../composables/useFormErrorHandler')['useFormErrorHandler']>
     readonly useFps: UnwrapRef<typeof import('@vueuse/core')['useFps']>
     readonly useFullscreen: UnwrapRef<typeof import('@vueuse/core')['useFullscreen']>
     readonly useGamepad: UnwrapRef<typeof import('@vueuse/core')['useGamepad']>
     readonly useGeolocation: UnwrapRef<typeof import('@vueuse/core')['useGeolocation']>
+    readonly useGlobalErrorHandler: UnwrapRef<typeof import('../../composables/useGlobalErrorHandler')['useGlobalErrorHandler']>
     readonly useHead: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/head')['useHead']>
     readonly useHeadSafe: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/head')['useHeadSafe']>
     readonly useHydration: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/hydrate')['useHydration']>
@@ -688,6 +700,7 @@ declare module 'vue' {
     readonly useLink: UnwrapRef<typeof import('../../node_modules/vue-router')['useLink']>
     readonly useLoading: UnwrapRef<typeof import('../../composables/useLoading')['useLoading']>
     readonly useLoadingIndicator: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/loading-indicator')['useLoadingIndicator']>
+    readonly useLoadingStates: UnwrapRef<typeof import('../../composables/useLoadingStates')['useLoadingStates']>
     readonly useLocalStorage: UnwrapRef<typeof import('@vueuse/core')['useLocalStorage']>
     readonly useLogger: UnwrapRef<typeof import('../../composables/useLogger')['useLogger']>
     readonly useMagicKeys: UnwrapRef<typeof import('@vueuse/core')['useMagicKeys']>
@@ -712,6 +725,7 @@ declare module 'vue' {
     readonly useOffsetPagination: UnwrapRef<typeof import('@vueuse/core')['useOffsetPagination']>
     readonly useOnline: UnwrapRef<typeof import('@vueuse/core')['useOnline']>
     readonly usePageLeave: UnwrapRef<typeof import('@vueuse/core')['usePageLeave']>
+    readonly usePageLoading: UnwrapRef<typeof import('../../composables/usePageLoading')['usePageLoading']>
     readonly useParallax: UnwrapRef<typeof import('@vueuse/core')['useParallax']>
     readonly useParentElement: UnwrapRef<typeof import('@vueuse/core')['useParentElement']>
     readonly usePerformanceObserver: UnwrapRef<typeof import('@vueuse/core')['usePerformanceObserver']>

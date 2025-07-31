@@ -28,6 +28,7 @@ type NuxtAppInjections =
   InjectionType<typeof import("../../plugins/cors-error-handler.client")> &
   InjectionType<typeof import("../../plugins/dashboard-auth-init.client")> &
   InjectionType<typeof import("../../plugins/dashboard-auth.client")> &
+  InjectionType<typeof import("../../plugins/error-handler.client")> &
   InjectionType<typeof import("../../plugins/global-error-handler.client")> &
   InjectionType<typeof import("../../plugins/global-loading.client")> &
   InjectionType<typeof import("../../plugins/logger.client")> &
