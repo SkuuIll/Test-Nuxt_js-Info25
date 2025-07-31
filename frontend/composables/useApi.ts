@@ -952,6 +952,26 @@ export const useApi = () => {
         }
 
         // For other errors, don't retry
+        // Use global error handler for consistent error handling
+        const { handleError } = useGlobalErrorHandler()
+
+        handleError(error, {
+          context: {
+            component: 'api',
+            action: 'api_request_failed',
+            additionalData: {
+              endpoint,
+              method: options.method || 'GET',
+              status: statusCode,
+              attempt: attempt + 1,
+              maxRetries: maxRetries + 1
+            }
+          },
+          showToast: false, // Let individual API calls decide about toasts
+          logError: true,
+          reportError: statusCode >= 500 // Only report server errors
+        })
+
         throw error
       }
     }

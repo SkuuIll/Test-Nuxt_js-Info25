@@ -7,6 +7,7 @@ import os
 import re
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.utils import timezone
 
 
 class Command(BaseCommand):

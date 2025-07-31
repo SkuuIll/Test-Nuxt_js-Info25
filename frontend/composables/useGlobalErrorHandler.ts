@@ -1,419 +1,600 @@
 /**
  * Global Error Handler Composable
- * Provides application-wide error handling functionality
+ * Provides centralized error handling for the entire application
  */
 
-interface GlobalErrorState {
-    isInitialized: boolean
-    errorBoundaryActive: boolean
-    criticalErrorCount: number
-    lastCriticalError: Date | null
-    errorReportingEnabled: boolean
-    debugMode: boolean
+import type { ApiError, ValidationErrors } from '~/types'
+
+interface ErrorContext {
+    component?: string
+    action?: string
+    userId?: number | string
+    additionalData?: Record<string, any>
+}
+
+interface ErrorHandlerOptions {
+    showToast?: boolean
+    logError?: boolean
+    reportError?: boolean
+    fallbackMessage?: string
+    context?: ErrorContext
+}
+
+interface NetworkError extends Error {
+    code?: string
+    status?: number
+    response?: any
+}
+
+interface ValidationError extends Error {
+    field?: string
+    errors?: string[]
+}
+
+interface BusinessError extends Error {
+    code?: string
+    type?: 'business' | 'validation' | 'permission' | 'not_found'
+    details?: Record<string, any>
 }
 
 export const useGlobalErrorHandler = () => {
-    const {
-        handleError,
-        handleApiError,
-        handleAuthError,
-        handleValidationError,
-        handleNetworkError,
-        handleClientError,
-        handleCriticalError,
-        errors,
-        errorStats,
-        hasCriticalErrors,
-        hasNetworkErrors,
-        getErrorSummary,
-        exportErrors,
-        clearErrors
-    } = useErrorHandler()
+    const { error: nuxtError } = useError()
+    const { $toast } = useNuxtApp()
 
-    // Global error state
-    const globalErrorState = ref<GlobalErrorState>({
-        isInitialized: false,
-        errorBoundaryActive: false,
-        criticalErrorCount: 0,
-        lastCriticalError: null,
-        errorReportingEnabled: true,
-        debugMode: process.env.NODE_ENV === 'development'
-    })
+    // Error state management
+    const globalError = ref<string | null>(null)
+    const errorHistory = ref<Array<{
+        error: Error
+        timestamp: Date
+        context?: ErrorContext
+        resolved: boolean
+    }>>([])
+    const isOnline = ref(true)
+    const retryQueue = ref<Array<{
+        fn: Function
+        context: ErrorContext
+        attempts: number
+        maxAttempts: number
+    }>>([])
 
-    // Error boundary component reference
-    const errorBoundaryComponent = ref<any>(null)
-
-    // Initialize global error handling
-    const initializeGlobalErrorHandler = () => {
-        if (globalErrorState.value.isInitialized) return
-
-        console.log('🛡️ Initializing Global Error Handler...')
-
-        // Set up error reporting configuration
-        setupErrorReporting()
-
-        // Set up error recovery mechanisms
-        setupErrorRecovery()
-
-        // Set up error monitoring
-        setupErrorMonitoring()
-
-        globalErrorState.value.isInitialized = true
-        console.log('✅ Global Error Handler initialized')
-    }
-
-    // Setup error reporting configuration
-    const setupErrorReporting = () => {
-        // Configure error reporting based on environment
-        if (import.meta.client) {
-            const config = useRuntimeConfig()
-            globalErrorState.value.errorReportingEnabled = config.public.errorReportingEnabled !== false
-            globalErrorState.value.debugMode = config.public.debugMode === true
-        }
-    }
-
-    // Setup error recovery mechanisms
-    const setupErrorRecovery = () => {
-        // Watch for critical errors and implement recovery strategies
-        watch(hasCriticalErrors, (hasCritical) => {
-            if (hasCritical) {
-                handleCriticalErrorRecovery()
-            }
-        })
-
-        // Watch for network errors and implement retry strategies
-        watch(hasNetworkErrors, (hasNetwork) => {
-            if (hasNetwork) {
-                handleNetworkErrorRecovery()
-            }
-        })
-    }
-
-    // Setup error monitoring
-    const setupErrorMonitoring = () => {
-        // Monitor error frequency and patterns
-        watch(errors, (newErrors) => {
-            const criticalErrors = newErrors.filter(e => e.severity === 'critical')
-            globalErrorState.value.criticalErrorCount = criticalErrors.length
-
-            if (criticalErrors.length > 0) {
-                globalErrorState.value.lastCriticalError = criticalErrors[0].timestamp
-            }
-
-            // Check for error patterns that might indicate systemic issues
-            checkErrorPatterns(newErrors)
-        }, { deep: true })
-    }
-
-    // Handle critical error recovery
-    const handleCriticalErrorRecovery = () => {
-        console.warn('🚨 Critical error detected, initiating recovery procedures...')
-
-        // Activate error boundary
-        globalErrorState.value.errorBoundaryActive = true
-
-        // Clear non-essential data to free up memory
-        clearNonEssentialData()
-
-        // Attempt to restore application state
-        attemptStateRecovery()
-
-        // Show recovery UI
-        showRecoveryInterface()
-    }
-
-    // Handle network error recovery
-    const handleNetworkErrorRecovery = () => {
-        console.warn('📡 Network errors detected, implementing recovery strategies...')
-
-        // Implement offline mode if available
-        enableOfflineMode()
-
-        // Queue failed requests for retry
-        queueFailedRequests()
-
-        // Show network status indicator
-        showNetworkStatusIndicator()
-    }
-
-    // Check for error patterns
-    const checkErrorPatterns = (errorList: any[]) => {
-        const recentErrors = errorList.filter(e =>
-            Date.now() - new Date(e.timestamp).getTime() < 60000 // Last minute
-        )
-
-        // Check for error spikes
-        if (recentErrors.length > 10) {
-            console.warn('⚠️ Error spike detected:', recentErrors.length, 'errors in the last minute')
-            handleErrorSpike(recentErrors)
-        }
-
-        // Check for repeated errors
-        const errorGroups = groupErrorsByMessage(recentErrors)
-        Object.entries(errorGroups).forEach(([message, errors]) => {
-            if (errors.length > 3) {
-                console.warn('⚠️ Repeated error detected:', message, errors.length, 'times')
-                handleRepeatedError(message, errors)
-            }
-        })
-    }
-
-    // Group errors by message
-    const groupErrorsByMessage = (errorList: any[]) => {
-        return errorList.reduce((groups, error) => {
-            const message = error.message
-            if (!groups[message]) {
-                groups[message] = []
-            }
-            groups[message].push(error)
-            return groups
-        }, {} as Record<string, any[]>)
-    }
-
-    // Handle error spike
-    const handleErrorSpike = (recentErrors: any[]) => {
-        // Temporarily disable non-critical error reporting
-        globalErrorState.value.errorReportingEnabled = false
-
-        // Clear old errors to prevent memory issues
-        clearErrors()
-
-        // Re-enable error reporting after a delay
-        setTimeout(() => {
-            globalErrorState.value.errorReportingEnabled = true
-        }, 30000) // 30 seconds
-    }
-
-    // Handle repeated error
-    const handleRepeatedError = (message: string, errorInstances: any[]) => {
-        // Suppress further instances of this error for a period
-        const suppressionKey = `error_suppressed_${btoa(message)}`
-
-        if (import.meta.client) {
-            sessionStorage.setItem(suppressionKey, Date.now().toString())
-        }
-
-        // Log the suppression
-        console.warn(`🔇 Suppressing repeated error: "${message}" (${errorInstances.length} instances)`)
-    }
-
-    // Clear non-essential data
-    const clearNonEssentialData = () => {
-        try {
-            if (import.meta.client) {
-                // Clear caches
-                if ('caches' in window) {
-                    caches.keys().then(names => {
-                        names.forEach(name => {
-                            if (name.includes('non-essential')) {
-                                caches.delete(name)
-                            }
-                        })
-                    })
-                }
-
-                // Clear non-essential localStorage items
-                const keysToRemove = []
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i)
-                    if (key && (key.includes('cache') || key.includes('temp'))) {
-                        keysToRemove.push(key)
-                    }
-                }
-                keysToRemove.forEach(key => localStorage.removeItem(key))
-            }
-        } catch (error) {
-            console.warn('Failed to clear non-essential data:', error)
-        }
-    }
-
-    // Attempt state recovery
-    const attemptStateRecovery = () => {
-        try {
-            // Try to restore from saved state
-            if (import.meta.client) {
-                const savedState = localStorage.getItem('app_recovery_state')
-                if (savedState) {
-                    const state = JSON.parse(savedState)
-                    console.log('🔄 Attempting to restore application state...')
-
-                    // This would depend on your state management solution
-                    // For example, with Pinia:
-                    // const store = useMainStore()
-                    // store.$patch(state)
-                }
-            }
-        } catch (error) {
-            console.warn('Failed to restore application state:', error)
-        }
-    }
-
-    // Show recovery interface
-    const showRecoveryInterface = () => {
-        const { error } = useToast()
-        error(
-            'Error crítico detectado',
-            'La aplicación está intentando recuperarse. Si el problema persiste, recarga la página.',
-            {
-                duration: 0, // Persistent
-                actions: [
-                    {
-                        label: 'Recargar página',
-                        action: () => {
-                            if (import.meta.client) {
-                                window.location.reload()
-                            }
-                        }
-                    },
-                    {
-                        label: 'Exportar errores',
-                        action: () => exportErrors()
-                    }
-                ]
-            }
-        )
-    }
-
-    // Enable offline mode
-    const enableOfflineMode = () => {
-        // This would depend on your offline strategy
-        console.log('📴 Enabling offline mode...')
-
-        // Show offline indicator
-        const { warning } = useToast()
-        warning(
-            'Modo sin conexión',
-            'La aplicación está funcionando en modo sin conexión. Algunas funciones pueden estar limitadas.',
-            { duration: 0 }
-        )
-    }
-
-    // Queue failed requests for retry
-    const queueFailedRequests = () => {
-        // This would integrate with your API layer
-        console.log('📥 Queueing failed requests for retry...')
-    }
-
-    // Show network status indicator
-    const showNetworkStatusIndicator = () => {
-        // This would show a persistent network status indicator
-        console.log('📶 Showing network status indicator...')
-    }
-
-    // Create error report
-    const createErrorReport = () => {
-        const summary = getErrorSummary()
-        const report = {
-            timestamp: new Date().toISOString(),
-            userAgent: import.meta.client ? navigator.userAgent : 'Server',
-            url: import.meta.client ? window.location.href : 'Server',
-            globalState: globalErrorState.value,
-            errorSummary: summary,
-            recentErrors: errors.value.slice(0, 10), // Last 10 errors
-            systemInfo: {
-                memory: import.meta.client && 'memory' in performance ? (performance as any).memory : null,
-                connection: import.meta.client ? (navigator as any).connection : null,
-                platform: import.meta.client ? navigator.platform : 'Server'
-            }
-        }
-
-        return report
-    }
-
-    // Send error report to service
-    const sendErrorReport = async (report: any) => {
-        if (!globalErrorState.value.errorReportingEnabled) return
-
-        try {
-            // This would send to your error reporting service
-            console.log('📤 Sending error report...', report)
-
-            // Example: Send to your API
-            // await $fetch('/api/error-reports', {
-            //   method: 'POST',
-            //   body: report
-            // })
-
-        } catch (error) {
-            console.warn('Failed to send error report:', error)
-        }
-    }
-
-    // Emergency reset
-    const emergencyReset = () => {
-        console.warn('🚨 Performing emergency reset...')
-
-        try {
-            // Clear all stored data
-            if (import.meta.client) {
-                localStorage.clear()
-                sessionStorage.clear()
-            }
-
-            // Clear all errors
-            clearErrors()
-
-            // Reset global state
-            globalErrorState.value = {
-                isInitialized: true,
-                errorBoundaryActive: false,
-                criticalErrorCount: 0,
-                lastCriticalError: null,
-                errorReportingEnabled: true,
-                debugMode: process.env.NODE_ENV === 'development'
-            }
-
-            // Reload the page
-            if (import.meta.client) {
-                window.location.reload()
-            }
-        } catch (error) {
-            console.error('Emergency reset failed:', error)
-        }
-    }
-
-    // Auto-initialize on client
+    // Network status monitoring
     if (import.meta.client) {
-        onMounted(() => {
-            initializeGlobalErrorHandler()
+        isOnline.value = navigator.onLine
+
+        window.addEventListener('online', () => {
+            isOnline.value = true
+            processRetryQueue()
         })
+
+        window.addEventListener('offline', () => {
+            isOnline.value = false
+        })
+    }
+
+    /**
+     * Main error handler function
+     */
+    const handleError = (
+        error: Error | ApiError | NetworkError | ValidationError | BusinessError,
+        options: ErrorHandlerOptions = {}
+    ) => {
+        const {
+            showToast = true,
+            logError = true,
+            reportError = false,
+            fallbackMessage = 'An unexpected error occurred',
+            context = {}
+        } = options
+
+        // Log error for debugging
+        if (logError) {
+            console.error('🚨 Global Error Handler:', {
+                error,
+                context,
+                timestamp: new Date().toISOString(),
+                userAgent: import.meta.client ? navigator.userAgent : 'SSR',
+                url: import.meta.client ? window.location.href : 'SSR'
+            })
+        }
+
+        // Add to error history
+        errorHistory.value.unshift({
+            error,
+            timestamp: new Date(),
+            context,
+            resolved: false
+        })
+
+        // Keep only last 50 errors
+        if (errorHistory.value.length > 50) {
+            errorHistory.value = errorHistory.value.slice(0, 50)
+        }
+
+        // Determine error type and handle accordingly
+        const errorInfo = categorizeError(error)
+        const userMessage = getUserFriendlyMessage(errorInfo, fallbackMessage)
+
+        // Update global error state
+        globalError.value = userMessage
+
+        // Show toast notification
+        if (showToast && $toast) {
+            showErrorToast(errorInfo, userMessage)
+        }
+
+        // Report error to external service (if configured)
+        if (reportError) {
+            reportErrorToService(error, context)
+        }
+
+        // Handle specific error types
+        handleSpecificErrorTypes(errorInfo, context)
+
+        return errorInfo
+    }
+
+    /**
+     * Categorize error type for better handling
+     */
+    const categorizeError = (error: any) => {
+        // Network errors
+        if (!isOnline.value) {
+            return {
+                type: 'network',
+                subtype: 'offline',
+                message: 'You are currently offline',
+                severity: 'warning',
+                recoverable: true,
+                retryable: true
+            }
+        }
+
+        if (error.code === 'NETWORK_ERROR' || error.message?.includes('fetch')) {
+            return {
+                type: 'network',
+                subtype: 'connection',
+                message: 'Network connection error',
+                severity: 'error',
+                recoverable: true,
+                retryable: true
+            }
+        }
+
+        // HTTP status errors
+        if (error.status || error.response?.status) {
+            const status = error.status || error.response?.status
+
+            switch (status) {
+                case 400:
+                    return {
+                        type: 'validation',
+                        subtype: 'bad_request',
+                        message: 'Invalid request data',
+                        severity: 'warning',
+                        recoverable: true,
+                        retryable: false
+                    }
+                case 401:
+                    return {
+                        type: 'authentication',
+                        subtype: 'unauthorized',
+                        message: 'Authentication required',
+                        severity: 'error',
+                        recoverable: true,
+                        retryable: false
+                    }
+                case 403:
+                    return {
+                        type: 'authorization',
+                        subtype: 'forbidden',
+                        message: 'Access denied',
+                        severity: 'error',
+                        recoverable: false,
+                        retryable: false
+                    }
+                case 404:
+                    return {
+                        type: 'not_found',
+                        subtype: 'resource',
+                        message: 'Resource not found',
+                        severity: 'warning',
+                        recoverable: false,
+                        retryable: false
+                    }
+                case 422:
+                    return {
+                        type: 'validation',
+                        subtype: 'unprocessable',
+                        message: 'Validation errors occurred',
+                        severity: 'warning',
+                        recoverable: true,
+                        retryable: false
+                    }
+                case 429:
+                    return {
+                        type: 'rate_limit',
+                        subtype: 'too_many_requests',
+                        message: 'Too many requests. Please wait.',
+                        severity: 'warning',
+                        recoverable: true,
+                        retryable: true
+                    }
+                case 500:
+                    return {
+                        type: 'server',
+                        subtype: 'internal_error',
+                        message: 'Server error occurred',
+                        severity: 'error',
+                        recoverable: true,
+                        retryable: true
+                    }
+                case 502:
+                case 503:
+                case 504:
+                    return {
+                        type: 'server',
+                        subtype: 'unavailable',
+                        message: 'Service temporarily unavailable',
+                        severity: 'error',
+                        recoverable: true,
+                        retryable: true
+                    }
+                default:
+                    return {
+                        type: 'http',
+                        subtype: 'unknown_status',
+                        message: `HTTP ${status} error`,
+                        severity: 'error',
+                        recoverable: true,
+                        retryable: true
+                    }
+            }
+        }
+
+        // Validation errors
+        if (error.errors || error.field) {
+            return {
+                type: 'validation',
+                subtype: 'field_errors',
+                message: 'Please check your input',
+                severity: 'warning',
+                recoverable: true,
+                retryable: false,
+                details: error.errors || { [error.field]: [error.message] }
+            }
+        }
+
+        // Business logic errors
+        if (error.code && error.type === 'business') {
+            return {
+                type: 'business',
+                subtype: error.code,
+                message: error.message || 'Business rule violation',
+                severity: 'warning',
+                recoverable: true,
+                retryable: false,
+                details: error.details
+            }
+        }
+
+        // JavaScript errors
+        if (error instanceof TypeError) {
+            return {
+                type: 'javascript',
+                subtype: 'type_error',
+                message: 'Application error occurred',
+                severity: 'error',
+                recoverable: false,
+                retryable: false
+            }
+        }
+
+        if (error instanceof ReferenceError) {
+            return {
+                type: 'javascript',
+                subtype: 'reference_error',
+                message: 'Application error occurred',
+                severity: 'error',
+                recoverable: false,
+                retryable: false
+            }
+        }
+
+        // Generic error
+        return {
+            type: 'unknown',
+            subtype: 'generic',
+            message: error.message || 'An unexpected error occurred',
+            severity: 'error',
+            recoverable: true,
+            retryable: false
+        }
+    }
+
+    /**
+     * Get user-friendly error message
+     */
+    const getUserFriendlyMessage = (errorInfo: any, fallback: string) => {
+        const messages = {
+            network: {
+                offline: 'You are currently offline. Please check your internet connection.',
+                connection: 'Unable to connect to the server. Please try again.',
+                timeout: 'The request timed out. Please try again.'
+            },
+            authentication: {
+                unauthorized: 'Please log in to continue.',
+                expired: 'Your session has expired. Please log in again.',
+                invalid: 'Invalid credentials. Please try again.'
+            },
+            authorization: {
+                forbidden: 'You do not have permission to perform this action.',
+                insufficient: 'Insufficient permissions for this operation.'
+            },
+            validation: {
+                bad_request: 'Please check your input and try again.',
+                unprocessable: 'Please correct the highlighted errors.',
+                field_errors: 'Please check the form for errors.'
+            },
+            not_found: {
+                resource: 'The requested item could not be found.',
+                page: 'The page you are looking for does not exist.'
+            },
+            rate_limit: {
+                too_many_requests: 'Too many requests. Please wait a moment before trying again.'
+            },
+            server: {
+                internal_error: 'A server error occurred. Our team has been notified.',
+                unavailable: 'The service is temporarily unavailable. Please try again later.',
+                maintenance: 'The system is under maintenance. Please try again later.'
+            },
+            business: {
+                insufficient_funds: 'Insufficient funds for this operation.',
+                duplicate_entry: 'This item already exists.',
+                invalid_operation: 'This operation is not allowed at this time.'
+            }
+        }
+
+        const typeMessages = messages[errorInfo.type as keyof typeof messages]
+        if (typeMessages && typeMessages[errorInfo.subtype as keyof typeof typeMessages]) {
+            return typeMessages[errorInfo.subtype as keyof typeof typeMessages]
+        }
+
+        return errorInfo.message || fallback
+    }
+
+    /**
+     * Show appropriate toast notification
+     */
+    const showErrorToast = (errorInfo: any, message: string) => {
+        const toastOptions = {
+            duration: errorInfo.severity === 'error' ? 8000 : 5000,
+            position: 'top-right' as const
+        }
+
+        switch (errorInfo.severity) {
+            case 'error':
+                $toast?.error(message, toastOptions)
+                break
+            case 'warning':
+                $toast?.warning(message, toastOptions)
+                break
+            default:
+                $toast?.error(message, toastOptions)
+        }
+    }
+
+    /**
+     * Handle specific error types with custom logic
+     */
+    const handleSpecificErrorTypes = (errorInfo: any, context: ErrorContext) => {
+        switch (errorInfo.type) {
+            case 'authentication':
+                // Redirect to login or refresh token
+                if (errorInfo.subtype === 'unauthorized') {
+                    // Clear auth state and redirect
+                    navigateTo('/login')
+                }
+                break
+
+            case 'authorization':
+                // Show permission denied page or redirect
+                if (errorInfo.subtype === 'forbidden') {
+                    // Could redirect to access denied page
+                    console.warn('Access denied for:', context)
+                }
+                break
+
+            case 'network':
+                // Add to retry queue if retryable
+                if (errorInfo.retryable && context.action) {
+                    addToRetryQueue(context)
+                }
+                break
+
+            case 'rate_limit':
+                // Implement exponential backoff
+                const retryAfter = errorInfo.retryAfter || 60000 // 1 minute default
+                setTimeout(() => {
+                    if (context.action) {
+                        addToRetryQueue(context)
+                    }
+                }, retryAfter)
+                break
+        }
+    }
+
+    /**
+     * Add failed operation to retry queue
+     */
+    const addToRetryQueue = (context: ErrorContext) => {
+        if (!context.action) return
+
+        const existingItem = retryQueue.value.find(item =>
+            item.context.action === context.action &&
+            item.context.component === context.component
+        )
+
+        if (existingItem) {
+            existingItem.attempts += 1
+            if (existingItem.attempts >= existingItem.maxAttempts) {
+                // Remove from queue if max attempts reached
+                retryQueue.value = retryQueue.value.filter(item => item !== existingItem)
+            }
+        } else {
+            retryQueue.value.push({
+                fn: () => { }, // This would be the actual function to retry
+                context,
+                attempts: 1,
+                maxAttempts: 3
+            })
+        }
+    }
+
+    /**
+     * Process retry queue when back online
+     */
+    const processRetryQueue = async () => {
+        if (!isOnline.value || retryQueue.value.length === 0) return
+
+        console.log('🔄 Processing retry queue:', retryQueue.value.length, 'items')
+
+        const itemsToRetry = [...retryQueue.value]
+        retryQueue.value = []
+
+        for (const item of itemsToRetry) {
+            try {
+                await item.fn()
+                console.log('✅ Retry successful for:', item.context.action)
+            } catch (error) {
+                console.warn('❌ Retry failed for:', item.context.action)
+                // Re-add to queue if under max attempts
+                if (item.attempts < item.maxAttempts) {
+                    addToRetryQueue(item.context)
+                }
+            }
+        }
+    }
+
+    /**
+     * Report error to external monitoring service
+     */
+    const reportErrorToService = (error: Error, context: ErrorContext) => {
+        // This would integrate with services like Sentry, LogRocket, etc.
+        if (import.meta.client && window.console) {
+            console.group('🔍 Error Report')
+            console.error('Error:', error)
+            console.log('Context:', context)
+            console.log('User Agent:', navigator.userAgent)
+            console.log('URL:', window.location.href)
+            console.log('Timestamp:', new Date().toISOString())
+            console.groupEnd()
+        }
+    }
+
+    /**
+     * Handle validation errors specifically
+     */
+    const handleValidationErrors = (errors: ValidationErrors, options: ErrorHandlerOptions = {}) => {
+        const errorMessages = []
+
+        for (const [field, fieldErrors] of Object.entries(errors)) {
+            if (Array.isArray(fieldErrors)) {
+                errorMessages.push(`${field}: ${fieldErrors.join(', ')}`)
+            } else {
+                errorMessages.push(`${field}: ${fieldErrors}`)
+            }
+        }
+
+        const combinedMessage = errorMessages.join('\n')
+
+        return handleError(new Error(combinedMessage), {
+            ...options,
+            context: { ...options.context, type: 'validation' }
+        })
+    }
+
+    /**
+     * Clear global error state
+     */
+    const clearError = () => {
+        globalError.value = null
+    }
+
+    /**
+     * Mark error as resolved in history
+     */
+    const markErrorResolved = (index: number) => {
+        if (errorHistory.value[index]) {
+            errorHistory.value[index].resolved = true
+        }
+    }
+
+    /**
+     * Clear error history
+     */
+    const clearErrorHistory = () => {
+        errorHistory.value = []
+    }
+
+    /**
+     * Get error statistics
+     */
+    const getErrorStats = () => {
+        const total = errorHistory.value.length
+        const resolved = errorHistory.value.filter(e => e.resolved).length
+        const byType = errorHistory.value.reduce((acc, e) => {
+            const errorInfo = categorizeError(e.error)
+            acc[errorInfo.type] = (acc[errorInfo.type] || 0) + 1
+            return acc
+        }, {} as Record<string, number>)
+
+        return {
+            total,
+            resolved,
+            unresolved: total - resolved,
+            byType,
+            recentErrors: errorHistory.value.slice(0, 5)
+        }
+    }
+
+    /**
+     * Create error boundary for components
+     */
+    const createErrorBoundary = (componentName: string) => {
+        return {
+            onError: (error: Error, additionalData?: any) => {
+                handleError(error, {
+                    context: {
+                        component: componentName,
+                        additionalData
+                    }
+                })
+            }
+        }
     }
 
     return {
         // State
-        globalErrorState: readonly(globalErrorState),
-        errorBoundaryComponent,
+        globalError: readonly(globalError),
+        errorHistory: readonly(errorHistory),
+        isOnline: readonly(isOnline),
+        retryQueue: readonly(retryQueue),
 
-        // Core functionality
-        initializeGlobalErrorHandler,
-
-        // Error handling (re-exported from useErrorHandler)
+        // Main functions
         handleError,
-        handleApiError,
-        handleAuthError,
-        handleValidationError,
-        handleNetworkError,
-        handleClientError,
-        handleCriticalError,
+        handleValidationErrors,
+        clearError,
+        markErrorResolved,
+        clearErrorHistory,
 
-        // Recovery and monitoring
-        handleCriticalErrorRecovery,
-        handleNetworkErrorRecovery,
-        checkErrorPatterns,
+        // Utilities
+        categorizeError,
+        getUserFriendlyMessage,
+        getErrorStats,
+        createErrorBoundary,
+        processRetryQueue,
 
-        // Reporting
-        createErrorReport,
-        sendErrorReport,
-        exportErrors,
-
-        // Emergency functions
-        emergencyReset,
-
-        // State access
-        errors,
-        errorStats,
-        hasCriticalErrors,
-        hasNetworkErrors,
-        getErrorSummary
+        // Network status
+        isOnline
     }
 }

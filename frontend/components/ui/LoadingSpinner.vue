@@ -1,91 +1,113 @@
 <template>
-  <div 
-    v-if="visible"
-    :class="containerClasses"
-    :style="containerStyles"
+  <div
+    class="loading-spinner"
+    :class="[
+      `loading-spinner--${variant}`,
+      `loading-spinner--${size}`,
+      {
+        'loading-spinner--overlay': overlay,
+        'loading-spinner--fullscreen': fullscreen,
+        'loading-spinner--inline': inline
+      }
+    ]"
+    :style="customStyles"
     role="status"
     :aria-label="ariaLabel"
     aria-live="polite"
   >
-    <!-- Overlay for fullscreen/modal variants -->
-    <div v-if="overlay" class="loading-overlay" @click="handleOverlayClick"></div>
+    <!-- Overlay background -->
+    <div
+      v-if="overlay || fullscreen"
+      class="loading-spinner__overlay"
+      :class="{
+        'loading-spinner__overlay--dark': overlayDark,
+        'loading-spinner__overlay--blur': overlayBlur
+      }"
+    />
     
-    <!-- Loading content -->
-    <div :class="contentClasses">
+    <!-- Spinner container -->
+    <div class="loading-spinner__container">
       <!-- Spinner -->
-      <div :class="spinnerClasses" :style="spinnerStyles">
+      <div class="loading-spinner__spinner">
         <!-- Default spinner -->
-        <div v-if="type === 'spinner'" class="spinner-default">
-          <div class="spinner-ring"></div>
-        </div>
+        <template v-if="variant === 'default'">
+          <div class="spinner-default">
+            <div class="spinner-default__circle" />
+          </div>
+        </template>
         
         <!-- Dots spinner -->
-        <div v-else-if="type === 'dots'" class="spinner-dots">
-          <div class="dot" v-for="i in 3" :key="i"></div>
-        </div>
-        
-        <!-- Bars spinner -->
-        <div v-else-if="type === 'bars'" class="spinner-bars">
-          <div class="bar" v-for="i in 5" :key="i"></div>
-        </div>
+        <template v-else-if="variant === 'dots'">
+          <div class="spinner-dots">
+            <div class="spinner-dots__dot" />
+            <div class="spinner-dots__dot" />
+            <div class="spinner-dots__dot" />
+          </div>
+        </template>
         
         <!-- Pulse spinner -->
-        <div v-else-if="type === 'pulse'" class="spinner-pulse">
-          <div class="pulse-ring" v-for="i in 3" :key="i"></div>
-        </div>
-        
-        <!-- Progress ring -->
-        <div v-else-if="type === 'progress'" class="spinner-progress">
-          <svg class="progress-svg" viewBox="0 0 50 50">
-            <circle
-              class="progress-bg"
-              cx="25"
-              cy="25"
-              r="20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              opacity="0.3"
-            />
-            <circle
-              class="progress-bar"
-              cx="25"
-              cy="25"
-              r="20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              :stroke-dasharray="circumference"
-              :stroke-dashoffset="progressOffset"
-              transform="rotate(-90 25 25)"
-            />
-          </svg>
-          <div v-if="showProgress" class="progress-text">
-            {{ Math.round(progress) }}%
+        <template v-else-if="variant === 'pulse'">
+          <div class="spinner-pulse">
+            <div class="spinner-pulse__circle" />
           </div>
-        </div>
+        </template>
         
-        <!-- Custom icon spinner -->
-        <div v-else-if="type === 'icon' && icon" class="spinner-icon">
-          <Icon :name="icon" :class="iconClasses" />
-        </div>
+        <!-- Bars spinner -->
+        <template v-else-if="variant === 'bars'">
+          <div class="spinner-bars">
+            <div class="spinner-bars__bar" />
+            <div class="spinner-bars__bar" />
+            <div class="spinner-bars__bar" />
+            <div class="spinner-bars__bar" />
+            <div class="spinner-bars__bar" />
+          </div>
+        </template>
+        
+        <!-- Ring spinner -->
+        <template v-else-if="variant === 'ring'">
+          <div class="spinner-ring">
+            <div class="spinner-ring__circle" />
+          </div>
+        </template>
+        
+        <!-- Dual ring spinner -->
+        <template v-else-if="variant === 'dual-ring'">
+          <div class="spinner-dual-ring" />
+        </template>
+        
+        <!-- Heart spinner -->
+        <template v-else-if="variant === 'heart'">
+          <div class="spinner-heart">
+            <div class="spinner-heart__beat" />
+          </div>
+        </template>
+        
+        <!-- Custom spinner -->
+        <template v-else-if="variant === 'custom'">
+          <slot name="spinner" />
+        </template>
       </div>
       
-      <!-- Loading message -->
-      <div v-if="message" :class="messageClasses">
-        {{ message }}
+      <!-- Loading text -->
+      <div
+        v-if="showText && (text || message)"
+        class="loading-spinner__text"
+      >
+        {{ text || message }}
       </div>
       
-      <!-- Progress bar (for non-circular progress) -->
-      <div v-if="showProgressBar && type !== 'progress'" class="progress-bar-container">
-        <div class="progress-bar-bg">
-          <div 
-            class="progress-bar-fill"
-            :style="{ width: `${progress}%` }"
-          ></div>
+      <!-- Progress indicator -->
+      <div
+        v-if="showProgress && progress !== undefined"
+        class="loading-spinner__progress"
+      >
+        <div class="loading-spinner__progress-bar">
+          <div
+            class="loading-spinner__progress-fill"
+            :style="{ width: `${Math.max(0, Math.min(100, progress))}%` }"
+          />
         </div>
-        <div v-if="showProgress" class="progress-text">
+        <div class="loading-spinner__progress-text">
           {{ Math.round(progress) }}%
         </div>
       </div>
@@ -94,401 +116,333 @@
       <button
         v-if="cancellable && onCancel"
         @click="handleCancel"
-        class="cancel-button"
-        :disabled="cancelling"
+        class="loading-spinner__cancel"
+        type="button"
       >
-        <Icon name="heroicons:x-mark" class="w-4 h-4 mr-2" />
-        {{ cancelling ? 'Cancelando...' : 'Cancelar' }}
+        {{ cancelText }}
       </button>
       
-      <!-- Additional actions -->
-      <div v-if="actions.length > 0" class="loading-actions">
-        <button
-          v-for="action in actions"
-          :key="action.label"
-          @click="action.handler"
-          :class="getActionClasses(action)"
-          :disabled="action.disabled"
-        >
-          <Icon v-if="action.icon" :name="action.icon" class="w-4 h-4 mr-2" />
-          {{ action.label }}
-        </button>
+      <!-- Additional content -->
+      <div v-if="$slots.default" class="loading-spinner__content">
+        <slot />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-interface LoadingAction {
-  label: string
-  handler: () => void
-  icon?: string
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost'
-  disabled?: boolean
-}
-
 interface Props {
-  visible?: boolean
-  type?: 'spinner' | 'dots' | 'bars' | 'pulse' | 'progress' | 'icon'
-  variant?: 'inline' | 'overlay' | 'modal' | 'fullscreen'
+  // Spinner variant
+  variant?: 'default' | 'dots' | 'pulse' | 'bars' | 'ring' | 'dual-ring' | 'heart' | 'custom'
+  
+  // Size
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-  color?: string
+  
+  // Display options
+  overlay?: boolean
+  fullscreen?: boolean
+  inline?: boolean
+  overlayDark?: boolean
+  overlayBlur?: boolean
+  
+  // Text and messaging
+  text?: string
   message?: string
+  showText?: boolean
+  
+  // Progress
   progress?: number
   showProgress?: boolean
-  showProgressBar?: boolean
+  
+  // Cancellation
   cancellable?: boolean
+  cancelText?: string
   onCancel?: () => void
-  icon?: string
-  speed?: 'slow' | 'normal' | 'fast'
-  overlay?: boolean
-  overlayClosable?: boolean
-  actions?: LoadingAction[]
-  className?: string
-  zIndex?: number
+  
+  // Styling
+  color?: string
+  backgroundColor?: string
+  
+  // Accessibility
+  ariaLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  visible: true,
-  type: 'spinner',
-  variant: 'inline',
+  variant: 'default',
   size: 'md',
-  color: 'currentColor',
-  message: '',
-  progress: 0,
-  showProgress: false,
-  showProgressBar: false,
-  cancellable: false,
-  speed: 'normal',
   overlay: false,
-  overlayClosable: false,
-  actions: () => [],
-  className: '',
-  zIndex: 50
+  fullscreen: false,
+  inline: false,
+  overlayDark: false,
+  overlayBlur: false,
+  showText: true,
+  showProgress: false,
+  cancellable: false,
+  cancelText: 'Cancelar',
+  ariaLabel: 'Cargando...'
 })
 
 const emit = defineEmits<{
   cancel: []
-  overlayClick: []
 }>()
 
-// State
-const cancelling = ref(false)
-
-// Computed properties
-const containerClasses = computed(() => {
-  const classes = ['loading-spinner', `loading-${props.variant}`, `loading-${props.size}`]
-  
-  if (props.className) {
-    classes.push(props.className)
-  }
-  
-  return classes
-})
-
-const containerStyles = computed(() => {
+// Computed styles
+const customStyles = computed(() => {
   const styles: Record<string, string> = {}
   
-  if (props.zIndex) {
-    styles.zIndex = props.zIndex.toString()
+  if (props.color) {
+    styles['--spinner-color'] = props.color
+  }
+  
+  if (props.backgroundColor) {
+    styles['--spinner-bg-color'] = props.backgroundColor
   }
   
   return styles
-})
-
-const contentClasses = computed(() => {
-  const classes = ['loading-content']
-  
-  if (props.variant === 'modal') {
-    classes.push('loading-modal')
-  }
-  
-  return classes
-})
-
-const spinnerClasses = computed(() => {
-  const classes = ['spinner', `spinner-${props.type}`, `spinner-${props.size}`, `spinner-${props.speed}`]
-  return classes
-})
-
-const spinnerStyles = computed(() => {
-  const styles: Record<string, string> = {}
-  
-  if (props.color && props.color !== 'currentColor') {
-    styles.color = props.color
-  }
-  
-  return styles
-})
-
-const iconClasses = computed(() => {
-  const sizeClasses = {
-    xs: 'w-4 h-4',
-    sm: 'w-5 h-5',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8',
-    xl: 'w-10 h-10'
-  }
-  
-  return ['animate-spin', sizeClasses[props.size]]
-})
-
-const messageClasses = computed(() => {
-  const classes = ['loading-message']
-  
-  if (props.size === 'xs' || props.size === 'sm') {
-    classes.push('text-sm')
-  } else if (props.size === 'lg' || props.size === 'xl') {
-    classes.push('text-lg')
-  }
-  
-  return classes
-})
-
-const ariaLabel = computed(() => {
-  if (props.message) {
-    return props.message
-  }
-  
-  if (props.showProgress) {
-    return `Cargando ${Math.round(props.progress)}%`
-  }
-  
-  return 'Cargando...'
-})
-
-// Progress calculations
-const circumference = computed(() => 2 * Math.PI * 20) // radius = 20
-
-const progressOffset = computed(() => {
-  const progress = Math.max(0, Math.min(100, props.progress))
-  return circumference.value - (progress / 100) * circumference.value
 })
 
 // Methods
-const handleCancel = async () => {
-  if (cancelling.value || !props.onCancel) return
-  
-  cancelling.value = true
-  
-  try {
-    await props.onCancel()
-    emit('cancel')
-  } catch (error) {
-    console.error('Error during cancellation:', error)
-  } finally {
-    cancelling.value = false
+const handleCancel = () => {
+  if (props.onCancel) {
+    props.onCancel()
   }
-}
-
-const handleOverlayClick = () => {
-  if (props.overlayClosable) {
-    emit('overlayClick')
-  }
-}
-
-const getActionClasses = (action: LoadingAction) => {
-  const baseClasses = ['action-button']
-  
-  const variantClasses = {
-    primary: 'btn-primary',
-    secondary: 'btn-secondary',
-    outline: 'btn-outline',
-    ghost: 'btn-ghost'
-  }
-  
-  baseClasses.push(variantClasses[action.variant || 'secondary'])
-  
-  if (action.disabled) {
-    baseClasses.push('disabled')
-  }
-  
-  return baseClasses
+  emit('cancel')
 }
 </script>
 
 <style scoped>
+/* CSS Custom Properties */
 .loading-spinner {
-  @apply flex items-center justify-center;
+  --spinner-color: theme('colors.blue.500');
+  --spinner-bg-color: theme('colors.white');
+  --spinner-size: 2rem;
 }
 
-.loading-inline {
-  @apply inline-flex;
-}
-
-.loading-overlay {
-  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center;
-}
-
-.loading-modal {
-  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center;
-}
-
-.loading-fullscreen {
-  @apply fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center;
-}
-
-.loading-content {
-  @apply flex flex-col items-center space-y-4 p-6;
-}
-
-.loading-modal .loading-content {
-  @apply bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full mx-4;
-}
-
-.loading-overlay {
-  @apply absolute inset-0 bg-black bg-opacity-30;
-}
-
-/* Spinner Sizes */
-.spinner-xs { @apply w-4 h-4; }
-.spinner-sm { @apply w-5 h-5; }
-.spinner-md { @apply w-6 h-6; }
-.spinner-lg { @apply w-8 h-8; }
-.spinner-xl { @apply w-10 h-10; }
-
-/* Speed Variants */
-.spinner-slow * { animation-duration: 2s !important; }
-.spinner-fast * { animation-duration: 0.8s !important; }
-
-/* Default Spinner */
-.spinner-default {
+/* Base spinner styles */
+.loading-spinner {
   @apply relative;
 }
 
-.spinner-ring {
-  @apply w-full h-full border-2 border-gray-300 border-t-current rounded-full;
-  animation: spin 1.2s linear infinite;
+.loading-spinner--overlay,
+.loading-spinner--fullscreen {
+  @apply fixed inset-0 z-50 flex items-center justify-center;
 }
 
-/* Dots Spinner */
+.loading-spinner--inline {
+  @apply inline-flex items-center gap-2;
+}
+
+/* Overlay */
+.loading-spinner__overlay {
+  @apply absolute inset-0 bg-white bg-opacity-75 backdrop-blur-sm;
+}
+
+.loading-spinner__overlay--dark {
+  @apply bg-gray-900 bg-opacity-50;
+}
+
+.loading-spinner__overlay--blur {
+  @apply backdrop-blur-md;
+}
+
+/* Container */
+.loading-spinner__container {
+  @apply relative z-10 flex flex-col items-center gap-3;
+}
+
+.loading-spinner--inline .loading-spinner__container {
+  @apply flex-row gap-2;
+}
+
+/* Spinner */
+.loading-spinner__spinner {
+  @apply relative;
+}
+
+/* Size variants */
+.loading-spinner--xs {
+  --spinner-size: 1rem;
+}
+
+.loading-spinner--sm {
+  --spinner-size: 1.5rem;
+}
+
+.loading-spinner--md {
+  --spinner-size: 2rem;
+}
+
+.loading-spinner--lg {
+  --spinner-size: 3rem;
+}
+
+.loading-spinner--xl {
+  --spinner-size: 4rem;
+}
+
+/* Default spinner */
+.spinner-default {
+  @apply relative;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+}
+
+.spinner-default__circle {
+  @apply absolute inset-0 border-4 border-gray-200 rounded-full;
+  border-top-color: var(--spinner-color);
+  animation: spin 1s linear infinite;
+}
+
+/* Dots spinner */
 .spinner-dots {
-  @apply flex space-x-1;
+  @apply flex gap-1;
 }
 
-.spinner-dots .dot {
-  @apply w-2 h-2 bg-current rounded-full;
-  animation: dot-bounce 1.4s ease-in-out infinite both;
+.spinner-dots__dot {
+  @apply rounded-full bg-current;
+  width: calc(var(--spinner-size) / 4);
+  height: calc(var(--spinner-size) / 4);
+  color: var(--spinner-color);
+  animation: dots-bounce 1.4s ease-in-out infinite both;
 }
 
-.spinner-dots .dot:nth-child(1) { animation-delay: -0.32s; }
-.spinner-dots .dot:nth-child(2) { animation-delay: -0.16s; }
-
-/* Bars Spinner */
-.spinner-bars {
-  @apply flex items-end space-x-1;
+.spinner-dots__dot:nth-child(1) {
+  animation-delay: -0.32s;
 }
 
-.spinner-bars .bar {
-  @apply w-1 bg-current;
-  height: 100%;
-  animation: bar-scale 1.2s ease-in-out infinite;
+.spinner-dots__dot:nth-child(2) {
+  animation-delay: -0.16s;
 }
 
-.spinner-bars .bar:nth-child(1) { animation-delay: -1.1s; }
-.spinner-bars .bar:nth-child(2) { animation-delay: -1.0s; }
-.spinner-bars .bar:nth-child(3) { animation-delay: -0.9s; }
-.spinner-bars .bar:nth-child(4) { animation-delay: -0.8s; }
-.spinner-bars .bar:nth-child(5) { animation-delay: -0.7s; }
-
-/* Pulse Spinner */
+/* Pulse spinner */
 .spinner-pulse {
-  @apply relative flex items-center justify-center;
+  @apply relative;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
 }
 
-.spinner-pulse .pulse-ring {
-  @apply absolute w-full h-full border-2 border-current rounded-full opacity-75;
-  animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+.spinner-pulse__circle {
+  @apply absolute inset-0 rounded-full;
+  background-color: var(--spinner-color);
+  animation: pulse-scale 1s ease-in-out infinite;
 }
 
-.spinner-pulse .pulse-ring:nth-child(1) { animation-delay: 0s; }
-.spinner-pulse .pulse-ring:nth-child(2) { animation-delay: -0.4s; }
-.spinner-pulse .pulse-ring:nth-child(3) { animation-delay: -0.8s; }
-
-/* Progress Spinner */
-.spinner-progress {
-  @apply relative flex items-center justify-center;
+/* Bars spinner */
+.spinner-bars {
+  @apply flex items-end gap-1;
+  height: var(--spinner-size);
 }
 
-.progress-svg {
-  @apply w-full h-full transform -rotate-90;
+.spinner-bars__bar {
+  @apply rounded-sm;
+  width: calc(var(--spinner-size) / 8);
+  background-color: var(--spinner-color);
+  animation: bars-stretch 1.2s ease-in-out infinite;
 }
 
-.progress-bar {
-  transition: stroke-dashoffset 0.3s ease;
+.spinner-bars__bar:nth-child(1) {
+  animation-delay: -1.2s;
 }
 
-.progress-text {
-  @apply absolute text-xs font-medium;
+.spinner-bars__bar:nth-child(2) {
+  animation-delay: -1.1s;
 }
 
-/* Progress Bar */
-.progress-bar-container {
-  @apply w-full space-y-2;
+.spinner-bars__bar:nth-child(3) {
+  animation-delay: -1s;
 }
 
-.progress-bar-bg {
-  @apply w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden;
+.spinner-bars__bar:nth-child(4) {
+  animation-delay: -0.9s;
 }
 
-.progress-bar-fill {
-  @apply h-full bg-current rounded-full transition-all duration-300 ease-out;
+.spinner-bars__bar:nth-child(5) {
+  animation-delay: -0.8s;
 }
 
-/* Loading Message */
-.loading-message {
-  @apply text-gray-600 dark:text-gray-400 text-center font-medium;
+/* Ring spinner */
+.spinner-ring {
+  @apply relative;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
 }
 
-/* Cancel Button */
-.cancel-button {
-  @apply px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400;
-  @apply hover:text-gray-800 dark:hover:text-gray-200;
-  @apply border border-gray-300 dark:border-gray-600 rounded-lg;
-  @apply hover:bg-gray-50 dark:hover:bg-gray-700;
-  @apply focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
-  @apply disabled:opacity-50 disabled:cursor-not-allowed;
-  @apply transition-colors duration-200;
-  @apply flex items-center;
+.spinner-ring__circle {
+  @apply absolute inset-0 border-4 border-transparent rounded-full;
+  border-top-color: var(--spinner-color);
+  border-right-color: var(--spinner-color);
+  animation: spin 1s linear infinite;
 }
 
-/* Action Buttons */
-.loading-actions {
-  @apply flex space-x-2;
+/* Dual ring spinner */
+.spinner-dual-ring {
+  @apply relative border-4 border-gray-200 rounded-full;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  border-top-color: var(--spinner-color);
+  border-bottom-color: var(--spinner-color);
+  animation: spin 0.8s linear infinite;
 }
 
-.action-button {
-  @apply px-3 py-2 text-sm font-medium rounded-lg;
-  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-  @apply disabled:opacity-50 disabled:cursor-not-allowed;
-  @apply transition-colors duration-200;
-  @apply flex items-center;
+/* Heart spinner */
+.spinner-heart {
+  @apply relative;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
 }
 
-.btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+.spinner-heart__beat {
+  @apply absolute inset-0;
+  background-color: var(--spinner-color);
+  animation: heart-beat 1.2s ease-in-out infinite;
+  clip-path: path('M12,21.35l-1.45-1.32C5.4,15.36,2,12.28,2,8.5 C2,5.42,4.42,3,7.5,3c1.74,0,3.41,0.81,4.5,2.09C13.09,3.81,14.76,3,16.5,3 C19.58,3,22,5.42,22,8.5c0,3.78-3.4,6.86-8.55,11.54L12,21.35z');
 }
 
-.btn-secondary {
-  @apply bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500;
+/* Text */
+.loading-spinner__text {
+  @apply text-sm text-gray-600 dark:text-gray-400 text-center;
 }
 
-.btn-outline {
-  @apply border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500;
-  @apply dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700;
+.loading-spinner--inline .loading-spinner__text {
+  @apply text-xs;
 }
 
-.btn-ghost {
-  @apply text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:ring-gray-500;
-  @apply dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800;
+/* Progress */
+.loading-spinner__progress {
+  @apply w-full max-w-xs;
+}
+
+.loading-spinner__progress-bar {
+  @apply w-full h-2 bg-gray-200 rounded-full overflow-hidden;
+}
+
+.loading-spinner__progress-fill {
+  @apply h-full bg-current transition-all duration-300 ease-out;
+  color: var(--spinner-color);
+}
+
+.loading-spinner__progress-text {
+  @apply text-xs text-gray-500 text-center mt-1;
+}
+
+/* Cancel button */
+.loading-spinner__cancel {
+  @apply px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50 transition-colors;
+}
+
+/* Content */
+.loading-spinner__content {
+  @apply text-center;
 }
 
 /* Animations */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-@keyframes dot-bounce {
+@keyframes dots-bounce {
   0%, 80%, 100% {
     transform: scale(0);
   }
@@ -497,16 +451,7 @@ const getActionClasses = (action: LoadingAction) => {
   }
 }
 
-@keyframes bar-scale {
-  0%, 40%, 100% {
-    transform: scaleY(0.4);
-  }
-  20% {
-    transform: scaleY(1);
-  }
-}
-
-@keyframes pulse-ring {
+@keyframes pulse-scale {
   0% {
     transform: scale(0);
     opacity: 1;
@@ -517,18 +462,95 @@ const getActionClasses = (action: LoadingAction) => {
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 640px) {
-  .loading-modal .loading-content {
-    @apply mx-4 p-4;
+@keyframes bars-stretch {
+  0%, 40%, 100% {
+    transform: scaleY(0.4);
+  }
+  20% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes heart-beat {
+  0% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.3);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.3);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+/* Dark mode */
+.dark .loading-spinner__overlay {
+  @apply bg-gray-900 bg-opacity-75;
+}
+
+.dark .loading-spinner__text {
+  @apply text-gray-300;
+}
+
+.dark .loading-spinner__progress-bar {
+  @apply bg-gray-700;
+}
+
+.dark .loading-spinner__cancel {
+  @apply text-gray-300 border-gray-600 hover:text-white hover:bg-gray-700;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .spinner-default__circle,
+  .spinner-ring__circle,
+  .spinner-dual-ring {
+    animation-duration: 2s;
   }
   
-  .loading-actions {
-    @apply flex-col space-x-0 space-y-2 w-full;
+  .spinner-dots__dot {
+    animation: none;
+    opacity: 0.7;
   }
   
-  .action-button {
-    @apply w-full justify-center;
+  .spinner-pulse__circle {
+    animation: none;
+    opacity: 0.8;
   }
+  
+  .spinner-bars__bar {
+    animation: none;
+    height: 50%;
+  }
+  
+  .spinner-heart__beat {
+    animation: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .loading-spinner {
+    --spinner-color: theme('colors.black');
+  }
+  
+  .dark .loading-spinner {
+    --spinner-color: theme('colors.white');
+  }
+}
+
+/* Focus styles for cancel button */
+.loading-spinner__cancel:focus {
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+}
+
+.dark .loading-spinner__cancel:focus {
+  @apply ring-offset-gray-900;
 }
 </style>
