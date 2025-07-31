@@ -101,6 +101,11 @@
 </template>
 
 <script setup lang="ts">
+// Force client-side rendering to avoid SSR issues
+definePageMeta({
+  ssr: false
+})
+
 // SEO
 useHead({
   title: 'Inicio - Blog de Noticias',

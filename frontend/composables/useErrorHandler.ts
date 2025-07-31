@@ -93,6 +93,26 @@ export const useErrorHandler = () => {
 
   // Determine error type
   const determineErrorType = (error: any): ErrorInfo['type'] => {
+    // Handle our custom fetch errors
+    if (error?.name === 'CustomFetchError') {
+      if (!error.status) {
+        return 'network'
+      }
+      const code = error.status
+      if (code === 401 || code === 403) {
+        return 'auth'
+      }
+      if (code === 422) {
+        return 'validation'
+      }
+      if (code >= 400 && code < 500) {
+        return 'client'
+      }
+      if (code >= 500) {
+        return 'api'
+      }
+    }
+
     if (error?.name === 'NetworkError' || !networkInfo.value.isOnline) {
       return 'network'
     }
@@ -303,6 +323,21 @@ export const useErrorHandler = () => {
 
   // Extract user-friendly error message
   const extractErrorMessage = (error: any): string => {
+    // Handle our custom fetch errors first
+    if (error?.name === 'CustomFetchError') {
+      if (error.status) {
+        return getHttpErrorMessage(error.status)
+      } else {
+        // Network error
+        if (error.message.includes('timeout')) {
+          return 'La solicitud ha tardado demasiado tiempo'
+        } else if (error.message.includes('Network error')) {
+          return 'No se puede conectar con el servidor'
+        }
+        return 'Error de conexión con el servidor'
+      }
+    }
+
     // Handle different error formats
     if (typeof error === 'string') {
       return error
@@ -344,6 +379,10 @@ export const useErrorHandler = () => {
 
   // Extract error code
   const extractErrorCode = (error: any): string | number | undefined => {
+    // Handle our custom fetch errors first
+    if (error?.name === 'CustomFetchError') {
+      return error.status
+    }
     return error?.status || error?.statusCode || error?.code
   }
 

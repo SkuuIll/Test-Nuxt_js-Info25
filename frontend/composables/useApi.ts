@@ -1,3 +1,4 @@
+import { createDirectFetch } from '~/utils/directFetch'
 import type {
   Post,
   Category,
@@ -334,191 +335,90 @@ export const useApi = () => {
     }
   }
 
-  // Create base API instance
-  const api = $fetch.create({
-    baseURL: getApiBaseUrl(),
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    onRequest({ request, options }) {
+  // Create base API instance using direct fetch (bypasses interceptors)
+  const baseFetch = createDirectFetch(getApiBaseUrl())
+
+  // Create wrapper function that adds authentication and logging
+  const api = async (endpoint: string, options: any = {}) => {
+    try {
       // Add JWT token to requests
       const tokens = getTokens()
-      if (tokens?.access && !isTokenExpired(tokens.access)) {
-        if (!options.headers) {
-          options.headers = {}
-        }
+      const headers = { ...options.headers }
 
-        // Properly handle headers object
-        const headers = options.headers as Record<string, string>
+      if (tokens?.access && !isTokenExpired(tokens.access)) {
         headers['Authorization'] = `Bearer ${tokens.access}`
       }
 
       // Add request ID for tracking
       const requestId = Math.random().toString(36).substr(2, 9)
-      if (!options.headers) {
-        options.headers = {}
+      headers['X-Request-ID'] = requestId
+
+      // Prepare options for our fetch wrapper
+      const fetchOptions = {
+        ...options,
+        headers,
       }
-      (options.headers as Record<string, string>)['X-Request-ID'] = requestId
 
       // Enhanced logging for development
       logApiCall(
         options.method || 'GET',
-        request.toString(),
+        endpoint,
         options.body,
         undefined,
         undefined
       )
-    },
-    onResponse({ request, response }) {
-      // Handle standardized API responses
-      if (response._data && typeof response._data === 'object') {
-        const data = response._data as StandardApiResponse
 
+      // Make the request
+      const response = await baseFetch(endpoint, fetchOptions)
+
+      // Log successful response
+      logApiCall(
+        options.method || 'GET',
+        endpoint,
+        options.body,
+        response,
+        undefined
+      )
+
+      // Handle standardized API responses
+      if (response && typeof response === 'object') {
         // Check if it's a standardized response format
-        if ('success' in data) {
-          // If success is false, throw an error to trigger onResponseError
-          if (!data.success) {
-            throw createError({
-              statusCode: response.status,
-              statusMessage: data.error || data.message || 'API Error',
-              data: data
-            })
+        if ('success' in response) {
+          // If success is false, throw an error
+          if (!response.success) {
+            throw new Error(response.error || response.message || 'API Error')
           }
 
-          // For successful responses, preserve the full response structure
-          // but make data easily accessible
-          if ('data' in data) {
+          // For successful responses, return the appropriate data
+          if ('data' in response) {
             // Keep pagination and metadata if present
-            if ('pagination' in data) {
-              response._data = data // Keep full paginated response
+            if ('pagination' in response) {
+              return response // Keep full paginated response
             } else {
-              response._data = data.data // Return just the data for simple responses
+              return response.data // Return just the data for simple responses
             }
           }
         }
       }
 
-      // Enhanced response logging
-      logApiCall(
-        'RESPONSE',
-        request.toString(),
-        undefined,
-        {
-          status: response.status,
-          data: response._data
-        },
-        undefined
-      )
-    },
-    async onResponseError({ request, response }) {
-      const url = request.toString()
-      const errorData = response._data
+      // Return response as-is if not standardized format
+      return response
 
-      // Enhanced error logging
+    } catch (error) {
+      // Enhanced logging for errors
       logApiCall(
-        'ERROR',
-        url,
+        options.method || 'GET',
+        endpoint,
+        options.body,
         undefined,
-        undefined,
-        {
-          status: response.status,
-          statusText: response.statusText,
-          data: errorData
-        }
+        error
       )
 
-      const isAuthEndpoint = url.includes('/auth/login') ||
-        url.includes('/auth/register') ||
-        url.includes('/auth/refresh')
-
-      // Handle token refresh on 401 (but not for auth endpoints and prevent loops)
-      if (response.status === 401 && !isAuthEndpoint && !isRefreshing) {
-        const tokens = getTokens()
-        if (tokens?.refresh && !isTokenExpired(tokens.refresh)) {
-          try {
-            console.log('🔄 Token expired, attempting refresh...')
-            const newTokens = await performTokenRefresh(tokens.refresh)
-            setTokens(newTokens)
-            console.log('✅ Token refreshed successfully')
-
-            // Return a special error that indicates token was refreshed
-            // The calling code can check for this and retry the request
-            const refreshedError = createError({
-              statusCode: 401,
-              statusMessage: 'Token refreshed, retry required',
-              data: {
-                ...errorData,
-                token_refreshed: true,
-                original_error: errorData
-              }
-            })
-            throw refreshedError
-          } catch (refreshError) {
-            console.error('❌ Token refresh failed:', refreshError)
-            // Refresh failed, clear tokens and handle as auth error
-            clearTokens()
-            isRefreshing = false
-            refreshPromise = null
-
-            const authError = createError({
-              statusCode: 401,
-              statusMessage: 'Session expired - refresh failed',
-              data: {
-                ...errorData,
-                refresh_failed: true,
-                refresh_error: refreshError
-              }
-            })
-            handleAuthError(authError, 'Token Refresh Failed')
-            throw authError
-          }
-        } else {
-          console.log('🚫 No valid refresh token available')
-          clearTokens()
-          const authError = createError({
-            statusCode: 401,
-            statusMessage: 'Session expired',
-            data: { ...errorData, no_refresh_token: true }
-          })
-          handleAuthError(authError, 'No Refresh Token')
-          throw authError
-        }
-      }
-
-
-
-      // Create enhanced error object with better error extraction
-      const enhancedError = createError({
-        statusCode: response.status,
-        statusMessage: extractErrorMessage(errorData) || response.statusText,
-        data: {
-          ...errorData,
-          url,
-          timestamp: new Date().toISOString(),
-          request_id: response.headers?.['x-request-id']
-        }
-      })
-
-      // Handle different types of errors with direct error handlers
-      if (response.status === 401) {
-        handleAuthError(enhancedError, 'API Authentication Error')
-      } else if (response.status === 403) {
-        handleApiError(enhancedError, 'API Permission Error')
-      } else if (response.status === 404) {
-        handleApiError(enhancedError, 'API Not Found Error')
-      } else if (response.status >= 500) {
-        handleNetworkError(enhancedError, 'API Server Error')
-      } else {
-        handleApiError(enhancedError, 'API Error')
-      }
-
-      throw enhancedError
+      throw error
     }
+  }
 
 
-  })
 
   // Enhanced auth endpoints
   const login = async (credentials: LoginCredentials): Promise<AuthTokens> => {
@@ -643,6 +543,7 @@ export const useApi = () => {
   const getPosts = async (params?: PostsParams): Promise<ApiResponse<Post>> => {
     try {
       const response = await api('/posts/', {
+        method: 'GET',
         params: params ? cleanParams(params) : undefined
       }) as PaginatedApiResponse<Post>
 
