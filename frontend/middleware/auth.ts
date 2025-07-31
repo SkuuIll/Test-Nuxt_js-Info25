@@ -1,23 +1,31 @@
-export default defineNuxtRouteMiddleware(async (to) => {
-  // Skip on server-side to prevent hydration issues
-  if (process.server) return
+/**
+ * Authentication middleware for protected routes
+ * Ensures user is authenticated before accessing protected pages
+ */
+export default defineNuxtRouteMiddleware(async (to, from) => {
+  const { isAuthenticated, initializeAuth, getAuthStatus } = useAuth()
 
-  const { isAuthenticated, initializeAuth } = useAuth()
-
-  // Initialize auth state if not already done
-  if (process.client) {
-    await initializeAuth()
+  // Initialize auth on client side if not already done
+  if (import.meta.client && !isAuthenticated.value) {
+    try {
+      await initializeAuth()
+    } catch (error) {
+      console.warn('Auth initialization failed in middleware:', error)
+    }
   }
 
-  // Check if user is authenticated
-  if (!isAuthenticated.value) {
-    // Store the intended destination
-    const redirectTo = to.fullPath
+  // Check authentication status
+  const authStatus = getAuthStatus()
 
-    // Redirect to login with return URL
+  if (!isAuthenticated.value || !authStatus.hasValidTokens) {
+    console.log('🔒 Authentication required, redirecting to login')
+
+    // Store the intended destination
+    const redirectTo = to.fullPath !== '/login' ? to.fullPath : undefined
+
     return navigateTo({
       path: '/login',
-      query: { redirect: redirectTo }
+      query: redirectTo ? { redirect: redirectTo } : undefined
     })
   }
 })

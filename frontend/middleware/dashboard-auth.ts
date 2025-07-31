@@ -1,37 +1,44 @@
-export default defineNuxtRouteMiddleware(async (to) => {
-    // Skip middleware on server-side rendering to prevent hydration issues
-    if (process.server) return
+/**
+ * Dashboard authentication middleware
+ * Ensures user is authenticated for dashboard access
+ */
+export default defineNuxtRouteMiddleware(async (to, from) => {
+    const {
+        isAuthenticated,
+        initializeDashboardAuth,
+        checkDashboardAuthStatus,
+        requireDashboardAuth
+    } = useDashboardAuth()
 
-    // Wait for client-side hydration
-    if (process.client) {
-        const { isAuthenticated, initializeAuth, refreshAccessToken, logout } = useDashboardAuth()
-
-        // Initialize auth state if not already done
-        await initializeAuth()
-
-        // Check if user is authenticated
-        if (!isAuthenticated()) {
-            // Only redirect if not already on login page
-            if (to.path !== '/dashboard/login') {
-                return navigateTo({
-                    path: '/dashboard/login',
-                    query: { redirect: to.fullPath }
-                })
-            }
-        } else {
-            // User is authenticated, try to refresh token if needed
-            try {
-                await refreshAccessToken()
-            } catch (error) {
-                console.error('Token refresh failed:', error)
-                await logout(false)
-                return navigateTo('/dashboard/login')
-            }
-
-            // Check if trying to access login page while authenticated
-            if (to.path === '/dashboard/login') {
-                return navigateTo('/dashboard')
-            }
+    // Initialize dashboard auth on client side if not already done
+    if (import.meta.client && !isAuthenticated.value) {
+        try {
+            await initializeDashboardAuth()
+        } catch (error) {
+            console.warn('Dashboard auth initialization failed in middleware:', error)
         }
+    }
+
+    // Check dashboard authentication status
+    const authStatus = checkDashboardAuthStatus()
+
+    if (!isAuthenticated.value || !authStatus.hasValidTokens) {
+        console.log('🔒 Dashboard authentication required, redirecting to dashboard login')
+
+        // Store the intended destination
+        const redirectTo = to.fullPath !== '/dashboard/login' ? to.fullPath : undefined
+
+        return navigateTo({
+            path: '/dashboard/login',
+            query: redirectTo ? { redirect: redirectTo } : undefined
+        })
+    }
+
+    // Ensure authentication is still valid
+    try {
+        await requireDashboardAuth()
+    } catch (error) {
+        console.error('Dashboard authentication validation failed:', error)
+        return navigateTo('/dashboard/login')
     }
 })

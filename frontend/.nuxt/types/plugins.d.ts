@@ -23,6 +23,7 @@ type NuxtAppInjections =
   InjectionType<typeof import("../../node_modules/nuxt/dist/app/plugins/check-if-layout-used.js")> &
   InjectionType<typeof import("../../plugins/api-interceptor.client")> &
   InjectionType<typeof import("../../plugins/auth-init.client")> &
+  InjectionType<typeof import("../../plugins/auth.client")> &
   InjectionType<typeof import("../../plugins/axios.client")> &
   InjectionType<typeof import("../../plugins/cors-error-handler.client")> &
   InjectionType<typeof import("../../plugins/dashboard-auth-init.client")> &

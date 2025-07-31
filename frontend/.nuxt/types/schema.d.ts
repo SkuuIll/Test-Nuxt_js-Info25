@@ -138,7 +138,11 @@ declare module 'nuxt/schema' {
   interface PublicRuntimeConfig {
    apiBase: string,
 
+   wsBase: string,
+
    siteUrl: string,
+
+   corsEnabled: boolean,
   }
 }
 declare module 'vue' {

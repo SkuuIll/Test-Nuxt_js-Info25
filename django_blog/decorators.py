@@ -1,219 +1,318 @@
-from functools import wraps
-from django.http import Http404
-from django.core.exceptions import ValidationError, PermissionDenied
-from rest_framework import status
-from rest_framework.response import Response
-from django_blog.api_utils import StandardAPIResponse, DashboardAPIResponse, HTTPStatus
+import functools
 import logging
+from django.core.exceptions import PermissionDenied
+from django.http import JsonResponse
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from .api_utils import StandardAPIResponse, HTTPStatus, ErrorMessages
 
 
 logger = logging.getLogger(__name__)
 
 
-def handle_api_exceptions(response_class=StandardAPIResponse):
+def api_error_handler(func):
     """
-    Decorator to handle common API exceptions and return standardized responses
+    Decorator to handle common API errors and return standardized responses
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except PermissionDenied:
+            return StandardAPIResponse.permission_denied()
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {str(e)}", exc_info=True)
+            return StandardAPIResponse.server_error(exception=e)
     
-    Args:
-        response_class: The response class to use (StandardAPIResponse or DashboardAPIResponse)
+    return wrapper
+
+
+def dashboard_permission_required(permission_name):
+    """
+    Decorator to check dashboard permissions
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return JsonResponse({
+                    'error': True,
+                    'message': ErrorMessages.AUTHENTICATION_REQUIRED
+                }, status=HTTPStatus.UNAUTHORIZED)
+            
+            # Check if user is superuser
+            if request.user.is_superuser:
+                return func(request, *args, **kwargs)
+            
+            # Check dashboard permissions
             try:
-                return func(*args, **kwargs)
-            except Http404:
-                logger.warning(f"404 error in {func.__name__}: Resource not found")
-                return response_class.not_found()
-            except PermissionDenied as e:
-                logger.warning(f"Permission denied in {func.__name__}: {str(e)}")
-                return response_class.permission_denied(str(e))
-            except ValidationError as e:
-                logger.warning(f"Validation error in {func.__name__}: {str(e)}")
-                return response_class.validation_error({'detail': str(e)})
-            except ValueError as e:
-                logger.warning(f"Value error in {func.__name__}: {str(e)}")
-                return response_class.error(
-                    f"Invalid value: {str(e)}",
-                    status_code=HTTPStatus.BAD_REQUEST
-                )
-            except Exception as e:
-                logger.error(f"Unexpected error in {func.__name__}: {str(e)}", exc_info=True)
-                return response_class.error(
-                    "Internal server error",
-                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR
-                )
+                dashboard_permission = request.user.dashboard_permission
+                
+                permission_map = {
+                    'can_view_stats': dashboard_permission.can_view_stats,
+                    'can_manage_posts': dashboard_permission.can_manage_posts,
+                    'can_manage_users': dashboard_permission.can_manage_users,
+                    'can_manage_comments': dashboard_permission.can_manage_comments,
+                }
+                
+                if not permission_map.get(permission_name, False):
+                    return JsonResponse({
+                        'error': True,
+                        'message': f'Permission required: {permission_name}'
+                    }, status=HTTPStatus.FORBIDDEN)
+                
+                return func(request, *args, **kwargs)
+                
+            except AttributeError:
+                return JsonResponse({
+                    'error': True,
+                    'message': 'Dashboard permissions not configured'
+                }, status=HTTPStatus.FORBIDDEN)
+        
         return wrapper
     return decorator
 
 
-def handle_dashboard_exceptions(func):
-    """
-    Decorator specifically for dashboard API views
-    """
-    return handle_api_exceptions(DashboardAPIResponse)(func)
-
-
-def handle_standard_exceptions(func):
-    """
-    Decorator specifically for standard API views
-    """
-    return handle_api_exceptions(StandardAPIResponse)(func)
-
-
-def validate_required_fields(*required_fields):
+def require_fields(*required_fields):
     """
     Decorator to validate required fields in request data
-    
-    Args:
-        *required_fields: List of required field names
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(self, request, *args, **kwargs):
-            missing_fields = []
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            # Get request data based on method
+            if request.method == 'GET':
+                data = request.GET
+            else:
+                data = getattr(request, 'data', {})
             
+            missing_fields = []
             for field in required_fields:
-                if field not in request.data or not request.data.get(field):
+                if field not in data or not data[field]:
                     missing_fields.append(field)
             
             if missing_fields:
-                error_message = f"Required fields missing: {', '.join(missing_fields)}"
-                
-                # Determine response class based on view type
-                if hasattr(self, 'success_response'):
-                    if 'dashboard' in self.__class__.__module__.lower():
-                        return DashboardAPIResponse.error(
-                            error_message,
-                            status_code=HTTPStatus.BAD_REQUEST
-                        )
-                    else:
-                        return StandardAPIResponse.error(
-                            error_message,
-                            status_code=HTTPStatus.BAD_REQUEST
-                        )
-                else:
-                    # Fallback for function-based views
-                    return Response({
-                        'success': False,
-                        'error': error_message
-                    }, status=HTTPStatus.BAD_REQUEST)
+                return StandardAPIResponse.validation_error(
+                    serializer_errors={'missing_fields': missing_fields},
+                    message=f"Required fields missing: {', '.join(missing_fields)}"
+                )
             
-            return func(self, request, *args, **kwargs)
+            return func(request, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+def validate_json_content_type(func):
+    """
+    Decorator to validate that request has JSON content type
+    """
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        if request.method in ['POST', 'PUT', 'PATCH']:
+            content_type = request.content_type
+            if not content_type.startswith('application/json') and not content_type.startswith('multipart/form-data'):
+                return StandardAPIResponse.error(
+                    error_message="Invalid content type",
+                    message="Expected application/json or multipart/form-data",
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+        
+        return func(request, *args, **kwargs)
+    
+    return wrapper
+
+
+def rate_limit_by_user(max_requests=100, time_window=3600):
+    """
+    Simple rate limiting decorator by user
+    """
+    from django.core.cache import cache
+    
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return func(request, *args, **kwargs)
+            
+            # Create cache key
+            cache_key = f"rate_limit_{request.user.id}_{func.__name__}"
+            
+            # Get current count
+            current_count = cache.get(cache_key, 0)
+            
+            if current_count >= max_requests:
+                return StandardAPIResponse.rate_limited(
+                    message=f"Rate limit exceeded. Max {max_requests} requests per {time_window} seconds"
+                )
+            
+            # Increment counter
+            cache.set(cache_key, current_count + 1, time_window)
+            
+            return func(request, *args, **kwargs)
+        
         return wrapper
     return decorator
 
 
 def log_api_call(func):
     """
-    Decorator to log API calls for debugging
+    Decorator to log API calls for monitoring
     """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Extract request from args (usually second argument after self)
-        request = None
-        for arg in args:
-            if hasattr(arg, 'method') and hasattr(arg, 'path'):
-                request = arg
-                break
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        user_info = f"User: {request.user.username}" if request.user.is_authenticated else "Anonymous"
+        logger.info(f"API Call: {request.method} {request.path} - {user_info}")
         
-        if request:
-            logger.debug(
-                f"API Call: {request.method} {request.path} - "
-                f"User: {getattr(request, 'user', 'Anonymous')} - "
-                f"Function: {func.__name__}"
-            )
-        
-        result = func(*args, **kwargs)
-        
-        if request and hasattr(result, 'status_code'):
-            logger.debug(
-                f"API Response: {result.status_code} for {request.method} {request.path} - "
-                f"Function: {func.__name__}"
-            )
-        
-        return result
+        try:
+            response = func(request, *args, **kwargs)
+            logger.info(f"API Response: {request.method} {request.path} - Status: {response.status_code}")
+            return response
+        except Exception as e:
+            logger.error(f"API Error: {request.method} {request.path} - Error: {str(e)}")
+            raise
+    
     return wrapper
-
-
-def require_permissions(*permissions):
-    """
-    Decorator to check specific permissions for dashboard views
-    
-    Args:
-        *permissions: List of permission names to check
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(self, request, *args, **kwargs):
-            user = request.user
-            
-            if not user.is_authenticated:
-                return DashboardAPIResponse.unauthorized("Authentication required")
-            
-            if user.is_superuser:
-                return func(self, request, *args, **kwargs)
-            
-            try:
-                dashboard_permission = user.dashboard_permission
-                
-                permission_map = {
-                    'manage_posts': dashboard_permission.can_manage_posts,
-                    'manage_users': dashboard_permission.can_manage_users,
-                    'manage_comments': dashboard_permission.can_manage_comments,
-                    'view_stats': dashboard_permission.can_view_stats,
-                }
-                
-                for permission in permissions:
-                    if not permission_map.get(permission, False):
-                        return DashboardAPIResponse.permission_denied(
-                            f"Permission required: {permission}"
-                        )
-                
-                return func(self, request, *args, **kwargs)
-                
-            except Exception:
-                return DashboardAPIResponse.permission_denied(
-                    "Dashboard permissions not found"
-                )
-        
-        return wrapper
-    return decorator
-
-
-def rate_limit(max_requests=100, window_seconds=3600):
-    """
-    Simple rate limiting decorator (basic implementation)
-    
-    Args:
-        max_requests: Maximum number of requests allowed
-        window_seconds: Time window in seconds
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # This is a basic implementation
-            # In production, you'd want to use Redis or similar
-            # For now, just log the rate limit check
-            logger.debug(f"Rate limit check for {func.__name__}: {max_requests}/{window_seconds}s")
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
 
 
 def cache_response(timeout=300):
     """
-    Decorator to cache API responses (basic implementation)
-    
-    Args:
-        timeout: Cache timeout in seconds
+    Decorator to cache API responses
     """
+    from django.core.cache import cache
+    from django.utils.cache import get_cache_key
+    
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # This is a basic implementation
-            # In production, you'd want to use Redis or Django cache framework
-            logger.debug(f"Cache check for {func.__name__}: timeout={timeout}s")
-            return func(*args, **kwargs)
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            # Only cache GET requests
+            if request.method != 'GET':
+                return func(request, *args, **kwargs)
+            
+            # Create cache key
+            cache_key = f"api_cache_{request.path}_{request.GET.urlencode()}"
+            
+            # Try to get from cache
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                logger.debug(f"Cache hit for {request.path}")
+                return cached_response
+            
+            # Get fresh response
+            response = func(request, *args, **kwargs)
+            
+            # Cache successful responses
+            if response.status_code == 200:
+                cache.set(cache_key, response, timeout)
+                logger.debug(f"Cached response for {request.path}")
+            
+            return response
+        
         return wrapper
     return decorator
+
+
+def require_staff(func):
+    """
+    Decorator to require staff status
+    """
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return StandardAPIResponse.unauthorized()
+        
+        if not request.user.is_staff:
+            return StandardAPIResponse.permission_denied(
+                message="Staff privileges required"
+            )
+        
+        return func(request, *args, **kwargs)
+    
+    return wrapper
+
+
+def require_superuser(func):
+    """
+    Decorator to require superuser status
+    """
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return StandardAPIResponse.unauthorized()
+        
+        if not request.user.is_superuser:
+            return StandardAPIResponse.permission_denied(
+                message="Superuser privileges required"
+            )
+        
+        return func(request, *args, **kwargs)
+    
+    return wrapper
+
+
+def handle_file_upload_errors(func):
+    """
+    Decorator to handle file upload specific errors
+    """
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        try:
+            return func(request, *args, **kwargs)
+        except Exception as e:
+            error_message = str(e)
+            
+            # Handle specific file upload errors
+            if "file size" in error_message.lower():
+                return StandardAPIResponse.error(
+                    error_message="File too large",
+                    message="The uploaded file exceeds the maximum allowed size",
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+            elif "file type" in error_message.lower() or "extension" in error_message.lower():
+                return StandardAPIResponse.error(
+                    error_message="Invalid file type",
+                    message="The uploaded file type is not allowed",
+                    status_code=HTTPStatus.BAD_REQUEST
+                )
+            else:
+                logger.error(f"File upload error in {func.__name__}: {str(e)}", exc_info=True)
+                return StandardAPIResponse.server_error(
+                    message="File upload failed",
+                    exception=e
+                )
+    
+    return wrapper
+
+
+def validate_pagination_params(func):
+    """
+    Decorator to validate pagination parameters
+    """
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        try:
+            page = int(request.GET.get('page', 1))
+            page_size = int(request.GET.get('page_size', 12))
+            
+            if page < 1:
+                return StandardAPIResponse.validation_error(
+                    serializer_errors={'page': ['Page number must be positive']},
+                    message="Invalid pagination parameters"
+                )
+            
+            if page_size < 1 or page_size > 100:
+                return StandardAPIResponse.validation_error(
+                    serializer_errors={'page_size': ['Page size must be between 1 and 100']},
+                    message="Invalid pagination parameters"
+                )
+            
+            return func(request, *args, **kwargs)
+            
+        except ValueError:
+            return StandardAPIResponse.validation_error(
+                serializer_errors={'pagination': ['Page and page_size must be integers']},
+                message="Invalid pagination parameters"
+            )
+    
+    return wrapper

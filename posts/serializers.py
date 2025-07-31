@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from .models import Post, Category, Comment
+from .models import Post, Categoria, Comentario
 from django_blog.base_serializers import (
     BaseModelSerializer, UserBasicSerializer, CategoryBasicSerializer,
     PostBasicSerializer, CommentBasicSerializer, PaginatedResponseSerializer,
     ErrorResponseSerializer, SuccessResponseSerializer, FilterSerializer,
-    MediaUploadSerializer, ValidationErrorSerializer
+    MediaUploadSerializer, ValidationErrorSerializer, SEOSerializer,
+    BulkActionSerializer, StatsSerializer
 )
 
 User = get_user_model()
@@ -18,24 +19,35 @@ class CategorySerializer(CategoryBasicSerializer):
     """Serializador para categorías con información completa"""
     
     class Meta:
-        model = Category
-        fields = CategoryBasicSerializer.Meta.fields + [
-            'nombre', 'descripcion', 'fecha_creacion', 'fecha_actualizacion'
+        model = Categoria
+        fields = [
+            'id', 'nombre', 'descripcion', 'posts_count',
+            'created_at', 'updated_at'
         ]
+        read_only_fields = ['id', 'posts_count', 'created_at', 'updated_at']
 
-class PostSerializer(PostBasicSerializer):
+class PostSerializer(PostBasicSerializer, SEOSerializer):
     """Serializador completo para posts"""
     category = CategorySerializer(source='categoria', read_only=True)
     tags = serializers.SerializerMethodField()
     meta_data = serializers.SerializerMethodField()
     engagement = serializers.SerializerMethodField()
+    content_preview = serializers.SerializerMethodField()
     
     class Meta:
         model = Post
-        fields = PostBasicSerializer.Meta.fields + [
-            'titulo', 'contenido', 'imagen', 'meta_title', 'meta_description',
-            'fecha_creacion', 'fecha_publicacion', 'fecha_actualizacion',
-            'tags', 'meta_data', 'engagement'
+        fields = [
+            'id', 'titulo', 'slug', 'excerpt', 'contenido', 'content_preview',
+            'author', 'category', 'image_url', 'is_featured', 'status',
+            'published_at', 'reading_time', 'comments_count',
+            'meta_title', 'meta_description', 'canonical_url',
+            'tags', 'meta_data', 'engagement',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'slug', 'excerpt', 'content_preview', 'author', 'category',
+            'image_url', 'reading_time', 'comments_count', 'tags',
+            'meta_data', 'engagement', 'created_at', 'updated_at'
         ]
     
     def get_tags(self, obj):
@@ -61,13 +73,41 @@ class PostSerializer(PostBasicSerializer):
             'modified_date': obj.fecha_actualizacion.isoformat() if obj.fecha_actualizacion else None
         }
     
+    def get_content_preview(self, obj):
+        """Get content preview for admin/dashboard"""
+        if obj.contenido:
+            # Remove HTML tags and get first 200 characters
+            import re
+            clean_content = re.sub(r'<[^>]+>', '', obj.contenido)
+            return clean_content[:200] + '...' if len(clean_content) > 200 else clean_content
+        return ''
+    
     def get_engagement(self, obj):
         """Obtener métricas de engagement"""
         comments_count = self.get_comments_count(obj)
+        reading_time = self.get_reading_time(obj)
+        
+        # Calculate engagement score based on various factors
+        engagement_score = 0
+        engagement_score += comments_count * 10  # Comments are valuable
+        engagement_score += min(20, reading_time * 2)  # Reading time bonus (capped)
+        
+        if obj.featured:
+            engagement_score += 15  # Featured posts bonus
+        
+        # Time decay factor (newer posts get slight bonus)
+        if obj.fecha_publicacion:
+            days_old = (timezone.now() - obj.fecha_publicacion).days
+            if days_old < 7:
+                engagement_score += 10
+            elif days_old < 30:
+                engagement_score += 5
+        
         return {
             'comments_count': comments_count,
-            'reading_time': self.get_reading_time(obj),
-            'engagement_score': min(100, comments_count * 10 + self.get_reading_time(obj))
+            'reading_time': reading_time,
+            'engagement_score': min(100, engagement_score),
+            'is_trending': engagement_score > 50 and comments_count > 5
         }
 
 class CommentSerializer(CommentBasicSerializer):
@@ -77,10 +117,17 @@ class CommentSerializer(CommentBasicSerializer):
     moderation_info = serializers.SerializerMethodField()
     
     class Meta:
-        model = Comment
-        fields = CommentBasicSerializer.Meta.fields + [
-            'contenido', 'fecha_creacion', 'fecha_actualizacion',
-            'replies', 'is_author', 'moderation_info'
+        model = Comentario
+        fields = [
+            'id', 'contenido', 'author', 'post_title', 'approved',
+            'replies_count', 'can_edit', 'can_delete',
+            'replies', 'is_author', 'moderation_info',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'author', 'post_title', 'replies_count',
+            'can_edit', 'can_delete', 'replies', 'is_author',
+            'moderation_info', 'created_at', 'updated_at'
         ]
     
     def get_replies(self, obj):
@@ -110,37 +157,76 @@ class CommentSerializer(CommentBasicSerializer):
         return None
 
 
-class PostCreateUpdateSerializer(serializers.ModelSerializer):
+class PostCreateUpdateSerializer(BaseModelSerializer, SEOSerializer):
     """Serializer for creating and updating posts"""
     
     class Meta:
         model = Post
         fields = [
             'titulo', 'contenido', 'excerpt', 'imagen', 'categoria',
-            'meta_title', 'meta_description', 'status', 'featured'
+            'meta_title', 'meta_description', 'canonical_url',
+            'status', 'featured'
         ]
     
     def validate_titulo(self, value):
-        if len(value.strip()) < 5:
-            raise serializers.ValidationError('Title must be at least 5 characters long')
+        """Validate post title"""
+        if not value or len(value.strip()) < 5:
+            raise serializers.ValidationError('El título debe tener al menos 5 caracteres')
+        
+        if len(value.strip()) > 200:
+            raise serializers.ValidationError('El título no puede exceder 200 caracteres')
+        
         return value.strip()
     
     def validate_contenido(self, value):
-        if len(value.strip()) < 20:
-            raise serializers.ValidationError('Content must be at least 20 characters long')
+        """Validate post content"""
+        if not value or len(value.strip()) < 50:
+            raise serializers.ValidationError('El contenido debe tener al menos 50 caracteres')
+        
+        # Check for basic HTML structure
+        if '<script' in value.lower():
+            raise serializers.ValidationError('No se permite código JavaScript en el contenido')
+        
         return value.strip()
     
     def validate_status(self, value):
-        if value not in ['draft', 'published', 'archived']:
-            raise serializers.ValidationError('Invalid status')
+        """Validate post status"""
+        allowed_statuses = ['draft', 'published', 'archived']
+        if value not in allowed_statuses:
+            raise serializers.ValidationError(
+                f'Estado inválido. Debe ser uno de: {", ".join(allowed_statuses)}'
+            )
         return value
+    
+    def validate_excerpt(self, value):
+        """Validate post excerpt"""
+        if value and len(value.strip()) > 300:
+            raise serializers.ValidationError('El resumen no puede exceder 300 caracteres')
+        return value.strip() if value else ''
+    
+    def validate(self, attrs):
+        """Cross-field validation"""
+        attrs = super().validate(attrs)
+        
+        # If publishing, ensure required fields are present
+        if attrs.get('status') == 'published':
+            if not attrs.get('titulo'):
+                raise serializers.ValidationError('El título es requerido para publicar')
+            
+            if not attrs.get('contenido'):
+                raise serializers.ValidationError('El contenido es requerido para publicar')
+            
+            if not attrs.get('categoria'):
+                raise serializers.ValidationError('La categoría es requerida para publicar')
+        
+        return attrs
 
 
 class CommentCreateUpdateSerializer(BaseModelSerializer):
     """Serializador para crear y actualizar comentarios"""
     
     class Meta:
-        model = Comment
+        model = Comentario
         fields = ['contenido', 'post', 'parent']
     
     def validate_contenido(self, value):
@@ -206,9 +292,13 @@ class PostListSerializer(PostBasicSerializer):
     class Meta:
         model = Post
         fields = [
-            'id', 'title', 'excerpt', 'image', 'author', 'category',
-            'is_featured', 'slug', 'published_at', 'reading_time',
-            'comments_count', 'created_at'
+            'id', 'titulo', 'slug', 'excerpt', 'author', 'category',
+            'image_url', 'is_featured', 'status', 'published_at',
+            'reading_time', 'comments_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'slug', 'excerpt', 'author', 'category', 'image_url',
+            'reading_time', 'comments_count', 'created_at', 'updated_at'
         ]
 
 
@@ -277,6 +367,12 @@ class PostSearchSerializer(FilterSerializer):
     date_from = serializers.DateTimeField(required=False, help_text='Fecha desde')
     date_to = serializers.DateTimeField(required=False, help_text='Fecha hasta')
     
+    # Override allowed ordering fields
+    allowed_ordering_fields = [
+        'titulo', 'fecha_creacion', 'fecha_publicacion', 'fecha_actualizacion',
+        'comments_count', 'reading_time'
+    ]
+    
     def validate(self, attrs):
         """Validar filtros de búsqueda"""
         attrs = super().validate(attrs)
@@ -287,6 +383,22 @@ class PostSearchSerializer(FilterSerializer):
         if date_from and date_to and date_from > date_to:
             raise serializers.ValidationError('date_from debe ser anterior a date_to')
         
+        # Validate category exists
+        category_id = attrs.get('category')
+        if category_id:
+            try:
+                Categoria.objects.get(id=category_id)
+            except Categoria.DoesNotExist:
+                raise serializers.ValidationError('La categoría especificada no existe')
+        
+        # Validate author exists
+        author_id = attrs.get('author')
+        if author_id:
+            try:
+                User.objects.get(id=author_id)
+            except User.DoesNotExist:
+                raise serializers.ValidationError('El autor especificado no existe')
+        
         return attrs
 
 
@@ -294,7 +406,7 @@ class CategoryCreateUpdateSerializer(BaseModelSerializer):
     """Serializador para crear y actualizar categorías"""
     
     class Meta:
-        model = Category
+        model = Categoria
         fields = ['nombre', 'descripcion']
     
     def validate_nombre(self, value):
@@ -306,7 +418,7 @@ class CategoryCreateUpdateSerializer(BaseModelSerializer):
             raise serializers.ValidationError('El nombre no puede exceder 100 caracteres')
         
         # Verificar unicidad
-        queryset = Category.objects.filter(nombre__iexact=value.strip())
+        queryset = Categoria.objects.filter(nombre__iexact=value.strip())
         if self.instance:
             queryset = queryset.exclude(pk=self.instance.pk)
         
@@ -372,6 +484,34 @@ class MediaUploadResponseSerializer(SuccessResponseSerializer):
         }
 
 
+class PostBulkActionSerializer(BulkActionSerializer):
+    """Serializer for bulk post actions"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['action'].choices = [
+            ('publish', 'Publish'),
+            ('unpublish', 'Unpublish'),
+            ('archive', 'Archive'),
+            ('delete', 'Delete'),
+            ('feature', 'Feature'),
+            ('unfeature', 'Unfeature'),
+        ]
+
+
+class CommentBulkActionSerializer(BulkActionSerializer):
+    """Serializer for bulk comment actions"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['action'].choices = [
+            ('approve', 'Approve'),
+            ('reject', 'Reject'),
+            ('delete', 'Delete'),
+            ('mark_spam', 'Mark as Spam'),
+        ]
+
+
 class PostValidationSerializer(serializers.Serializer):
     """Serializador para validación de posts"""
     title_valid = serializers.BooleanField()
@@ -380,6 +520,101 @@ class PostValidationSerializer(serializers.Serializer):
     image_valid = serializers.BooleanField()
     seo_score = serializers.IntegerField(min_value=0, max_value=100)
     readability_score = serializers.IntegerField(min_value=0, max_value=100)
+    word_count = serializers.IntegerField(min_value=0)
+    reading_time = serializers.IntegerField(min_value=1)
     suggestions = serializers.ListField(child=serializers.CharField())
     warnings = serializers.ListField(child=serializers.CharField())
     errors = serializers.ListField(child=serializers.CharField())
+    
+    def validate(self, attrs):
+        """Validate post quality metrics"""
+        attrs = super().validate(attrs)
+        
+        # Calculate overall quality score
+        quality_score = 0
+        if attrs.get('title_valid'):
+            quality_score += 20
+        if attrs.get('content_valid'):
+            quality_score += 30
+        if attrs.get('category_valid'):
+            quality_score += 10
+        if attrs.get('image_valid'):
+            quality_score += 10
+        
+        quality_score += (attrs.get('seo_score', 0) * 0.2)
+        quality_score += (attrs.get('readability_score', 0) * 0.1)
+        
+        attrs['quality_score'] = min(100, int(quality_score))
+        
+        return attrs
+
+
+class PostAnalyticsSerializer(StatsSerializer):
+    """Serializer for post analytics"""
+    post_id = serializers.IntegerField(required=False)
+    include_comments = serializers.BooleanField(default=True)
+    include_engagement = serializers.BooleanField(default=True)
+    
+    def validate_post_id(self, value):
+        """Validate post exists"""
+        if value:
+            try:
+                Post.objects.get(id=value)
+            except Post.DoesNotExist:
+                raise serializers.ValidationError('El post especificado no existe')
+        return value
+
+
+class CategoryStatsSerializer(StatsSerializer):
+    """Serializer for category statistics"""
+    category_id = serializers.IntegerField(required=False)
+    include_posts = serializers.BooleanField(default=True)
+    
+    def validate_category_id(self, value):
+        """Validate category exists"""
+        if value:
+            try:
+                Categoria.objects.get(id=value)
+            except Categoria.DoesNotExist:
+                raise serializers.ValidationError('La categoría especificada no existe')
+        return value
+
+
+class ContentModerationSerializer(serializers.Serializer):
+    """Serializer for content moderation"""
+    content = serializers.CharField()
+    content_type = serializers.ChoiceField(choices=['post', 'comment'])
+    auto_moderate = serializers.BooleanField(default=True)
+    
+    def validate_content(self, value):
+        """Validate content for moderation"""
+        if not value or len(value.strip()) < 5:
+            raise serializers.ValidationError('El contenido debe tener al menos 5 caracteres')
+        
+        return value.strip()
+
+
+class ExportSerializer(serializers.Serializer):
+    """Serializer for data export"""
+    format = serializers.ChoiceField(
+        choices=['json', 'csv', 'xml'],
+        default='json'
+    )
+    include_fields = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    date_from = serializers.DateTimeField(required=False)
+    date_to = serializers.DateTimeField(required=False)
+    
+    def validate(self, attrs):
+        """Validate export parameters"""
+        attrs = super().validate(attrs)
+        
+        date_from = attrs.get('date_from')
+        date_to = attrs.get('date_to')
+        
+        if date_from and date_to and date_from > date_to:
+            raise serializers.ValidationError('date_from debe ser anterior a date_to')
+        
+        return attrs

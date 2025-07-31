@@ -37,7 +37,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.API_BASE_URL || 'http://localhost:8000',
-      siteUrl: process.env.SITE_URL || 'http://localhost:3000'
+      wsBase: process.env.WS_BASE_URL || 'ws://localhost:8000',
+      siteUrl: process.env.SITE_URL || 'http://localhost:3000',
+      corsEnabled: process.env.CORS_ENABLED !== 'false'
     }
   },
 

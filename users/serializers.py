@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from django_blog.base_serializers import (
-    BaseModelSerializer, UserBasicSerializer, UserDetailSerializer,
+    BaseModelSerializer, UserBasicSerializer,
     SuccessResponseSerializer, ErrorResponseSerializer, ValidationErrorSerializer
 )
 
@@ -12,15 +12,16 @@ User = get_user_model()
 
 # UserBasicSerializer ahora se importa desde base_serializers
 
-class UserSerializer(UserDetailSerializer):
+class UserSerializer(UserBasicSerializer):
     """Serializador completo de usuario"""
     
     class Meta:
         model = User
-        fields = UserDetailSerializer.Meta.fields + [
-            'date_joined'
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'full_name', 'avatar_url', 'is_active', 'date_joined'
         ]
-        read_only_fields = ['id', 'is_staff', 'date_joined', 'last_login', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'username', 'date_joined', 'is_active']
 
 class UserRegistrationSerializer(BaseModelSerializer):
     """Serializador para registro de usuarios"""
@@ -225,7 +226,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return attrs
 
 
-class UserProfileSerializer(UserDetailSerializer):
+class UserProfileSerializer(UserBasicSerializer):
     """Serializador para perfil público de usuario"""
     recent_posts = serializers.SerializerMethodField()
     recent_comments = serializers.SerializerMethodField()
@@ -234,8 +235,8 @@ class UserProfileSerializer(UserDetailSerializer):
         model = User
         fields = [
             'id', 'username', 'first_name', 'last_name', 'full_name',
-            'avatar_url', 'stats', 'recent_posts', 'recent_comments',
-            'created_at'
+            'avatar_url', 'recent_posts', 'recent_comments',
+            'date_joined'
         ]
     
     def get_recent_posts(self, obj):

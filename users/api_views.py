@@ -7,200 +7,205 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from .serializers import UserSerializer, UserRegistrationSerializer
-from .api_utils import StandardResponse
+from django_blog.api_utils import StandardAPIResponse, HTTPStatus, ErrorMessages
+from django_blog.decorators import api_error_handler, require_fields, log_api_call
 
 User = get_user_model()
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@api_error_handler
+@log_api_call
+@require_fields('username', 'password')
 def login(request):
-    """Login endpoint"""
+    """Login endpoint with standardized error handling"""
     username = request.data.get('username')
     password = request.data.get('password')
-    
-    if not username or not password:
-        return StandardResponse.error(
-            'Username and password are required',
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
     
     user = authenticate(username=username, password=password)
     
     if user:
         if not user.is_active:
-            return StandardResponse.error(
-                'Account is disabled',
-                status_code=status.HTTP_401_UNAUTHORIZED
+            return StandardAPIResponse.error(
+                error_message=ErrorMessages.ACCOUNT_DISABLED,
+                status_code=HTTPStatus.UNAUTHORIZED
             )
         
         refresh = RefreshToken.for_user(user)
-        return StandardResponse.success({
+        return StandardAPIResponse.success({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': UserSerializer(user).data
         }, message='Login successful')
     else:
-        return StandardResponse.error(
-            'Invalid credentials',
-            status_code=status.HTTP_401_UNAUTHORIZED
+        return StandardAPIResponse.error(
+            error_message=ErrorMessages.INVALID_CREDENTIALS,
+            status_code=HTTPStatus.UNAUTHORIZED
         )
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@api_error_handler
+@log_api_call
+@require_fields('username', 'email', 'password')
 def register(request):
-    """Registration endpoint"""
+    """Registration endpoint with standardized error handling"""
     serializer = UserRegistrationSerializer(data=request.data)
     
     if serializer.is_valid():
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
         
-        return StandardResponse.success({
+        return StandardAPIResponse.success({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': UserSerializer(user).data
-        }, message='Registration successful', status_code=status.HTTP_201_CREATED)
+        }, message='Registration successful', status_code=HTTPStatus.CREATED)
     
-    return StandardResponse.validation_error(serializer.errors)
+    return StandardAPIResponse.validation_error(
+        serializer_errors=serializer.errors,
+        message='Registration validation failed'
+    )
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@api_error_handler
+@log_api_call
+@require_fields('refresh')
 def refresh_token(request):
-    """Refresh token endpoint"""
+    """Refresh token endpoint with standardized error handling"""
     refresh_token = request.data.get('refresh')
-    
-    if not refresh_token:
-        return StandardResponse.error(
-            'Refresh token is required',
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
     
     try:
         refresh = RefreshToken(refresh_token)
-        return StandardResponse.success({
+        return StandardAPIResponse.success({
             'access': str(refresh.access_token)
         }, message='Token refreshed successfully')
     except TokenError:
-        return StandardResponse.error(
-            'Invalid or expired refresh token',
-            status_code=status.HTTP_401_UNAUTHORIZED
+        return StandardAPIResponse.error(
+            error_message=ErrorMessages.TOKEN_EXPIRED,
+            message='Invalid or expired refresh token',
+            status_code=HTTPStatus.UNAUTHORIZED
         )
     except Exception as e:
-        return StandardResponse.error(
-            'Token refresh failed',
-            status_code=status.HTTP_401_UNAUTHORIZED
+        return StandardAPIResponse.error(
+            error_message='Token refresh failed',
+            status_code=HTTPStatus.UNAUTHORIZED
         )
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@api_error_handler
+@log_api_call
 def profile(request):
-    """Get user profile"""
-    return StandardResponse.success(UserSerializer(request.user).data)
+    """Get user profile with standardized error handling"""
+    return StandardAPIResponse.success(
+        data=UserSerializer(request.user).data,
+        message='Profile retrieved successfully'
+    )
 
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
+@api_error_handler
+@log_api_call
 def update_profile(request):
-    """Update user profile"""
+    """Update user profile with standardized error handling"""
     serializer = UserSerializer(request.user, data=request.data, partial=True)
     
     if serializer.is_valid():
         serializer.save()
-        return StandardResponse.success(
-            serializer.data, 
+        return StandardAPIResponse.success(
+            data=serializer.data, 
             message='Profile updated successfully'
         )
     
-    return StandardResponse.validation_error(serializer.errors)
+    return StandardAPIResponse.validation_error(
+        serializer_errors=serializer.errors,
+        message='Profile validation failed'
+    )
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@api_error_handler
+@log_api_call
+@require_fields('current_password', 'new_password')
 def change_password(request):
-    """Change password"""
+    """Change password with standardized error handling"""
     current_password = request.data.get('current_password')
     new_password = request.data.get('new_password')
     
-    if not current_password or not new_password:
-        return StandardResponse.error(
-            'Current password and new password are required',
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
-    
     if not request.user.check_password(current_password):
-        return StandardResponse.error(
-            'Current password is incorrect',
-            status_code=status.HTTP_400_BAD_REQUEST
+        return StandardAPIResponse.error(
+            error_message='Current password is incorrect',
+            status_code=HTTPStatus.BAD_REQUEST
         )
     
     # Validate new password strength
     if len(new_password) < 8:
-        return StandardResponse.error(
-            'New password must be at least 8 characters long',
-            status_code=status.HTTP_400_BAD_REQUEST
+        return StandardAPIResponse.validation_error(
+            serializer_errors={'new_password': ['Password must be at least 8 characters long']},
+            message='Password validation failed'
         )
     
     request.user.set_password(new_password)
     request.user.save()
     
-    return StandardResponse.success(message='Password changed successfully')
+    return StandardAPIResponse.success(message='Password changed successfully')
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@api_error_handler
+@log_api_call
+@require_fields('email')
 def password_reset(request):
-    """Request password reset"""
+    """Request password reset with standardized error handling"""
     email = request.data.get('email')
-    
-    if not email:
-        return StandardResponse.error(
-            'Email is required',
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
     
     try:
         user = User.objects.get(email=email)
         # Here you would typically send an email with reset link
         # For now, just return success
-        return StandardResponse.success(message='Password reset email sent')
+        return StandardAPIResponse.success(message='Password reset email sent')
     except User.DoesNotExist:
         # Don't reveal if email exists or not for security
-        return StandardResponse.success(message='Password reset email sent')
+        return StandardAPIResponse.success(message='Password reset email sent')
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@api_error_handler
+@log_api_call
+@require_fields('token', 'new_password')
 def password_reset_confirm(request):
-    """Confirm password reset"""
+    """Confirm password reset with standardized error handling"""
     token = request.data.get('token')
     new_password = request.data.get('new_password')
     
-    if not token or not new_password:
-        return StandardResponse.error(
-            'Token and new password are required',
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
-    
     # Validate new password strength
     if len(new_password) < 8:
-        return StandardResponse.error(
-            'New password must be at least 8 characters long',
-            status_code=status.HTTP_400_BAD_REQUEST
+        return StandardAPIResponse.validation_error(
+            serializer_errors={'new_password': ['Password must be at least 8 characters long']},
+            message='Password validation failed'
         )
     
     # Here you would validate the token and reset password
     # For now, just return success
-    return StandardResponse.success(message='Password reset successfully')
+    return StandardAPIResponse.success(message='Password reset successfully')
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@api_error_handler
+@log_api_call
 def logout(request):
-    """Logout endpoint"""
+    """Logout endpoint with standardized error handling"""
     try:
         refresh_token = request.data.get('refresh')
         if refresh_token:
             token = RefreshToken(refresh_token)
             token.blacklist()
-        return StandardResponse.success(message='Logged out successfully')
+        return StandardAPIResponse.success(message='Logged out successfully')
     except TokenError:
         # Token might already be blacklisted or invalid
-        return StandardResponse.success(message='Logged out successfully')
+        return StandardAPIResponse.success(message='Logged out successfully')
     except Exception as e:
         # Even if blacklisting fails, consider logout successful
-        return StandardResponse.success(message='Logged out successfully')
+        return StandardAPIResponse.success(message='Logged out successfully')

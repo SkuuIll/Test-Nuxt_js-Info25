@@ -76,10 +76,11 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
         user.save(update_fields=['last_login'])
         
         # Registrar actividad de login
+        client_ip = get_client_ip(request)
         log_activity(
             user=user,
             action='login',
-            description=f'Inicio de sesión en dashboard desde {get_client_ip(request)}',
+            description=f'Inicio de sesión en dashboard desde {client_ip}',
             request=request
         )
         
@@ -785,8 +786,7 @@ class GrowthStatsView(APIView):
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener estadísticas de crecimiento: {str(e
-            })}'
+                'message': f'Error al obtener estadísticas de crecimiento: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -803,13 +803,12 @@ class TopPerformingContentView(APIView):
             
             return DashboardAPIResponse.success({
                 'data': top_content
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener contenido destacado: {str(e
-            })}'
+                'message': f'Error al obtener contenido destacado: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1016,13 +1015,12 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': serializer.data
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios: {str(e
-            })}'
+                'message': f'Error al obtener comentarios: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -1053,13 +1051,12 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': result
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener posts por categoría: {str(e
-            })}'
+                'message': f'Error al obtener posts por categoría: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1280,14 +1277,13 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return DashboardAPIResponse.success({
-                'data': message=f'Usuario {user.username} activado exitosamente')
+            return DashboardAPIResponse.success({}, 
+                message=f'Usuario {user.username} activado exitosamente')
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al activar usuario: {str(e
-            })}'
+                'message': f'Error al activar usuario: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -1325,14 +1321,13 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return DashboardAPIResponse.success({
-                'data': message=f'Usuario {user.username} desactivado exitosamente')
+            return DashboardAPIResponse.success({}, 
+                message=f'Usuario {user.username} desactivado exitosamente')
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al desactivar usuario: {str(e
-            })}'
+                'message': f'Error al desactivar usuario: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -1389,13 +1384,12 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': serializer.data
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener actividad: {str(e
-            })}'
+                'message': f'Error al obtener actividad: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
@@ -1548,13 +1542,12 @@ class DashboardUserViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': stats
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener estadísticas: {str(e
-            })}'
+                'message': f'Error al obtener estadísticas: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class DashboardCommentViewSet(viewsets.ModelViewSet):
@@ -1654,15 +1647,13 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return DashboardAPIResponse.success({
-                'data': message='Comentario aprobado exitosamente'
-            )
+            return DashboardAPIResponse.success({}, 
+                message='Comentario aprobado exitosamente')
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al aprobar comentario: {str(e
-            })}'
+                'message': f'Error al aprobar comentario: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -1685,15 +1676,13 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
                 request=request
             )
             
-            return DashboardAPIResponse.success({
-                'data': message='Comentario rechazado exitosamente'
-            )
+            return DashboardAPIResponse.success({}, 
+                message='Comentario rechazado exitosamente')
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al rechazar comentario: {str(e
-            })}'
+                'message': f'Error al rechazar comentario: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'])
@@ -1812,13 +1801,12 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(pending_comments, many=True)
             return DashboardAPIResponse.success({
                 'data': serializer.data
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios pendientes: {str(e
-            })}'
+                'message': f'Error al obtener comentarios pendientes: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -1919,13 +1907,12 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': stats
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener estadísticas: {str(e
-            })}'
+                'message': f'Error al obtener estadísticas: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
@@ -2165,13 +2152,12 @@ class DashboardPostViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': serializer.data
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios: {str(e
-            })}'
+                'message': f'Error al obtener comentarios: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -2308,14 +2294,13 @@ def get_posts_statistics(request):
         
         return DashboardAPIResponse.success({
                 'data': stats
-        )
+        })
         
     except Exception as e:
         return Response({
             'error': True,
-                'message': f'Error al obtener estadísticas de posts: {str(e
-            })}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': f'Error al obtener estadísticas de posts: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -2336,14 +2321,13 @@ def get_post_engagement_stats(request, post_id):
         
         return DashboardAPIResponse.success({
                 'data': stats
-        )
+        })
         
     except Exception as e:
         return Response({
             'error': True,
-                'message': f'Error al obtener estadísticas del post: {str(e
-            })}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': f'Error al obtener estadísticas del post: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -2388,14 +2372,13 @@ def get_post_performance_metrics(request):
         
         return DashboardAPIResponse.success({
                 'data': metrics
-        )
+        })
         
     except Exception as e:
         return Response({
             'error': True,
-                'message': f'Error al obtener métricas de posts: {str(e
-            })}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': f'Error al obtener métricas de posts: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ============================================================================
@@ -2683,13 +2666,12 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             
             return DashboardAPIResponse.success({
                 'data': serializer.data
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener respuestas: {str(e
-            })}'
+                'message': f'Error al obtener respuestas: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -2709,13 +2691,12 @@ class DashboardCommentViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(pending_comments, many=True)
             return DashboardAPIResponse.success({
                 'data': serializer.data
-            )
+            })
             
         except Exception as e:
             return Response({
                 'error': True,
-                'message': f'Error al obtener comentarios pendientes: {str(e
-            })}'
+                'message': f'Error al obtener comentarios pendientes: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
@@ -2757,14 +2738,13 @@ def get_comments_statistics(request):
         
         return DashboardAPIResponse.success({
                 'data': stats
-        )
+        })
         
     except Exception as e:
         return Response({
             'error': True,
-                'message': f'Error al obtener estadísticas de comentarios: {str(e
-            })}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': f'Error al obtener estadísticas de comentarios: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -2786,14 +2766,13 @@ def get_moderation_queue(request):
         
         return DashboardAPIResponse.success({
                 'data': serialized_queue
-        )
+        })
         
     except Exception as e:
         return Response({
             'error': True,
-                'message': f'Error al obtener cola de moderación: {str(e
-            })}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': f'Error al obtener cola de moderación: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -2808,14 +2787,13 @@ def get_comment_engagement_metrics(request):
         
         return DashboardAPIResponse.success({
                 'data': metrics
-        )
+        })
         
     except Exception as e:
         return Response({
             'error': True,
-                'message': f'Error al obtener métricas de comentarios: {str(e
-            })}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': f'Error al obtener métricas de comentarios: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])

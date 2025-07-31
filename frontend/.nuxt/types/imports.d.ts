@@ -192,6 +192,7 @@ declare global {
   const useColorMode: typeof import('@vueuse/core')['useColorMode']
   const useConfirmDialog: typeof import('@vueuse/core')['useConfirmDialog']
   const useCookie: typeof import('../../node_modules/nuxt/dist/app/composables/cookie')['useCookie']
+  const useCors: typeof import('../../composables/useCors')['useCors']
   const useCounter: typeof import('@vueuse/core')['useCounter']
   const useCssModule: typeof import('../../node_modules/vue')['useCssModule']
   const useCssVar: typeof import('@vueuse/core')['useCssVar']
@@ -201,8 +202,10 @@ declare global {
   const useDark: typeof import('@vueuse/core')['useDark']
   const useDashboardAuth: typeof import('../../composables/useDashboardAuth')['useDashboardAuth']
   const useDashboardComments: typeof import('../../composables/useDashboardComments')['useDashboardComments']
+  const useDashboardMedia: typeof import('../../composables/useDashboardMedia')['useDashboardMedia']
   const useDashboardNotifications: typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']
   const useDashboardPosts: typeof import('../../composables/useDashboardPosts')['useDashboardPosts']
+  const useDashboardRealtime: typeof import('../../composables/useDashboardRealtime')['useDashboardRealtime']
   const useDashboardSession: typeof import('../../composables/useDashboardSession')['useDashboardSession']
   const useDashboardStats: typeof import('../../composables/useDashboardStats')['useDashboardStats']
   const useDashboardUsers: typeof import('../../composables/useDashboardUsers')['useDashboardUsers']
@@ -618,6 +621,7 @@ declare module 'vue' {
     readonly useColorMode: UnwrapRef<typeof import('@vueuse/core')['useColorMode']>
     readonly useConfirmDialog: UnwrapRef<typeof import('@vueuse/core')['useConfirmDialog']>
     readonly useCookie: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/cookie')['useCookie']>
+    readonly useCors: UnwrapRef<typeof import('../../composables/useCors')['useCors']>
     readonly useCounter: UnwrapRef<typeof import('@vueuse/core')['useCounter']>
     readonly useCssModule: UnwrapRef<typeof import('../../node_modules/vue')['useCssModule']>
     readonly useCssVar: UnwrapRef<typeof import('@vueuse/core')['useCssVar']>
@@ -627,8 +631,10 @@ declare module 'vue' {
     readonly useDark: UnwrapRef<typeof import('@vueuse/core')['useDark']>
     readonly useDashboardAuth: UnwrapRef<typeof import('../../composables/useDashboardAuth')['useDashboardAuth']>
     readonly useDashboardComments: UnwrapRef<typeof import('../../composables/useDashboardComments')['useDashboardComments']>
+    readonly useDashboardMedia: UnwrapRef<typeof import('../../composables/useDashboardMedia')['useDashboardMedia']>
     readonly useDashboardNotifications: UnwrapRef<typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']>
     readonly useDashboardPosts: UnwrapRef<typeof import('../../composables/useDashboardPosts')['useDashboardPosts']>
+    readonly useDashboardRealtime: UnwrapRef<typeof import('../../composables/useDashboardRealtime')['useDashboardRealtime']>
     readonly useDashboardSession: UnwrapRef<typeof import('../../composables/useDashboardSession')['useDashboardSession']>
     readonly useDashboardStats: UnwrapRef<typeof import('../../composables/useDashboardStats')['useDashboardStats']>
     readonly useDashboardUsers: UnwrapRef<typeof import('../../composables/useDashboardUsers')['useDashboardUsers']>

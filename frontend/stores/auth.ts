@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import type { User, LoginCredentials, RegisterData } from '~/types'
+import type { User, LoginCredentials, RegisterData, AuthTokens } from '~/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const { handleAuthError, handleValidationError } = useErrorHandler()
   const { authLoading } = useLoading()
+  const api = useApi()
 
   // State
   const user = ref<User | null>(null)
@@ -20,53 +21,54 @@ export const useAuthStore = defineStore('auth', () => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   })
 
+  // Helper function to clear authentication state
+  const clearAuthState = async () => {
+    console.log('🧹 Clearing authentication state')
+
+    // Clear tokens using API utility
+    api.tokenUtils.clearTokens()
+
+    // Reset store state
+    user.value = null
+    isAuthenticated.value = false
+    error.value = null
+
+    console.log('✅ Authentication state cleared')
+  }
+
   // Actions
   const login = async (credentials: LoginCredentials) => {
     return await authLoading.withLoading(async () => {
       try {
         error.value = null
-        console.log('🔐 Iniciando login con:', { username: credentials.username })
+        console.log('🔐 Starting login with:', { username: credentials.username })
 
-        const api = useApi()
-        const response = await api.login(credentials)
+        const tokens = await api.login(credentials)
+        console.log('✅ Login successful, tokens received')
 
-        console.log('✅ Login exitoso, respuesta recibida:', response)
-
-        // Store tokens
-        const tokens = {
-          access: response.access,
-          refresh: response.refresh,
-          expires_in: response.expires_in || 3600
-        }
-
-        // Save tokens to localStorage
-        if (process.client) {
-          localStorage.setItem('auth_tokens', JSON.stringify(tokens))
-          console.log('💾 Tokens guardados en localStorage')
-        }
-
-        // Set user data directly from login response
-        user.value = response.user
-        isAuthenticated.value = true
-
-        console.log('🎉 Autenticación completada exitosamente')
-        console.log('👤 Usuario logueado:', {
-          username: user.value?.username,
-          isStaff: user.value?.is_staff,
-          email: user.value?.email
+        // Fetch user profile after successful login
+        const profile = await api.getProfile()
+        console.log('👤 User profile fetched:', {
+          username: profile.username,
+          isStaff: profile.is_staff,
+          email: profile.email
         })
 
-        return response
-      } catch (err: any) {
-        console.error('❌ Error en login:', err)
+        // Set user data and authentication state
+        user.value = profile
+        isAuthenticated.value = true
 
-        // Handle auth error with new error handler
+        console.log('🎉 Authentication completed successfully')
+        return { tokens, user: profile }
+      } catch (err: any) {
+        console.error('❌ Login error:', err)
+
+        // Handle auth error with enhanced error handler
         const errorInfo = handleAuthError(err, 'Login Failed')
         error.value = errorInfo.message
 
         // Clear any existing auth state
-        user.value = null
-        isAuthenticated.value = false
+        await clearAuthState()
 
         throw err
       }
@@ -74,320 +76,340 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const register = async (data: RegisterData) => {
-    try {
-      loading.value = true
-      error.value = null
+    return await authLoading.withLoading(async () => {
+      try {
+        error.value = null
+        console.log('📝 Starting registration for:', { username: data.username, email: data.email })
 
-      const api = useApi()
-      const response = await api.register(data)
+        const tokens = await api.register(data)
+        console.log('✅ Registration successful, tokens received')
 
-      // Auto-login after successful registration
-      if (response.access && response.refresh) {
-        const tokens = {
-          access: response.access,
-          refresh: response.refresh,
-          expires_in: response.expires_in || 3600
-        }
+        // Fetch user profile after successful registration
+        const profile = await api.getProfile()
+        console.log('👤 User profile fetched after registration:', {
+          username: profile.username,
+          email: profile.email
+        })
 
-        // Save tokens to localStorage
-        if (process.client) {
-          localStorage.setItem('auth_tokens', JSON.stringify(tokens))
-        }
-
-        // Set user data
-        user.value = response.user
+        // Set user data and authentication state
+        user.value = profile
         isAuthenticated.value = true
+
+        console.log('🎉 Registration and authentication completed successfully')
+        return { tokens, user: profile }
+      } catch (err: any) {
+        console.error('❌ Registration error:', err)
+
+        // Handle validation errors specifically
+        if (err.data?.errors) {
+          const errorInfo = handleValidationError(err, 'Registration Validation Failed')
+          error.value = errorInfo.message
+        } else {
+          const errorInfo = handleAuthError(err, 'Registration Failed')
+          error.value = errorInfo.message
+        }
+
+        // Clear any existing auth state
+        await clearAuthState()
+
+        throw err
       }
-
-      return response
-    } catch (err: any) {
-      console.error('❌ Error en registro:', err)
-
-      // Handle different error formats
-      let errorMessage = 'Registration failed'
-      if (err.data && err.data.errors) {
-        // Handle validation errors
-        const errors = err.data.errors
-        const errorMessages = Object.values(errors).flat()
-        errorMessage = errorMessages.join(', ')
-      } else if (err.data && err.data.error) {
-        errorMessage = err.data.error
-      } else if (err.data && err.data.message) {
-        errorMessage = err.data.message
-      } else if (err.message) {
-        errorMessage = err.message
-      }
-
-      error.value = errorMessage
-      throw new Error(errorMessage)
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
-  const logout = async () => {
-    try {
-      loading.value = true
-
-      // Try to logout from backend
+  const logout = async (redirectTo: string = '/') => {
+    return await authLoading.withLoading(async () => {
       try {
-        const api = useApi()
-        await api.logout()
-        console.log('✅ Logout exitoso en backend')
-      } catch (logoutError) {
-        console.warn('⚠️ Error en logout del backend:', logoutError)
-        // Continue with local logout even if backend logout fails
+        console.log('👋 Starting logout process')
+
+        // Try to logout from backend first
+        try {
+          await api.logout()
+          console.log('✅ Backend logout successful')
+        } catch (logoutError) {
+          console.warn('⚠️ Backend logout error (continuing with local logout):', logoutError)
+          // Continue with local logout even if backend logout fails
+        }
+
+        // Clear authentication state
+        await clearAuthState()
+
+        console.log('👋 Logout completed successfully')
+
+        // Redirect to specified route
+        if (redirectTo) {
+          await navigateTo(redirectTo)
+        }
+
+      } catch (err: any) {
+        console.error('❌ Logout error:', err)
+
+        // Even if logout fails, clear local state
+        await clearAuthState()
+
+        // Still redirect on error
+        if (redirectTo) {
+          await navigateTo(redirectTo)
+        }
+
+        throw err
       }
-
-      // Clear tokens from localStorage
-      if (process.client) {
-        localStorage.removeItem('auth_tokens')
-        console.log('🗑️ Tokens eliminados del localStorage')
-      }
-
-      // Reset state
-      user.value = null
-      isAuthenticated.value = false
-      error.value = null
-
-      console.log('👋 Logout completado')
-
-      // Redirect to home
-      await navigateTo('/')
-
-    } catch (err: any) {
-      console.error('❌ Error en logout:', err)
-
-      // Even if logout fails, clear local state
-      if (process.client) {
-        localStorage.removeItem('auth_tokens')
-      }
-      user.value = null
-      isAuthenticated.value = false
-      error.value = null
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   const fetchProfile = async () => {
     try {
-      console.log('📡 Obteniendo perfil de usuario...')
-      const api = useApi()
+      console.log('📡 Fetching user profile...')
       const profile = await api.getProfile()
 
       user.value = profile
       isAuthenticated.value = true
 
-      console.log('✅ Perfil obtenido:', {
-        username: user.value?.username,
-        isStaff: user.value?.is_staff,
-        email: user.value?.email
+      console.log('✅ Profile fetched successfully:', {
+        username: profile.username,
+        isStaff: profile.is_staff,
+        email: profile.email
       })
 
       return profile
     } catch (err: any) {
-      console.error('❌ Error obteniendo perfil:', err)
+      console.error('❌ Error fetching profile:', err)
 
-      // Only logout if it's an authentication error (401)
+      // Handle authentication errors
       if (err.statusCode === 401 || err.status === 401) {
-        console.log('🔒 Token inválido, cerrando sesión...')
-        await logout()
+        console.log('🔒 Invalid token, logging out...')
+        await clearAuthState()
+
+        const errorInfo = handleAuthError(err, 'Profile Fetch Failed - Session Expired')
+        error.value = errorInfo.message
+
         throw new Error('Session expired')
       } else {
-        // For other errors, just log but don't logout
-        console.warn('⚠️ Error temporal obteniendo perfil, manteniendo sesión')
+        // For other errors, don't logout but handle appropriately
+        console.warn('⚠️ Temporary error fetching profile, maintaining session')
 
-        let errorMessage = 'Failed to fetch profile'
-        if (err.data && err.data.error) {
-          errorMessage = err.data.error
-        } else if (err.message) {
-          errorMessage = err.message
-        }
+        const errorInfo = handleAuthError(err, 'Profile Fetch Failed')
+        error.value = errorInfo.message
 
-        throw new Error(errorMessage)
+        throw err
       }
     }
   }
 
   const updateProfile = async (data: Partial<User>) => {
-    try {
-      loading.value = true
-      error.value = null
+    return await authLoading.withLoading(async () => {
+      try {
+        error.value = null
+        console.log('📝 Updating user profile...')
 
-      const api = useApi()
-      const updatedUser = await api.updateProfile(data)
+        const updatedUser = await api.updateProfile(data)
 
-      user.value = updatedUser
-      console.log('✅ Perfil actualizado:', updatedUser)
+        user.value = updatedUser
+        console.log('✅ Profile updated successfully:', {
+          username: updatedUser.username,
+          email: updatedUser.email
+        })
 
-      return updatedUser
-    } catch (err: any) {
-      console.error('❌ Error actualizando perfil:', err)
+        return updatedUser
+      } catch (err: any) {
+        console.error('❌ Profile update error:', err)
 
-      let errorMessage = 'Profile update failed'
-      if (err.data && err.data.errors) {
-        const errors = err.data.errors
-        const errorMessages = Object.values(errors).flat()
-        errorMessage = errorMessages.join(', ')
-      } else if (err.data && err.data.error) {
-        errorMessage = err.data.error
-      } else if (err.message) {
-        errorMessage = err.message
+        // Handle validation errors specifically
+        if (err.data?.errors) {
+          const errorInfo = handleValidationError(err, 'Profile Update Validation Failed')
+          error.value = errorInfo.message
+        } else {
+          const errorInfo = handleAuthError(err, 'Profile Update Failed')
+          error.value = errorInfo.message
+        }
+
+        throw err
       }
-
-      error.value = errorMessage
-      throw new Error(errorMessage)
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
-    try {
-      loading.value = true
-      error.value = null
+    return await authLoading.withLoading(async () => {
+      try {
+        error.value = null
+        console.log('🔐 Changing password...')
 
-      const api = useApi()
-      await api.changePassword(currentPassword, newPassword)
+        await api.changePassword(currentPassword, newPassword)
 
-      console.log('✅ Contraseña cambiada exitosamente')
+        console.log('✅ Password changed successfully')
 
-    } catch (err: any) {
-      console.error('❌ Error cambiando contraseña:', err)
+        // Optionally refresh tokens after password change for security
+        try {
+          const tokens = api.tokenUtils.getTokens()
+          if (tokens?.refresh) {
+            const newTokens = await api.refreshTokens(tokens.refresh)
+            api.tokenUtils.setTokens(newTokens)
+            console.log('🔄 Tokens refreshed after password change')
+          }
+        } catch (refreshError) {
+          console.warn('⚠️ Token refresh after password change failed:', refreshError)
+          // Don't throw error, password change was successful
+        }
 
-      let errorMessage = 'Password change failed'
-      if (err.data && err.data.error) {
-        errorMessage = err.data.error
-      } else if (err.message) {
-        errorMessage = err.message
+      } catch (err: any) {
+        console.error('❌ Password change error:', err)
+
+        // Handle validation errors specifically
+        if (err.data?.errors) {
+          const errorInfo = handleValidationError(err, 'Password Change Validation Failed')
+          error.value = errorInfo.message
+        } else {
+          const errorInfo = handleAuthError(err, 'Password Change Failed')
+          error.value = errorInfo.message
+        }
+
+        throw err
       }
-
-      error.value = errorMessage
-      throw new Error(errorMessage)
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   const requestPasswordReset = async (email: string) => {
-    try {
-      loading.value = true
-      error.value = null
+    return await authLoading.withLoading(async () => {
+      try {
+        error.value = null
+        console.log('📧 Requesting password reset for:', email)
 
-      const api = useApi()
-      await api.requestPasswordReset(email)
+        await api.requestPasswordReset(email)
 
-    } catch (err: any) {
-      error.value = err.message || 'Password reset request failed'
-      throw err
-    } finally {
-      loading.value = false
-    }
+        console.log('✅ Password reset request sent successfully')
+      } catch (err: any) {
+        console.error('❌ Password reset request error:', err)
+
+        const errorInfo = handleAuthError(err, 'Password Reset Request Failed')
+        error.value = errorInfo.message
+
+        throw err
+      }
+    })
   }
 
   const resetPassword = async (token: string, newPassword: string) => {
-    try {
-      loading.value = true
-      error.value = null
+    return await authLoading.withLoading(async () => {
+      try {
+        error.value = null
+        console.log('🔐 Resetting password with token')
 
-      const api = useApi()
-      await api.resetPassword(token, newPassword)
+        await api.resetPassword(token, newPassword)
 
-    } catch (err: any) {
-      error.value = err.message || 'Password reset failed'
-      throw err
-    } finally {
-      loading.value = false
-    }
+        console.log('✅ Password reset successful')
+      } catch (err: any) {
+        console.error('❌ Password reset error:', err)
+
+        // Handle validation errors specifically
+        if (err.data?.errors) {
+          const errorInfo = handleValidationError(err, 'Password Reset Validation Failed')
+          error.value = errorInfo.message
+        } else {
+          const errorInfo = handleAuthError(err, 'Password Reset Failed')
+          error.value = errorInfo.message
+        }
+
+        throw err
+      }
+    })
   }
 
   const initializeAuth = async () => {
-    if (!process.client) return
+    if (!import.meta.client) return
 
     try {
-      const tokens = localStorage.getItem('auth_tokens')
-      if (tokens) {
-        const parsedTokens = JSON.parse(tokens)
-        if (parsedTokens.access) {
-          console.log('🔄 Inicializando autenticación con token existente...')
+      console.log('🔄 Initializing authentication...')
 
-          // Check if token is expired
-          const isTokenExpired = (token: string) => {
-            try {
-              const payload = JSON.parse(atob(token.split('.')[1]))
-              const currentTime = Date.now() / 1000
-              return payload.exp < currentTime
-            } catch {
-              return true
-            }
-          }
+      const tokens = api.tokenUtils.getTokens()
+      if (!tokens?.access) {
+        console.log('ℹ️ No tokens found, user not authenticated')
+        await clearAuthState()
+        return
+      }
 
-          if (isTokenExpired(parsedTokens.access)) {
-            console.log('⏰ Token expirado, intentando renovar...')
+      console.log('🔍 Found existing tokens, validating...')
 
-            if (parsedTokens.refresh && !isTokenExpired(parsedTokens.refresh)) {
-              try {
-                const api = useApi()
-                const newTokens = await api.refreshTokens(parsedTokens.refresh)
+      // Check if access token is expired
+      if (api.tokenUtils.isTokenExpired(tokens.access)) {
+        console.log('⏰ Access token expired, attempting refresh...')
 
-                const updatedTokens = {
-                  access: newTokens.access,
-                  refresh: parsedTokens.refresh,
-                  expires_in: newTokens.expires_in || 3600
-                }
-
-                localStorage.setItem('auth_tokens', JSON.stringify(updatedTokens))
-                console.log('✅ Token renovado exitosamente')
-              } catch (refreshError) {
-                console.error('❌ Error renovando token:', refreshError)
-                localStorage.removeItem('auth_tokens')
-                isAuthenticated.value = false
-                user.value = null
-                return
-              }
-            } else {
-              console.log('🚫 Refresh token también expirado')
-              localStorage.removeItem('auth_tokens')
-              isAuthenticated.value = false
-              user.value = null
-              return
-            }
-          }
-
-          // Try to fetch profile to validate token and get user data
+        if (tokens.refresh && !api.tokenUtils.isTokenExpired(tokens.refresh)) {
           try {
-            await fetchProfile()
-            console.log('✅ Autenticación inicializada correctamente')
-          } catch (profileError: any) {
-            console.warn('⚠️ Error obteniendo perfil durante inicialización:', profileError)
-
-            // If it's a 401, clear tokens and logout
-            if (profileError.statusCode === 401) {
-              localStorage.removeItem('auth_tokens')
-              isAuthenticated.value = false
-              user.value = null
-            } else {
-              // For other errors, still consider authenticated but without user data
-              isAuthenticated.value = true
-              console.log('ℹ️ Manteniendo estado autenticado sin datos de usuario')
-            }
+            const newTokens = await api.refreshTokens(tokens.refresh)
+            api.tokenUtils.setTokens(newTokens)
+            console.log('✅ Token refreshed successfully during initialization')
+          } catch (refreshError) {
+            console.error('❌ Token refresh failed during initialization:', refreshError)
+            await clearAuthState()
+            return
           }
+        } else {
+          console.log('🚫 Refresh token also expired')
+          await clearAuthState()
+          return
         }
-      } else {
-        console.log('ℹ️ No hay tokens guardados, usuario no autenticado')
-        isAuthenticated.value = false
-        user.value = null
+      }
+
+      // Try to fetch profile to validate token and get user data
+      try {
+        await fetchProfile()
+        console.log('✅ Authentication initialized successfully')
+      } catch (profileError: any) {
+        console.warn('⚠️ Profile fetch error during initialization:', profileError)
+
+        // If it's an authentication error, clear state
+        if (profileError.statusCode === 401 || profileError.status === 401) {
+          console.log('🔒 Authentication failed, clearing state')
+          await clearAuthState()
+        } else {
+          // For other errors, log but don't clear authentication
+          console.log('ℹ️ Maintaining authenticated state despite profile error')
+          isAuthenticated.value = true
+        }
       }
     } catch (err) {
-      console.error('❌ Error inicializando autenticación:', err)
-      // Clear invalid tokens
-      if (process.client) {
-        localStorage.removeItem('auth_tokens')
-      }
-      isAuthenticated.value = false
-      user.value = null
+      console.error('❌ Authentication initialization error:', err)
+      await clearAuthState()
     }
+  }
+
+  // Additional utility methods
+  const checkAuthStatus = () => {
+    const tokens = api.tokenUtils.getTokens()
+    const hasValidTokens = tokens?.access && !api.tokenUtils.isTokenExpired(tokens.access)
+
+    return {
+      hasTokens: !!tokens,
+      hasValidTokens,
+      isExpired: tokens?.access ? api.tokenUtils.isTokenExpired(tokens.access) : true,
+      expiryTime: tokens?.access ? api.tokenUtils.getTokenExpiryTime(tokens.access) : 0
+    }
+  }
+
+  const refreshAuthIfNeeded = async () => {
+    const tokens = api.tokenUtils.getTokens()
+    if (!tokens?.access) return false
+
+    // If token expires in less than 5 minutes, refresh it
+    const expiryTime = api.tokenUtils.getTokenExpiryTime(tokens.access)
+    const timeUntilExpiry = expiryTime - Date.now()
+    const fiveMinutes = 5 * 60 * 1000
+
+    if (timeUntilExpiry < fiveMinutes && tokens.refresh) {
+      try {
+        console.log('🔄 Proactively refreshing token...')
+        const newTokens = await api.refreshTokens(tokens.refresh)
+        api.tokenUtils.setTokens(newTokens)
+        console.log('✅ Token proactively refreshed')
+        return true
+      } catch (error) {
+        console.error('❌ Proactive token refresh failed:', error)
+        await clearAuthState()
+        return false
+      }
+    }
+
+    return true
   }
 
   return {
@@ -410,7 +432,12 @@ export const useAuthStore = defineStore('auth', () => {
     changePassword,
     requestPasswordReset,
     resetPassword,
-    initializeAuth
+    initializeAuth,
+
+    // Utilities
+    clearAuthState,
+    checkAuthStatus,
+    refreshAuthIfNeeded
   }
 }, {
   persist: {

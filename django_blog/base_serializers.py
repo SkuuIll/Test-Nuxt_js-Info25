@@ -1,11 +1,12 @@
 """
-Serializadores base para mantener consistencia en toda la aplicación
+Base serializers for consistent API responses and data validation
 """
 
 from rest_framework import serializers
-from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django_blog.api_utils import ErrorMessages
 import re
 
 User = get_user_model()
@@ -13,398 +14,422 @@ User = get_user_model()
 
 class BaseModelSerializer(serializers.ModelSerializer):
     """
-    Serializador base que proporciona campos y métodos comunes
+    Base serializer with common functionality and validation
     """
-    created_at = serializers.SerializerMethodField()
-    updated_at = serializers.SerializerMethodField()
     
-    def get_created_at(self, obj):
-        """Obtener fecha de creación en formato ISO"""
-        if hasattr(obj, 'fecha_creacion') and obj.fecha_creacion:
-            return obj.fecha_creacion.isoformat()
-        elif hasattr(obj, 'date_joined') and obj.date_joined:
-            return obj.date_joined.isoformat()
-        return None
+    def validate(self, attrs):
+        """Base validation with common checks"""
+        attrs = super().validate(attrs)
+        
+        # Add any common validation logic here
+        return attrs
     
-    def get_updated_at(self, obj):
-        """Obtener fecha de actualización en formato ISO"""
-        if hasattr(obj, 'fecha_actualizacion') and obj.fecha_actualizacion:
-            return obj.fecha_actualizacion.isoformat()
-        return None
+    def to_internal_value(self, data):
+        """Override to provide better error messages"""
+        try:
+            return super().to_internal_value(data)
+        except serializers.ValidationError as e:
+            # Enhance error messages
+            if hasattr(e, 'detail') and isinstance(e.detail, dict):
+                enhanced_errors = {}
+                for field, errors in e.detail.items():
+                    if isinstance(errors, list):
+                        enhanced_errors[field] = [self._enhance_error_message(str(error)) for error in errors]
+                    else:
+                        enhanced_errors[field] = self._enhance_error_message(str(errors))
+                raise serializers.ValidationError(enhanced_errors)
+            raise
+    
+    def _enhance_error_message(self, message):
+        """Enhance error messages for better UX"""
+        error_mappings = {
+            'This field is required.': 'Este campo es obligatorio.',
+            'This field may not be blank.': 'Este campo no puede estar vacío.',
+            'This field may not be null.': 'Este campo no puede ser nulo.',
+            'Enter a valid email address.': 'Ingresa una dirección de email válida.',
+            'Enter a valid URL.': 'Ingresa una URL válida.',
+        }
+        return error_mappings.get(message, message)
 
 
-class UserBasicSerializer(BaseModelSerializer):
-    """
-    Serializador básico de usuario para uso público (sin información sensible)
-    """
+class TimestampedSerializer(serializers.Serializer):
+    """Mixin for timestamped fields"""
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+
+class UserBasicSerializer(serializers.ModelSerializer):
+    """Basic user information serializer"""
     full_name = serializers.SerializerMethodField()
     avatar_url = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'first_name', 'last_name', 'full_name',
-            'avatar_url', 'created_at', 'updated_at'
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'full_name', 'avatar_url', 'is_active', 'date_joined'
         ]
+        read_only_fields = ['id', 'username', 'date_joined', 'is_active']
     
     def get_full_name(self, obj):
-        """Obtener nombre completo del usuario"""
-        full_name = f"{obj.first_name} {obj.last_name}".strip()
-        return full_name if full_name else obj.username
+        """Get user's full name"""
+        if obj.first_name or obj.last_name:
+            return f"{obj.first_name} {obj.last_name}".strip()
+        return obj.username
     
     def get_avatar_url(self, obj):
-        """Obtener URL del avatar (placeholder por ahora)"""
-        # En el futuro se puede implementar con Gravatar o campo de imagen
+        """Get user's avatar URL (placeholder for now)"""
+        # In the future, this could return actual avatar URL
         return f"https://ui-avatars.com/api/?name={obj.username}&background=random"
 
 
-class UserDetailSerializer(BaseModelSerializer):
-    """
-    Serializador detallado de usuario con información adicional
-    """
-    full_name = serializers.SerializerMethodField()
-    avatar_url = serializers.SerializerMethodField()
-    permissions = serializers.SerializerMethodField()
-    stats = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = User
-        fields = [
-            'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
-            'avatar_url', 'is_active', 'is_staff', 'last_login',
-            'permissions', 'stats', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'is_staff', 'last_login', 'created_at', 'updated_at']
-    
-    def get_full_name(self, obj):
-        """Obtener nombre completo del usuario"""
-        full_name = f"{obj.first_name} {obj.last_name}".strip()
-        return full_name if full_name else obj.username
-    
-    def get_avatar_url(self, obj):
-        """Obtener URL del avatar"""
-        return f"https://ui-avatars.com/api/?name={obj.username}&background=random"
-    
-    def get_permissions(self, obj):
-        """Obtener permisos del usuario"""
-        permissions = {
-            'is_staff': obj.is_staff,
-            'is_superuser': obj.is_superuser,
-            'is_active': obj.is_active
-        }
-        
-        # Agregar permisos del dashboard si existen
-        try:
-            if hasattr(obj, 'dashboard_permission'):
-                dashboard_perm = obj.dashboard_permission
-                permissions['dashboard'] = {
-                    'can_manage_posts': dashboard_perm.can_manage_posts,
-                    'can_manage_users': dashboard_perm.can_manage_users,
-                    'can_manage_comments': dashboard_perm.can_manage_comments,
-                    'can_view_stats': dashboard_perm.can_view_stats,
-                }
-        except Exception:
-            pass
-        
-        return permissions
-    
-    def get_stats(self, obj):
-        """Obtener estadísticas del usuario"""
-        stats = {
-            'posts_count': 0,
-            'comments_count': 0,
-            'published_posts_count': 0
-        }
-        
-        try:
-            if hasattr(obj, 'post_set'):
-                stats['posts_count'] = obj.post_set.count()
-                stats['published_posts_count'] = obj.post_set.filter(status='published').count()
-            
-            if hasattr(obj, 'comentario_set'):
-                stats['comments_count'] = obj.comentario_set.count()
-        except Exception:
-            pass
-        
-        return stats
-
-
-class CategoryBasicSerializer(BaseModelSerializer):
-    """
-    Serializador básico de categoría
-    """
-    name = serializers.CharField(source='nombre', read_only=True)
-    description = serializers.CharField(source='descripcion', read_only=True)
+class CategoryBasicSerializer(BaseModelSerializer, TimestampedSerializer):
+    """Basic category information serializer"""
     posts_count = serializers.SerializerMethodField()
-    slug = serializers.SerializerMethodField()
     
     class Meta:
-        model = None  # Se definirá en las subclases
+        model = None  # Will be set by subclasses
         fields = [
-            'id', 'name', 'description', 'posts_count', 'slug',
+            'id', 'nombre', 'descripcion', 'posts_count',
             'created_at', 'updated_at'
         ]
+        read_only_fields = ['id', 'posts_count', 'created_at', 'updated_at']
         abstract = True
     
     def get_posts_count(self, obj):
-        """Obtener número de posts publicados en la categoría"""
-        try:
-            return obj.post_set.filter(status='published').count()
-        except Exception:
-            return 0
-    
-    def get_slug(self, obj):
-        """Generar slug para la categoría"""
-        if hasattr(obj, 'nombre') and obj.nombre:
-            slug = re.sub(r'[^\w\s-]', '', obj.nombre.lower())
-            slug = re.sub(r'[-\s]+', '-', slug)
-            return f"{obj.id}-{slug[:50]}"
-        return str(obj.id)
+        """Get number of published posts in this category"""
+        if hasattr(obj, 'posts_count'):
+            return obj.posts_count
+        return getattr(obj, 'post_set', []).filter(status='published').count()
 
 
-class PostBasicSerializer(BaseModelSerializer):
-    """
-    Serializador básico de post
-    """
-    title = serializers.CharField(source='titulo', read_only=True)
-    content = serializers.CharField(source='contenido', read_only=True)
-    image = serializers.ImageField(source='imagen', read_only=True)
+class PostBasicSerializer(BaseModelSerializer, TimestampedSerializer):
+    """Basic post information serializer"""
     author = UserBasicSerializer(source='autor', read_only=True)
-    category = serializers.SerializerMethodField()
-    published_at = serializers.DateTimeField(source='fecha_publicacion', read_only=True)
-    is_featured = serializers.BooleanField(source='featured', read_only=True)
     slug = serializers.SerializerMethodField()
+    excerpt = serializers.SerializerMethodField()
     reading_time = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+    is_featured = serializers.BooleanField(source='featured', read_only=True)
+    published_at = serializers.DateTimeField(source='fecha_publicacion', read_only=True)
     
     class Meta:
-        model = None  # Se definirá en las subclases
+        model = None  # Will be set by subclasses
         fields = [
-            'id', 'title', 'content', 'excerpt', 'image', 'author', 'category',
-            'status', 'is_featured', 'slug', 'published_at', 'reading_time',
-            'comments_count', 'created_at', 'updated_at'
+            'id', 'titulo', 'slug', 'excerpt', 'author',
+            'image_url', 'is_featured', 'status', 'published_at',
+            'reading_time', 'comments_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'slug', 'excerpt', 'author', 'image_url',
+            'reading_time', 'comments_count', 'created_at', 'updated_at'
         ]
         abstract = True
     
-    def get_category(self, obj):
-        """Obtener información de la categoría"""
-        if hasattr(obj, 'categoria') and obj.categoria:
-            return {
-                'id': obj.categoria.id,
-                'name': obj.categoria.nombre,
-                'slug': self._generate_slug(obj.categoria.nombre, obj.categoria.id)
-            }
-        return None
-    
     def get_slug(self, obj):
-        """Generar slug para el post"""
-        if hasattr(obj, 'titulo') and obj.titulo:
-            slug = re.sub(r'[^\w\s-]', '', obj.titulo.lower())
-            slug = re.sub(r'[-\s]+', '-', slug)
-            return f"{obj.id}-{slug[:50]}"
-        return str(obj.id)
+        """Generate slug from title"""
+        if not obj.titulo:
+            return ''
+        # Simple slug generation
+        slug = re.sub(r'[^\w\s-]', '', obj.titulo.lower())
+        slug = re.sub(r'[-\s]+', '-', slug)
+        return f"{obj.id}-{slug}"
+    
+    def get_excerpt(self, obj):
+        """Get post excerpt"""
+        if hasattr(obj, 'excerpt') and obj.excerpt:
+            return obj.excerpt
+        
+        # Generate excerpt from content
+        if obj.contenido:
+            # Remove HTML tags and get first 150 characters
+            import re
+            clean_content = re.sub(r'<[^>]+>', '', obj.contenido)
+            return clean_content[:150] + '...' if len(clean_content) > 150 else clean_content
+        
+        return ''
     
     def get_reading_time(self, obj):
-        """Calcular tiempo de lectura estimado"""
-        if hasattr(obj, 'contenido') and obj.contenido:
-            word_count = len(obj.contenido.split())
-            return max(1, round(word_count / 200))  # 200 palabras por minuto
-        return 1
+        """Calculate reading time in minutes"""
+        if not obj.contenido:
+            return 1
+        
+        # Average reading speed: 200 words per minute
+        word_count = len(obj.contenido.split())
+        reading_time = max(1, round(word_count / 200))
+        return reading_time
     
     def get_comments_count(self, obj):
-        """Obtener número de comentarios aprobados"""
-        try:
-            if hasattr(obj, 'comentarios'):
-                return obj.comentarios.filter(approved=True).count()
-        except Exception:
-            pass
-        return 0
+        """Get number of approved comments"""
+        if hasattr(obj, 'comments_count'):
+            return obj.comments_count
+        return getattr(obj, 'comentarios', []).filter(approved=True).count()
     
-    def _generate_slug(self, text, obj_id):
-        """Generar slug a partir de texto"""
-        if text:
-            slug = re.sub(r'[^\w\s-]', '', text.lower())
-            slug = re.sub(r'[-\s]+', '-', slug)
-            return f"{obj_id}-{slug[:50]}"
-        return str(obj_id)
+    def get_image_url(self, obj):
+        """Get post image URL"""
+        if obj.imagen:
+            return obj.imagen.url
+        return None
 
 
-class CommentBasicSerializer(BaseModelSerializer):
-    """
-    Serializador básico de comentario
-    """
-    content = serializers.CharField(source='contenido', read_only=True)
+class CommentBasicSerializer(BaseModelSerializer, TimestampedSerializer):
+    """Basic comment information serializer"""
     author = UserBasicSerializer(source='usuario', read_only=True)
     post_title = serializers.CharField(source='post.titulo', read_only=True)
     replies_count = serializers.SerializerMethodField()
-    can_reply = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
     
     class Meta:
-        model = None  # Se definirá en las subclases
+        model = None  # Will be set by subclasses
         fields = [
-            'id', 'content', 'author', 'post', 'post_title', 'parent',
-            'approved', 'replies_count', 'can_reply', 'created_at', 'updated_at'
+            'id', 'contenido', 'author', 'post_title', 'approved',
+            'replies_count', 'can_edit', 'can_delete',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'author', 'post_title', 'replies_count',
+            'can_edit', 'can_delete', 'created_at', 'updated_at'
         ]
         abstract = True
     
     def get_replies_count(self, obj):
-        """Obtener número de respuestas"""
-        try:
-            if hasattr(obj, 'replies'):
-                return obj.replies.filter(approved=True).count()
-        except Exception:
-            pass
+        """Get number of replies to this comment"""
+        if hasattr(obj, 'replies'):
+            return obj.replies.filter(approved=True).count()
         return 0
     
-    def get_can_reply(self, obj):
-        """Verificar si se puede responder al comentario"""
+    def get_can_edit(self, obj):
+        """Check if current user can edit this comment"""
         request = self.context.get('request')
-        if not request or not request.user or not request.user.is_authenticated:
+        if not request or not request.user.is_authenticated:
             return False
         
-        # Solo se puede responder a comentarios aprobados
-        return obj.approved
+        # Author can edit within 15 minutes, staff can always edit
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+        
+        if obj.usuario == request.user:
+            # Check if comment is less than 15 minutes old
+            time_diff = timezone.now() - obj.fecha_creacion
+            return time_diff.total_seconds() < 900  # 15 minutes
+        
+        return False
+    
+    def get_can_delete(self, obj):
+        """Check if current user can delete this comment"""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        
+        # Staff can always delete, author can delete their own
+        return (request.user.is_staff or 
+                request.user.is_superuser or 
+                obj.usuario == request.user)
 
 
 class PaginatedResponseSerializer(serializers.Serializer):
-    """
-    Serializador para respuestas paginadas estandarizadas
-    """
+    """Serializer for paginated responses"""
+    count = serializers.IntegerField(help_text="Total number of items")
+    next = serializers.URLField(allow_null=True, help_text="URL to next page")
+    previous = serializers.URLField(allow_null=True, help_text="URL to previous page")
+    page_size = serializers.IntegerField(help_text="Number of items per page")
+    current_page = serializers.IntegerField(help_text="Current page number")
+    total_pages = serializers.IntegerField(help_text="Total number of pages")
+    has_next = serializers.BooleanField(help_text="Whether there is a next page")
+    has_previous = serializers.BooleanField(help_text="Whether there is a previous page")
+    results = serializers.ListField(help_text="List of items for current page")
+
+
+class SuccessResponseSerializer(serializers.Serializer):
+    """Serializer for success responses"""
     success = serializers.BooleanField(default=True)
-    data = serializers.ListField()
-    pagination = serializers.DictField()
+    data = serializers.DictField(required=False)
     message = serializers.CharField(required=False)
-    
-    def to_representation(self, instance):
-        """Personalizar la representación de la respuesta paginada"""
-        if hasattr(instance, 'data'):
-            # Es una respuesta de DRF PageNumberPagination
-            return {
-                'success': True,
-                'data': instance.data,
-                'pagination': {
-                    'count': getattr(instance, 'count', 0),
-                    'next': getattr(instance, 'next', None),
-                    'previous': getattr(instance, 'previous', None),
-                    'page_size': getattr(instance, 'page_size', 12),
-                    'current_page': getattr(instance, 'current_page', 1),
-                    'total_pages': getattr(instance, 'total_pages', 1),
-                    'has_next': getattr(instance, 'has_next', False),
-                    'has_previous': getattr(instance, 'has_previous', False)
-                }
-            }
-        return super().to_representation(instance)
+    pagination = PaginatedResponseSerializer(required=False)
 
 
 class ErrorResponseSerializer(serializers.Serializer):
-    """
-    Serializador para respuestas de error estandarizadas
-    """
+    """Serializer for error responses"""
     success = serializers.BooleanField(default=False)
     error = serializers.CharField()
     message = serializers.CharField(required=False)
     errors = serializers.DictField(required=False)
-    status_code = serializers.IntegerField(required=False)
-    timestamp = serializers.DateTimeField(default=timezone.now)
+    error_code = serializers.CharField(required=False)
 
 
-class SuccessResponseSerializer(serializers.Serializer):
-    """
-    Serializador para respuestas exitosas estandarizadas
-    """
-    success = serializers.BooleanField(default=True)
-    data = serializers.JSONField(required=False)
-    message = serializers.CharField(required=False)
-    timestamp = serializers.DateTimeField(default=timezone.now)
-
-
-class BulkActionSerializer(serializers.Serializer):
-    """
-    Serializador base para acciones en lote
-    """
-    ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        min_length=1,
-        help_text='Lista de IDs de objetos'
-    )
-    action = serializers.CharField(help_text='Acción a realizar')
+class ValidationErrorSerializer(ErrorResponseSerializer):
+    """Serializer for validation error responses"""
+    errors = serializers.DictField(required=True)
     
-    def validate_ids(self, value):
-        """Validar que los IDs sean únicos"""
-        if len(value) != len(set(value)):
-            raise serializers.ValidationError('Los IDs deben ser únicos')
-        return value
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['error'].default = ErrorMessages.VALIDATION_FAILED
 
 
 class FilterSerializer(serializers.Serializer):
-    """
-    Serializador base para filtros
-    """
-    search = serializers.CharField(required=False, help_text='Término de búsqueda')
-    ordering = serializers.CharField(required=False, help_text='Campo de ordenamiento')
-    page = serializers.IntegerField(required=False, min_value=1, help_text='Número de página')
-    page_size = serializers.IntegerField(required=False, min_value=1, max_value=100, help_text='Tamaño de página')
+    """Base serializer for filtering and search"""
+    search = serializers.CharField(
+        required=False, 
+        max_length=100,
+        help_text="Search term for title and content"
+    )
+    page = serializers.IntegerField(
+        required=False, 
+        min_value=1, 
+        default=1,
+        help_text="Page number"
+    )
+    page_size = serializers.IntegerField(
+        required=False, 
+        min_value=1, 
+        max_value=100, 
+        default=12,
+        help_text="Number of items per page"
+    )
+    ordering = serializers.CharField(
+        required=False,
+        help_text="Field to order by (prefix with - for descending)"
+    )
+    
+    def validate_search(self, value):
+        """Validate search term"""
+        if value:
+            # Remove extra whitespace
+            value = ' '.join(value.split())
+            
+            # Check for minimum length
+            if len(value) < 2:
+                raise serializers.ValidationError('Search term must be at least 2 characters long')
+            
+            # Basic XSS protection
+            if '<' in value or '>' in value or 'script' in value.lower():
+                raise serializers.ValidationError('Invalid characters in search term')
+        
+        return value
     
     def validate_ordering(self, value):
-        """Validar campo de ordenamiento"""
+        """Validate ordering field"""
         if value:
-            # Remover el signo menos si existe
+            # Remove - prefix for validation
             field = value.lstrip('-')
-            # Aquí se pueden agregar validaciones específicas según el modelo
-            return value
+            
+            # Define allowed ordering fields (override in subclasses)
+            allowed_fields = getattr(self, 'allowed_ordering_fields', [
+                'created_at', 'updated_at', 'title', 'name'
+            ])
+            
+            if field not in allowed_fields:
+                raise serializers.ValidationError(
+                    f'Invalid ordering field. Allowed: {", ".join(allowed_fields)}'
+                )
+        
         return value
 
 
 class MediaUploadSerializer(serializers.Serializer):
-    """
-    Serializador para subida de archivos multimedia
-    """
-    file = serializers.FileField(help_text='Archivo a subir')
-    alt_text = serializers.CharField(required=False, max_length=200, help_text='Texto alternativo')
-    caption = serializers.CharField(required=False, max_length=500, help_text='Descripción del archivo')
+    """Serializer for media file uploads"""
+    file = serializers.FileField()
+    alt_text = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    caption = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
     
     def validate_file(self, value):
-        """Validar archivo subido"""
-        # Validar tamaño (máximo 10MB)
-        if value.size > 10 * 1024 * 1024:
-            raise serializers.ValidationError('El archivo no puede ser mayor a 10MB')
+        """Validate uploaded file"""
+        # Check file size (10MB limit)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if value.size > max_size:
+            raise serializers.ValidationError('File size exceeds 10MB limit')
         
-        # Validar tipo de archivo
-        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-        if hasattr(value, 'content_type') and value.content_type not in allowed_types:
+        # Check file type
+        allowed_types = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf', 'text/plain',
+            'video/mp4', 'video/webm',
+            'audio/mp3', 'audio/wav'
+        ]
+        
+        if value.content_type not in allowed_types:
             raise serializers.ValidationError(
-                f'Tipo de archivo no permitido. Tipos permitidos: {", ".join(allowed_types)}'
+                f'File type not allowed. Allowed types: {", ".join(allowed_types)}'
             )
         
         return value
+    
+    def validate_alt_text(self, value):
+        """Validate alt text"""
+        if value and len(value.strip()) < 3:
+            raise serializers.ValidationError('Alt text must be at least 3 characters long')
+        return value.strip() if value else ''
+
+
+class BulkActionSerializer(serializers.Serializer):
+    """Serializer for bulk actions"""
+    action = serializers.ChoiceField(choices=[])  # Override in subclasses
+    ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+        max_length=100
+    )
+    
+    def validate_ids(self, value):
+        """Validate IDs list"""
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_ids = []
+        for id_val in value:
+            if id_val not in seen:
+                seen.add(id_val)
+                unique_ids.append(id_val)
+        
+        return unique_ids
 
 
 class StatsSerializer(serializers.Serializer):
-    """
-    Serializador base para estadísticas
-    """
-    total = serializers.IntegerField(help_text='Total de elementos')
-    active = serializers.IntegerField(required=False, help_text='Elementos activos')
-    inactive = serializers.IntegerField(required=False, help_text='Elementos inactivos')
-    recent = serializers.IntegerField(required=False, help_text='Elementos recientes')
-    period = serializers.CharField(required=False, help_text='Período de las estadísticas')
-    last_updated = serializers.DateTimeField(default=timezone.now, help_text='Última actualización')
+    """Base serializer for statistics"""
+    period = serializers.ChoiceField(
+        choices=['day', 'week', 'month', 'year'],
+        default='month',
+        help_text="Time period for statistics"
+    )
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    
+    def validate(self, attrs):
+        """Validate date range"""
+        start_date = attrs.get('start_date')
+        end_date = attrs.get('end_date')
+        
+        if start_date and end_date:
+            if start_date > end_date:
+                raise serializers.ValidationError('start_date must be before end_date')
+            
+            # Limit date range to prevent performance issues
+            date_diff = (end_date - start_date).days
+            if date_diff > 365:
+                raise serializers.ValidationError('Date range cannot exceed 365 days')
+        
+        return attrs
 
 
-class ValidationErrorSerializer(serializers.Serializer):
-    """
-    Serializador para errores de validación detallados
-    """
-    field = serializers.CharField(help_text='Campo con error')
-    message = serializers.CharField(help_text='Mensaje de error')
-    code = serializers.CharField(required=False, help_text='Código de error')
-
-
-class MetadataSerializer(serializers.Serializer):
-    """
-    Serializador para metadatos adicionales
-    """
-    version = serializers.CharField(default='1.0', help_text='Versión de la API')
-    timestamp = serializers.DateTimeField(default=timezone.now, help_text='Timestamp de la respuesta')
-    request_id = serializers.CharField(required=False, help_text='ID de la petición')
-    user_id = serializers.IntegerField(required=False, help_text='ID del usuario que hace la petición')
+class SEOSerializer(serializers.Serializer):
+    """Serializer for SEO-related fields"""
+    meta_title = serializers.CharField(max_length=60, required=False, allow_blank=True)
+    meta_description = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    canonical_url = serializers.URLField(required=False, allow_blank=True)
+    og_title = serializers.CharField(max_length=60, required=False, allow_blank=True)
+    og_description = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    og_image = serializers.URLField(required=False, allow_blank=True)
+    
+    def validate_meta_title(self, value):
+        """Validate meta title length"""
+        if value and len(value) > 60:
+            raise serializers.ValidationError('Meta title should not exceed 60 characters for optimal SEO')
+        return value
+    
+    def validate_meta_description(self, value):
+        """Validate meta description length"""
+        if value and len(value) > 160:
+            raise serializers.ValidationError('Meta description should not exceed 160 characters for optimal SEO')
+        return value

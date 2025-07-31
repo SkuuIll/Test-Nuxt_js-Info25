@@ -1,17 +1,38 @@
-export default defineNuxtPlugin(() => {
-    const { refreshAccessToken, isAuthenticated, initializeAuth } = useDashboardAuth()
+/**
+ * Dashboard authentication plugin for client-side initialization
+ * Automatically initializes dashboard authentication state on app startup
+ */
+export default defineNuxtPlugin(async () => {
+    const {
+        initializeDashboardAuth,
+        isAuthenticated,
+        user,
+        checkDashboardAuthStatus
+    } = useDashboardAuth()
 
-    // Initialize auth on plugin load
-    initializeAuth()
+    // Only initialize if we're on a dashboard route
+    const route = useRoute()
+    const isDashboardRoute = route.path.startsWith('/dashboard')
 
-    // Provide auth methods globally
-    return {
-        provide: {
-            auth: {
-                isAuthenticated,
-                refreshAccessToken,
-                initializeAuth
+    if (isDashboardRoute) {
+        try {
+            console.log('🚀 Initializing dashboard authentication plugin...')
+
+            await initializeDashboardAuth()
+
+            const authStatus = checkDashboardAuthStatus()
+
+            if (isAuthenticated.value && authStatus.hasValidTokens) {
+                console.log('✅ Dashboard user authenticated on startup:', {
+                    username: user.value?.username,
+                    isStaff: user.value?.is_staff,
+                    permissions: user.value?.permissions
+                })
+            } else {
+                console.log('ℹ️ No authenticated dashboard user on startup')
             }
+        } catch (error) {
+            console.warn('⚠️ Dashboard authentication initialization failed:', error)
         }
     }
 })

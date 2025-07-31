@@ -32,6 +32,13 @@ from .views import (
     bulk_moderate_comments,
     detect_spam_comments
 )
+from .auth_views import (
+    DashboardTokenValidateView,
+    DashboardPermissionUpdateView,
+    DashboardHealthCheckView,
+    dashboard_user_list,
+    revoke_dashboard_access
+)
 
 app_name = 'dashboard'
 
@@ -51,6 +58,11 @@ urlpatterns = [
     path('auth/change-password/', DashboardChangePasswordView.as_view(), name='change_password'),
     path('auth/session-info/', DashboardSessionInfoView.as_view(), name='session_info'),
     path('auth/check-permission/', check_dashboard_permission, name='check_permission'),
+    path('auth/validate-token/', DashboardTokenValidateView.as_view(), name='validate_token'),
+    path('auth/update-permissions/', DashboardPermissionUpdateView.as_view(), name='update_permissions'),
+    path('auth/dashboard-users/', dashboard_user_list, name='dashboard_users'),
+    path('auth/revoke-access/', revoke_dashboard_access, name='revoke_access'),
+    path('auth/health/', DashboardHealthCheckView.as_view(), name='health_check'),
     
     # Estadísticas
     path('stats/', DashboardStatsView.as_view(), name='stats'),

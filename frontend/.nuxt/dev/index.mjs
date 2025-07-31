@@ -650,7 +650,9 @@ const _inlineRuntimeConfig = {
   },
   "public": {
     "apiBase": "http://localhost:8000",
-    "siteUrl": "http://localhost:3000"
+    "wsBase": "ws://localhost:8000",
+    "siteUrl": "http://localhost:3000",
+    "corsEnabled": true
   },
   "ipx": {
     "baseURL": "/_ipx",

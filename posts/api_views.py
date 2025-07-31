@@ -12,7 +12,8 @@ from .serializers import (
     CategorySerializer, CommentSerializer, PostSearchSerializer
 )
 from .permissions import IsStaffOrReadOnly, IsAuthorOrReadOnly
-from .api_utils import StandardResponse, StandardPagination, BaseAPIView
+from django_blog.api_utils import StandardAPIResponse, StandardPagination, BaseAPIView
+from django_blog.decorators import api_error_handler, validate_pagination_params, log_api_call
 from .filters import PostFilter, CategoryFilter, CommentFilter, AdvancedSearchFilter
 
 # Use the standardized pagination class
@@ -21,18 +22,40 @@ PostPagination = StandardPagination
 class PostListAPIView(BaseAPIView, generics.ListCreateAPIView):
     queryset = Post.objects.filter(status='published').select_related('autor', 'categoria').order_by('-fecha_publicacion')
     serializer_class = PostListSerializer
-    pagination_class = PostPagination
+    pagination_class = StandardPagination
     permission_classes = [IsStaffOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_class = PostFilter
     
-    def perform_create(self, serializer):
-        serializer.save(autor=self.request.user)
+    @api_error_handler
+    @log_api_call
+    def list(self, request, *args, **kwargs):
+        """List posts with standardized response format"""
+        return self.handle_exceptions(self._list_posts, request)
     
+    def _list_posts(self, request):
+        """Internal method to list posts"""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return self.success_response(data=serializer.data)
+    
+    @api_error_handler
+    @log_api_call
     def create(self, request, *args, **kwargs):
+        """Create post with standardized response format"""
+        return self.handle_exceptions(self._create_post, request)
+    
+    def _create_post(self, request):
+        """Internal method to create post"""
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            self.perform_create(serializer)
+            serializer.save(autor=request.user)
             return self.success_response(
                 data=serializer.data,
                 message="Post created successfully",
@@ -41,11 +64,9 @@ class PostListAPIView(BaseAPIView, generics.ListCreateAPIView):
         return self.validation_error_response(serializer.errors)
     
     def get_serializer_class(self):
-        """Usar diferentes serializadores según la acción"""
-        if self.action == 'list':
+        """Use different serializers based on action"""
+        if self.request.method == 'GET':
             return PostListSerializer
-        elif self.action == 'retrieve':
-            return PostDetailSerializer
         return PostSerializer
     
     def list(self, request, *args, **kwargs):
@@ -306,7 +327,7 @@ def search_filters(request):
         
         # Obtener autores con posts publicados
         authors = User.objects.annotate(
-            posts_count=Count('post', filter=Q(post__status='published'))
+            posts_count=Count('post_set', filter=Q(post_set__status='published'))
         ).filter(posts_count__gt=0).order_by('username')
         
         # Obtener años disponibles
@@ -373,7 +394,7 @@ def search_stats(request):
         total_posts = Post.objects.filter(status='published').count()
         total_categories = Category.objects.count()
         total_authors = User.objects.annotate(
-            posts_count=Count('post', filter=Q(post__status='published'))
+            posts_count=Count('post_set', filter=Q(post_set__status='published'))
         ).filter(posts_count__gt=0).count()
         
         # Posts más comentados
@@ -388,7 +409,7 @@ def search_stats(request):
         
         # Autores más activos
         active_authors = User.objects.annotate(
-            posts_count=Count('post', filter=Q(post__status='published'))
+            posts_count=Count('post_set', filter=Q(post_set__status='published'))
         ).filter(posts_count__gt=0).order_by('-posts_count')[:5]
         
         stats = {

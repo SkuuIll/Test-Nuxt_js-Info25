@@ -322,9 +322,9 @@ class CategoryFilter(django_filters.FilterSet):
             return queryset
         
         if value:
-            return queryset.filter(post__status='published').distinct()
+            return queryset.filter(post_set__status='published').distinct()
         else:
-            return queryset.exclude(post__status='published').distinct()
+            return queryset.exclude(post_set__status='published').distinct()
     
     def filter_min_posts(self, queryset, name, value):
         """Filtrar por mínimo número de posts"""
@@ -332,7 +332,7 @@ class CategoryFilter(django_filters.FilterSet):
             return queryset
         
         return queryset.annotate(
-            posts_count=Count('post', filter=Q(post__status='published'))
+            posts_count=Count('post_set', filter=Q(post_set__status='published'))
         ).filter(posts_count__gte=value)
 
 

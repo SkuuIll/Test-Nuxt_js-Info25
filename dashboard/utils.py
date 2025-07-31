@@ -10,11 +10,14 @@ from .models import ActivityLog
 
 def get_client_ip(request):
     """Obtener la IP del cliente"""
+    if not request or not hasattr(request, 'META'):
+        return '127.0.0.1'  # IP por defecto para pruebas
+    
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
+        ip = x_forwarded_for.split(',')[0].strip()
     else:
-        ip = request.META.get('REMOTE_ADDR')
+        ip = request.META.get('REMOTE_ADDR', '127.0.0.1')
     return ip
 
 
@@ -27,7 +30,8 @@ def log_activity(user, action, target_model=None, target_id=None, description=''
     
     if request:
         ip_address = get_client_ip(request)
-        user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]  # Limitar longitud
+        if hasattr(request, 'META'):
+            user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]  # Limitar longitud
     
     try:
         ActivityLog.objects.create(
@@ -35,9 +39,9 @@ def log_activity(user, action, target_model=None, target_id=None, description=''
             action=action,
             target_model=target_model or '',
             target_id=target_id,
-            description=description[:1000],  # Limitar longitud de descripción
-            ip_address=ip_address,
-            user_agent=user_agent
+            description=description[:1000] if description else '',  # Limitar longitud de descripción
+            ip_address=ip_address or '127.0.0.1',
+            user_agent=user_agent or 'Unknown'
         )
     except Exception as e:
         # Si falla el logging, no debe interrumpir la operación principal

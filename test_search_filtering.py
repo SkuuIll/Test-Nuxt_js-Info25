@@ -220,16 +220,16 @@ def test_performance():
     try:
         import time
         
-        posts = Post.objects.filter(status='published')
+        posts_queryset = Post.objects.filter(status='published')
         
-        if posts.count() == 0:
+        if posts_queryset.count() == 0:
             print("⚠️  No hay posts para probar rendimiento")
             return
         
         # Probar búsqueda simple
         start_time = time.time()
         filter_data = {'search': 'test'}
-        post_filter = PostFilter(filter_data, queryset=posts)
+        post_filter = PostFilter(filter_data, queryset=posts_queryset)
         result = list(post_filter.qs)
         end_time = time.time()
         
@@ -243,7 +243,7 @@ def test_performance():
             'time_range': 'month',
             'ordering': '-fecha_publicacion'
         }
-        post_filter = PostFilter(filter_data, queryset=posts)
+        post_filter = PostFilter(filter_data, queryset=posts_queryset)
         result = list(post_filter.qs)
         end_time = time.time()
         
@@ -252,7 +252,7 @@ def test_performance():
         # Probar búsqueda con relevancia
         start_time = time.time()
         filtered_posts, metadata = AdvancedSearchFilter.search_posts_with_relevance(
-            posts, "test"
+            posts_queryset, "test"
         )
         result = list(filtered_posts)
         end_time = time.time()

@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-s4r%emx!_fy1925pm-)c-6ee+-z=lfkwo$uc-b8!=f!k#+we42
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 
 # Application definition
@@ -49,10 +49,13 @@ INSTALLED_APPS = [
     'dashboard',
     'accounts',
     'comments',
+    'media_files',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django_blog.middleware.SecurityHeadersMiddleware',
+    'django_blog.middleware.ResponseTimeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -62,6 +65,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_blog.middleware.RequestLoggingMiddleware',
     'django_blog.middleware.APIErrorHandlingMiddleware',
+    'django_blog.middleware.APIVersionMiddleware',
 ]
 
 ROOT_URLCONF = 'django_blog.urls'
@@ -145,6 +149,25 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 # Allowed file extensions for uploads
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
 ALLOWED_DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt']
+
+# Media file handling settings
+MEDIA_FILE_SETTINGS = {
+    'MAX_FILE_SIZE': 10 * 1024 * 1024,  # 10MB
+    'ALLOWED_EXTENSIONS': {
+        'image': ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'],
+        'document': ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'],
+        'video': ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'],
+        'audio': ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'],
+        'archive': ['zip', 'rar', '7z', 'tar', 'gz'],
+    },
+    'THUMBNAIL_SIZES': {
+        'small': (150, 150),
+        'medium': (300, 300),
+        'large': (600, 600),
+    },
+    'IMAGE_QUALITY': 85,
+    'AUTO_CREATE_THUMBNAILS': True,
+}
 
 # Login/Logout URLs
 LOGIN_URL = 'users:login'
@@ -281,20 +304,36 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration
+# Environment-based configuration
+import os
+
+# Get environment variables
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'http://localhost:3000')
+
+# Production origins (should be set via environment variables)
 CORS_ALLOWED_ORIGINS = [
+    FRONTEND_URL,
+    DASHBOARD_URL,
     "http://localhost:3000",  # Nuxt.js development server
     "http://127.0.0.1:3000",
     "http://localhost:8080",  # Alternative frontend port
     "http://127.0.0.1:8080",
+    "http://localhost:3001",  # Alternative development port
+    "http://127.0.0.1:3001",
 ]
 
-# Allow credentials (cookies, authorization headers)
+# Remove duplicates and None values
+CORS_ALLOWED_ORIGINS = list(set(filter(None, CORS_ALLOWED_ORIGINS)))
+
+# Allow credentials (cookies, authorization headers, etc.)
 CORS_ALLOW_CREDENTIALS = True
 
 # Headers that can be sent during the actual request
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
+    'accept-language',
     'authorization',
     'content-type',
     'dnt',
@@ -302,12 +341,20 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-forwarded-for',
+    'x-forwarded-proto',
+    'x-real-ip',
+    'cache-control',
+    'pragma',
+    'if-modified-since',
+    'if-none-match',
 ]
 
 # Methods allowed during the actual request
 CORS_ALLOWED_METHODS = [
     'DELETE',
     'GET',
+    'HEAD',
     'OPTIONS',
     'PATCH',
     'POST',
@@ -317,17 +364,70 @@ CORS_ALLOWED_METHODS = [
 # Headers that can be exposed to the browser
 CORS_EXPOSE_HEADERS = [
     'content-type',
+    'content-length',
+    'content-encoding',
+    'content-disposition',
     'x-csrftoken',
+    'x-total-count',
+    'x-page-count',
+    'x-current-page',
+    'x-per-page',
+    'etag',
+    'last-modified',
+    'cache-control',
 ]
 
-# Preflight request cache time (in seconds)
+# Preflight request cache time (in seconds) - 24 hours
 CORS_PREFLIGHT_MAX_AGE = 86400
 
-# Allow all origins in development (remove in production)
+# Development vs Production CORS settings
 if DEBUG:
+    # Development: Allow all origins for easier development
     CORS_ALLOW_ALL_ORIGINS = True
+    
     # Additional development settings
-    CORS_REPLACE_HTTPS_REFERER = True
+    # CORS_REPLACE_HTTPS_REFERER has been removed in newer versions
+    
+    # Allow additional development headers
+    CORS_ALLOW_HEADERS.extend([
+        'x-debug',
+        'x-development',
+        'x-test-mode',
+    ])
+    
+    # Shorter preflight cache for development
+    CORS_PREFLIGHT_MAX_AGE = 600  # 10 minutes
+    
+    print(f"🔧 CORS Development Mode:")
+    print(f"   - Allow all origins: {CORS_ALLOW_ALL_ORIGINS}")
+    print(f"   - Allowed origins: {CORS_ALLOWED_ORIGINS}")
+    print(f"   - Allow credentials: {CORS_ALLOW_CREDENTIALS}")
+    
+else:
+    # Production: Strict CORS settings
+    CORS_ALLOW_ALL_ORIGINS = False
+    
+    # Ensure we have valid origins in production
+    if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['http://localhost:3000']:
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS must be properly configured for production. "
+            "Set FRONTEND_URL and DASHBOARD_URL environment variables."
+        )
+    
+    print(f"🔒 CORS Production Mode:")
+    print(f"   - Allowed origins: {CORS_ALLOWED_ORIGINS}")
+    print(f"   - Allow credentials: {CORS_ALLOW_CREDENTIALS}")
+
+# CORS regex patterns for dynamic subdomains (if needed)
+# CORS_ALLOWED_ORIGIN_REGEXES = [
+#     r"^https://\w+\.yourdomain\.com$",
+# ]
+
+# Additional CORS settings for specific use cases
+CORS_URLS_REGEX = r'^/api/.*$'  # Only apply CORS to API endpoints
+
+# Custom CORS settings for different endpoints
+CORS_ALLOW_PRIVATE_NETWORK = True  # Allow private network requests
 
 # Logging Configuration
 LOGGING = {

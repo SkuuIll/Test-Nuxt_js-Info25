@@ -49,11 +49,16 @@ def log_failed_login(sender, credentials, request, **kwargs):
     except User.DoesNotExist:
         pass
     
+    # Get user agent safely
+    user_agent = ''
+    if request and hasattr(request, 'META'):
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+    
     SecurityAuditLog.objects.create(
         user=user,
         action='login_failed',
         ip_address=get_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        user_agent=user_agent,
         success=False,
         details={
             'attempted_email': email,
@@ -64,9 +69,12 @@ def log_failed_login(sender, credentials, request, **kwargs):
 
 def get_client_ip(request):
     """Get client IP address from request"""
+    if not request or not hasattr(request, 'META'):
+        return '127.0.0.1'  # Default IP for tests or when request is None
+    
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
+        ip = x_forwarded_for.split(',')[0].strip()
     else:
-        ip = request.META.get('REMOTE_ADDR')
+        ip = request.META.get('REMOTE_ADDR', '127.0.0.1')
     return ip

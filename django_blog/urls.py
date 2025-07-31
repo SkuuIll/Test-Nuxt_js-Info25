@@ -32,6 +32,7 @@ def api_root(request):
             'users': '/api/v1/users/',
             'dashboard': '/api/v1/dashboard/',
             'dashboard_auth': '/api/v1/dashboard/auth/',
+            'media': '/api/v1/media/',
         }
     })
 
@@ -42,6 +43,7 @@ urlpatterns = [
     path('api/v1/', include('posts.urls')),  # API endpoints
     path('api/v1/users/', include('users.urls')),  # User API endpoints
     path('api/v1/dashboard/', include('dashboard.urls')),  # Dashboard API endpoints
+    path('api/v1/media/', include('media_files.urls')),  # Media files API endpoints
 ]
 
 # Serve media files during development
