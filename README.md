@@ -136,10 +136,22 @@ npm run dev
 
 ## 🌐 URLs de la Aplicación
 
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:3000 (o 3001 si está ocupado)
 - **Backend API**: http://localhost:8000/api/v1/
 - **Django Admin**: http://localhost:8000/admin/
 - **Dashboard**: http://localhost:3000/dashboard
+
+## 👤 Usuarios de Prueba Incluidos
+
+| Usuario | Email | Tipo | Descripción |
+|---------|-------|------|-------------|
+| **admin** | admin@test.com | Superuser | Acceso completo al sistema |
+| **skull** | a@a.com | Superuser | Acceso completo al sistema |
+| **editor** | editor@test.com | Staff | Puede gestionar contenido |
+| **author** | author@test.com | Normal | Puede crear posts |
+| **user** | user@test.com | Normal | Usuario básico |
+
+> **Nota**: Para acceder al Django Admin, usa cualquiera de los superusuarios. Las contraseñas se pueden resetear desde el admin.
 
 ## 📚 Documentación de la API
 
