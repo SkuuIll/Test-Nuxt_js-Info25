@@ -24,7 +24,7 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
-    
+
     /* Spacing & Layout */
     --radius: 0.625rem;
     --spacing-xs: 0.25rem;
@@ -34,7 +34,7 @@
     --spacing-xl: 1.5rem;
     --spacing-2xl: 2rem;
     --spacing-3xl: 3rem;
-    
+
     /* Typography */
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-size-xs: 0.75rem;
@@ -89,15 +89,37 @@ html.dark {
     display: grid;
 }
 
-.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid-cols-auto { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+}
 
-.gap-sm { gap: var(--spacing-sm); }
-.gap-md { gap: var(--spacing-md); }
-.gap-lg { gap: var(--spacing-lg); }
-.gap-xl { gap: var(--spacing-xl); }
+.grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-cols-auto {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.gap-sm {
+    gap: var(--spacing-sm);
+}
+
+.gap-md {
+    gap: var(--spacing-md);
+}
+
+.gap-lg {
+    gap: var(--spacing-lg);
+}
+
+.gap-xl {
+    gap: var(--spacing-xl);
+}
 
 .flex {
     display: flex;
@@ -322,23 +344,65 @@ html.dark {
 /* ========================================
    Typography
    ======================================== */
-.text-xs { font-size: var(--font-size-xs); }
-.text-sm { font-size: var(--font-size-sm); }
-.text-base { font-size: var(--font-size-base); }
-.text-lg { font-size: var(--font-size-lg); }
-.text-xl { font-size: var(--font-size-xl); }
-.text-2xl { font-size: var(--font-size-2xl); }
-.text-3xl { font-size: var(--font-size-3xl); }
-.text-4xl { font-size: var(--font-size-4xl); }
+.text-xs {
+    font-size: var(--font-size-xs);
+}
 
-.font-normal { font-weight: 400; }
-.font-medium { font-weight: 500; }
-.font-semibold { font-weight: 600; }
-.font-bold { font-weight: 700; }
+.text-sm {
+    font-size: var(--font-size-sm);
+}
 
-.text-primary { color: var(--primary); }
-.text-muted { color: var(--muted-foreground); }
-.text-destructive { color: var(--destructive); }
+.text-base {
+    font-size: var(--font-size-base);
+}
+
+.text-lg {
+    font-size: var(--font-size-lg);
+}
+
+.text-xl {
+    font-size: var(--font-size-xl);
+}
+
+.text-2xl {
+    font-size: var(--font-size-2xl);
+}
+
+.text-3xl {
+    font-size: var(--font-size-3xl);
+}
+
+.text-4xl {
+    font-size: var(--font-size-4xl);
+}
+
+.font-normal {
+    font-weight: 400;
+}
+
+.font-medium {
+    font-weight: 500;
+}
+
+.font-semibold {
+    font-weight: 600;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.text-primary {
+    color: var(--primary);
+}
+
+.text-muted {
+    color: var(--muted-foreground);
+}
+
+.text-destructive {
+    color: var(--destructive);
+}
 
 .gradient-text {
     background: linear-gradient(to right, var(--primary), rgba(236, 236, 236, 0.6));
@@ -357,10 +421,25 @@ html.dark {
     flex-shrink: 0;
 }
 
-.icon-sm { width: 0.875rem; height: 0.875rem; }
-.icon-lg { width: 1.25rem; height: 1.25rem; }
-.icon-xl { width: 1.5rem; height: 1.5rem; }
-.icon-2xl { width: 2rem; height: 2rem; }
+.icon-sm {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.icon-lg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.icon-xl {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.icon-2xl {
+    width: 2rem;
+    height: 2rem;
+}
 
 /* ========================================
    Interactive Components
@@ -439,22 +518,57 @@ html.dark {
 /* ========================================
    Utility Classes
    ======================================== */
-.hidden { display: none; }
-.block { display: block; }
-.flex { display: flex; }
-.inline-flex { display: inline-flex; }
+.hidden {
+    display: none;
+}
 
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-.min-h-screen { min-height: 100vh; }
+.block {
+    display: block;
+}
 
-.opacity-50 { opacity: 0.5; }
-.opacity-60 { opacity: 0.6; }
-.opacity-75 { opacity: 0.75; }
+.flex {
+    display: flex;
+}
 
-.transition-all { transition: all 0.2s ease; }
-.transition-colors { transition: color 0.2s ease, background-color 0.2s ease; }
-.transition-opacity { transition: opacity 0.2s ease; }
+.inline-flex {
+    display: inline-flex;
+}
+
+.w-full {
+    width: 100%;
+}
+
+.h-full {
+    height: 100%;
+}
+
+.min-h-screen {
+    min-height: 100vh;
+}
+
+.opacity-50 {
+    opacity: 0.5;
+}
+
+.opacity-60 {
+    opacity: 0.6;
+}
+
+.opacity-75 {
+    opacity: 0.75;
+}
+
+.transition-all {
+    transition: all 0.2s ease;
+}
+
+.transition-colors {
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.transition-opacity {
+    transition: opacity 0.2s ease;
+}
 
 /* ========================================
    Responsive Design
@@ -463,30 +577,45 @@ html.dark {
     .container {
         padding: var(--spacing-lg);
     }
-    
+
     .grid-cols-auto {
         grid-template-columns: 1fr;
     }
-    
+
     .flex-col-mobile {
         flex-direction: column;
     }
-    
+
     .text-center-mobile {
         text-align: center;
     }
-    
-    .gap-sm-mobile { gap: var(--spacing-sm); }
-    
-    .hidden-mobile { display: none; }
-    .block-mobile { display: block; }
+
+    .gap-sm-mobile {
+        gap: var(--spacing-sm);
+    }
+
+    .hidden-mobile {
+        display: none;
+    }
+
+    .block-mobile {
+        display: block;
+    }
 }
 
 @media (max-width: 640px) {
-    .text-2xl { font-size: var(--font-size-xl); }
-    .text-3xl { font-size: var(--font-size-2xl); }
-    .text-4xl { font-size: var(--font-size-3xl); }
-    
+    .text-2xl {
+        font-size: var(--font-size-xl);
+    }
+
+    .text-3xl {
+        font-size: var(--font-size-2xl);
+    }
+
+    .text-4xl {
+        font-size: var(--font-size-3xl);
+    }
+
     .container {
         padding: var(--spacing-lg) var(--spacing-sm);
     }
@@ -496,8 +625,15 @@ html.dark {
    Animation Utilities
    ======================================== */
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .animate-fade-in {
