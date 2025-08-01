@@ -1,86 +1,138 @@
+/**
+ * Toast notification composable
+ * Provides user-friendly notifications for various scenarios
+ */
+
 interface ToastOptions {
     duration?: number
-    position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center'
-}
-
-interface Toast {
-    id: string
-    type: 'success' | 'error' | 'warning' | 'info'
-    title: string
-    message?: string
-    duration: number
-    timestamp: number
+    position?: 'top' | 'bottom' | 'center'
+    persistent?: boolean
+    actions?: Array<{
+        label: string
+        action: () => void
+    }>
 }
 
 export const useToast = () => {
-    const toasts = ref<Toast[]>([])
+    const notifications = ref<Array<{
+        id: string
+        type: 'success' | 'error' | 'warning' | 'info'
+        title: string
+        message: string
+        timestamp: Date
+        duration: number
+        persistent: boolean
+    }>>([])
 
-    // Generate unique ID
     const generateId = () => {
-        return Math.random().toString(36).substr(2, 9)
+        return `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     }
 
-    // Add toast
-    const addToast = (type: Toast['type'], title: string, message?: string, options: ToastOptions = {}) => {
-        const toast: Toast = {
+    const addNotification = (
+        type: 'success' | 'error' | 'warning' | 'info',
+        title: string,
+        message: string,
+        options: ToastOptions = {}
+    ) => {
+        const notification = {
             id: generateId(),
             type,
             title,
             message,
-            duration: options.duration || 5000,
-            timestamp: Date.now()
+            timestamp: new Date(),
+            duration: options.duration || (type === 'error' ? 5000 : 3000),
+            persistent: options.persistent || false
         }
 
-        toasts.value.push(toast)
+        notifications.value.unshift(notification)
 
-        // Auto remove after duration
-        if (toast.duration > 0) {
+        // Auto-remove non-persistent notifications
+        if (!notification.persistent) {
             setTimeout(() => {
-                removeToast(toast.id)
-            }, toast.duration)
+                removeNotification(notification.id)
+            }, notification.duration)
         }
 
-        return toast.id
+        // Keep only last 10 notifications
+        if (notifications.value.length > 10) {
+            notifications.value = notifications.value.slice(0, 10)
+        }
+
+        // Log to console for debugging
+        console.log(`🔔 ${type.toUpperCase()}: ${title} - ${message}`)
+
+        return notification.id
     }
 
-    // Remove toast
-    const removeToast = (id: string) => {
-        const index = toasts.value.findIndex(toast => toast.id === id)
+    const removeNotification = (id: string) => {
+        const index = notifications.value.findIndex(n => n.id === id)
         if (index > -1) {
-            toasts.value.splice(index, 1)
+            notifications.value.splice(index, 1)
         }
     }
 
-    // Clear all toasts
-    const clearToasts = () => {
-        toasts.value = []
+    const clearAll = () => {
+        notifications.value = []
     }
 
-    // Convenience methods
-    const success = (title: string, message?: string, options?: ToastOptions) => {
-        return addToast('success', title, message, options)
+    const success = (title: string, message: string, options?: ToastOptions) => {
+        return addNotification('success', title, message, options)
     }
 
-    const error = (title: string, message?: string, options?: ToastOptions) => {
-        return addToast('error', title, message, options)
+    const error = (title: string, message: string, options?: ToastOptions) => {
+        return addNotification('error', title, message, {
+            duration: 5000,
+            ...options
+        })
     }
 
-    const warning = (title: string, message?: string, options?: ToastOptions) => {
-        return addToast('warning', title, message, options)
+    const warning = (title: string, message: string, options?: ToastOptions) => {
+        return addNotification('warning', title, message, {
+            duration: 4000,
+            ...options
+        })
     }
 
-    const info = (title: string, message?: string, options?: ToastOptions) => {
-        return addToast('info', title, message, options)
+    const info = (title: string, message: string, options?: ToastOptions) => {
+        return addNotification('info', title, message, options)
+    }
+
+    // Auth-specific toast methods
+    const authSuccess = (message: string) => {
+        return success('Autenticación Exitosa', message)
+    }
+
+    const authError = (message: string) => {
+        return error('Error de Autenticación', message, { duration: 6000 })
+    }
+
+    const validationError = (message: string) => {
+        return warning('Datos Inválidos', message, { duration: 5000 })
+    }
+
+    const networkError = (message: string = 'Error de conexión. Verifica tu internet.') => {
+        return error('Error de Conexión', message, {
+            duration: 7000,
+            persistent: false
+        })
+    }
+
+    const serverError = (message: string = 'Error del servidor. Intenta más tarde.') => {
+        return error('Error del Servidor', message, { duration: 6000 })
     }
 
     return {
-        toasts: readonly(toasts),
-        addToast,
-        removeToast,
-        clearToasts,
+        notifications: readonly(notifications),
         success,
         error,
         warning,
-        info
+        info,
+        authSuccess,
+        authError,
+        validationError,
+        networkError,
+        serverError,
+        removeNotification,
+        clearAll
     }
 }

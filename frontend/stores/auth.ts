@@ -6,6 +6,7 @@ export const useAuthStore = defineStore('auth', () => {
   // Error handlers imported from utils to avoid circular dependencies
   const { authLoading } = useLoading()
   const api = useApi()
+  const { handleLoginError, handleRegistrationError, handleTokenError } = useAuthErrorHandler()
 
   // State
   const user = ref<User | null>(null)
@@ -47,6 +48,12 @@ export const useAuthStore = defineStore('auth', () => {
         const tokens = await api.login(credentials)
         console.log('✅ Login successful, tokens received')
 
+        // Store tokens immediately after successful login
+        const tokenStored = api.tokenUtils.setTokens(tokens)
+        if (!tokenStored) {
+          throw new Error('Failed to store authentication tokens')
+        }
+
         // Fetch user profile after successful login
         const profile = await api.getProfile()
         console.log('👤 User profile fetched:', {
@@ -65,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
         console.error('❌ Login error:', err)
 
         // Handle auth error with enhanced error handler
-        const errorInfo = handleAuthError(err, 'Login Failed')
+        const errorInfo = handleLoginError(err)
         error.value = errorInfo.message
 
         // Clear any existing auth state
@@ -82,15 +89,33 @@ export const useAuthStore = defineStore('auth', () => {
         error.value = null
         console.log('📝 Starting registration for:', { username: data.username, email: data.email })
 
-        const tokens = await api.register(data)
-        console.log('✅ Registration successful, tokens received')
+        const response = await api.register(data)
+        console.log('✅ Registration successful, response received')
 
-        // Fetch user profile after successful registration
-        const profile = await api.getProfile()
-        console.log('👤 User profile fetched after registration:', {
-          username: profile.username,
-          email: profile.email
-        })
+        // Extract tokens and user from response
+        let tokens: AuthTokens
+        let profile: User
+
+        if (response.success && response.data) {
+          // Handle Django API format with tokens in data
+          if (response.data.access && response.data.refresh) {
+            tokens = {
+              access: response.data.access,
+              refresh: response.data.refresh
+            }
+            profile = response.data.user || response.data
+          } else {
+            throw new Error('Invalid registration response format')
+          }
+        } else {
+          throw new Error('Registration failed - invalid response')
+        }
+
+        // Store tokens immediately after successful registration
+        const tokenStored = api.tokenUtils.setTokens(tokens)
+        if (!tokenStored) {
+          throw new Error('Failed to store authentication tokens')
+        }
 
         // Set user data and authentication state
         user.value = profile
@@ -106,7 +131,7 @@ export const useAuthStore = defineStore('auth', () => {
           const errorInfo = handleValidationError(err, 'Registration Validation Failed')
           error.value = errorInfo.message
         } else {
-          const errorInfo = handleAuthError(err, 'Registration Failed')
+          const errorInfo = handleRegistrationError(err)
           error.value = errorInfo.message
         }
 

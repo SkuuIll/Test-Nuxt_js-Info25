@@ -32,6 +32,7 @@ export { computedAsync, asyncComputed, computedEager, eagerComputed, computedInj
 export { useApi } from '../composables/useApi';
 export { useApiTesting } from '../composables/useApiTesting';
 export { useAuth } from '../composables/useAuth';
+export { useAuthErrorHandler } from '../composables/useAuthErrorHandler';
 export { useAuthRedirect } from '../composables/useAuthRedirect';
 export { useCors } from '../composables/useCors';
 export { useCorsTest } from '../composables/useCorsTest';
@@ -53,6 +54,7 @@ export { useLogger } from '../composables/useLogger';
 export { usePageLoading } from '../composables/usePageLoading';
 export { useTheme } from '../composables/useTheme';
 export { useToast } from '../composables/useToast';
+export { testAuthFlow, testLoginFlow, testRegistrationFlow, testTokenRefresh, testMiddleware, runAllTests } from '../utils/authTest';
 export { createDirectFetch } from '../utils/directFetch';
 export { handleApiError, handleAuthError, handleValidationError, handleNetworkError, handleError, getErrorMessage, isRetryableError, logError, ErrorInfo } from '../utils/errorHandling';
 export { CustomFetchError, CustomFetchError, createFetchWrapper, cleanParams, FetchWrapperOptions, FetchWrapperError } from '../utils/fetchWrapper';

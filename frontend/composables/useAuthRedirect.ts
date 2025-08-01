@@ -1,223 +1,129 @@
 /**
  * Authentication redirect utilities
- * Handles post-login redirections and route protection
+ * Handles redirects for authentication scenarios
  */
+
+interface AuthRedirectOptions {
+    message?: string
+    storeRoute?: boolean
+    loginUrl?: string
+}
+
+interface PermissionRedirectOptions {
+    message?: string
+    requiredPermissions?: string[]
+    redirectUrl?: string
+}
+
 export const useAuthRedirect = () => {
     const router = useRouter()
     const route = useRoute()
+    const { authError } = useToast()
 
-    /**
-     * Get the redirect URL from query parameters or default
-     */
-    const getRedirectUrl = (defaultUrl: string = '/'): string => {
-        const redirectParam = route.query.redirect as string
-
-        // Validate redirect URL to prevent open redirects
-        if (redirectParam) {
-            try {
-                // Only allow relative URLs or same-origin URLs
-                const url = new URL(redirectParam, window.location.origin)
-                if (url.origin === window.location.origin) {
-                    return redirectParam
-                }
-            } catch {
-                // Invalid URL, use default
-            }
-        }
-
-        return defaultUrl
-    }
-
-    /**
-     * Store current route for post-login redirect
-     */
-    const storeCurrentRoute = () => {
-        const currentPath = route.fullPath
-
-        // Don't store certain routes
-        const excludedRoutes = ['/login', '/register', '/logout', '/unauthorized']
-        if (!excludedRoutes.includes(currentPath)) {
-            // Store in sessionStorage for persistence across page reloads
-            if (import.meta.client) {
-                sessionStorage.setItem('auth-redirect', currentPath)
-            }
-        }
-    }
-
-    /**
-     * Get stored redirect route
-     */
-    const getStoredRedirect = (): string | null => {
-        if (import.meta.client) {
-            return sessionStorage.getItem('auth-redirect')
-        }
-        return null
-    }
-
-    /**
-     * Clear stored redirect
-     */
-    const clearStoredRedirect = () => {
-        if (import.meta.client) {
-            sessionStorage.removeItem('auth-redirect')
-        }
-    }
-
-    /**
-     * Perform post-login redirect
-     */
-    const performPostLoginRedirect = async (defaultUrl: string = '/dashboard') => {
-        try {
-            // Priority order: query param > stored redirect > default
-            let redirectUrl = getRedirectUrl()
-
-            if (redirectUrl === '/') {
-                const storedRedirect = getStoredRedirect()
-                if (storedRedirect) {
-                    redirectUrl = storedRedirect
-                    clearStoredRedirect()
-                } else {
-                    redirectUrl = defaultUrl
-                }
-            }
-
-            console.log('🔄 Performing post-login redirect to:', redirectUrl)
-
-            await navigateTo(redirectUrl)
-
-        } catch (error) {
-            console.error('❌ Post-login redirect failed:', error)
-
-            // Fallback to default URL
-            await navigateTo(defaultUrl)
-        }
-    }
-
-    /**
-     * Handle authentication required scenario
-     */
-    const handleAuthRequired = async (options: {
-        message?: string
-        storeRoute?: boolean
-        loginUrl?: string
-    } = {}) => {
+    const handleAuthRequired = async (options: AuthRedirectOptions = {}) => {
         const {
-            message = 'Authentication required',
+            message = 'Debes iniciar sesión para acceder a esta página',
             storeRoute = true,
             loginUrl = '/login'
         } = options
 
-        console.log('🔒 Authentication required:', message)
+        // Show error message
+        authError(message)
 
-        // Store current route if requested
-        if (storeRoute) {
-            storeCurrentRoute()
+        // Store current route for redirect after login
+        let redirectUrl = loginUrl
+        if (storeRoute && route.fullPath !== loginUrl) {
+            redirectUrl = `${loginUrl}?redirect=${encodeURIComponent(route.fullPath)}`
         }
 
-        // Show toast notification
-        const { info } = useToast()
-        info('Authentication Required', message)
-
-        // Redirect to login
-        const currentPath = route.fullPath
-        const redirectQuery = currentPath !== loginUrl ? { redirect: currentPath } : {}
-
-        await navigateTo({
-            path: loginUrl,
-            query: redirectQuery
-        })
+        // Navigate to login
+        await navigateTo(redirectUrl)
     }
 
-    /**
-     * Handle insufficient permissions scenario
-     */
-    const handleInsufficientPermissions = async (options: {
-        message?: string
-        requiredPermissions?: string[]
-        redirectUrl?: string
-    } = {}) => {
+    const handleInsufficientPermissions = async (options: PermissionRedirectOptions = {}) => {
         const {
-            message = 'Insufficient permissions',
+            message = 'No tienes permisos para acceder a esta página',
             requiredPermissions = [],
             redirectUrl = '/unauthorized'
         } = options
 
-        console.log('🚫 Insufficient permissions:', {
-            message,
-            requiredPermissions,
-            currentRoute: route.path
-        })
+        // Show error message with permission details
+        const permissionText = requiredPermissions.length > 0
+            ? ` Permisos requeridos: ${requiredPermissions.join(', ')}`
+            : ''
 
-        // Show toast notification
-        const { warning } = useToast()
-        warning('Access Denied', message)
+        authError(message + permissionText)
 
-        // Redirect to unauthorized page
+        // Navigate to unauthorized page or specified redirect
         await navigateTo(redirectUrl)
     }
 
-    /**
-     * Check if current route requires authentication
-     */
-    const isProtectedRoute = (): boolean => {
-        const protectedRoutes = [
-            '/dashboard',
-            '/admin',
-            '/profile',
-            '/settings'
-        ]
+    const handleSessionExpired = async () => {
+        const { warning } = useToast()
 
-        const currentPath = route.path
-        return protectedRoutes.some(route => currentPath.startsWith(route))
+        warning(
+            'Sesión Expirada',
+            'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
+        )
+
+        // Store current route for redirect after login
+        const redirectUrl = route.fullPath !== '/login'
+            ? `/login?redirect=${encodeURIComponent(route.fullPath)}`
+            : '/login'
+
+        await navigateTo(redirectUrl)
     }
 
-    /**
-     * Check if current route requires admin privileges
-     */
-    const isAdminRoute = (): boolean => {
-        const adminRoutes = [
-            '/admin',
-            '/dashboard/admin',
-            '/dashboard/users',
-            '/dashboard/settings'
-        ]
+    const handleSuccessfulAuth = async (redirectTo?: string) => {
+        const { authSuccess } = useToast()
 
-        const currentPath = route.path
-        return adminRoutes.some(route => currentPath.startsWith(route))
+        authSuccess('Has iniciado sesión correctamente')
+
+        // Get redirect from query params or use provided redirect
+        const targetUrl = redirectTo ||
+            (route.query.redirect as string) ||
+            '/'
+
+        await navigateTo(targetUrl)
     }
 
-    /**
-     * Get appropriate redirect URL based on user role
-     */
-    const getRoleBasedRedirect = (user: any): string => {
-        if (!user) return '/'
+    const handleSuccessfulRegistration = async (redirectTo?: string) => {
+        const { authSuccess } = useToast()
 
-        // Admin users go to admin dashboard
-        if (user.is_staff || user.is_superuser) {
-            return '/dashboard'
-        }
+        authSuccess('Cuenta creada exitosamente. ¡Bienvenido!')
 
-        // Regular users go to their profile or home
-        return '/profile'
+        // Get redirect from query params or use provided redirect
+        const targetUrl = redirectTo ||
+            (route.query.redirect as string) ||
+            '/'
+
+        await navigateTo(targetUrl)
+    }
+
+    const handleLogout = async (redirectTo: string = '/') => {
+        const { success } = useToast()
+
+        success('Sesión Cerrada', 'Has cerrado sesión exitosamente')
+
+        await navigateTo(redirectTo)
+    }
+
+    const getRedirectUrl = (): string => {
+        return (route.query.redirect as string) || '/'
+    }
+
+    const storeCurrentRoute = (): string => {
+        return route.fullPath
     }
 
     return {
-        // Redirect utilities
-        getRedirectUrl,
-        performPostLoginRedirect,
-        getRoleBasedRedirect,
-
-        // Route storage
-        storeCurrentRoute,
-        getStoredRedirect,
-        clearStoredRedirect,
-
-        // Error handlers
         handleAuthRequired,
         handleInsufficientPermissions,
-
-        // Route checkers
-        isProtectedRoute,
-        isAdminRoute
+        handleSessionExpired,
+        handleSuccessfulAuth,
+        handleSuccessfulRegistration,
+        handleLogout,
+        getRedirectUrl,
+        storeCurrentRoute
     }
 }

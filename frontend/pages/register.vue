@@ -191,7 +191,8 @@ definePageMeta({
 })
 
 const { register, loading, error } = useAuth()
-const { handleSuccess } = useErrorHandler()
+const { handleSuccessfulRegistration } = useAuthRedirect()
+const { handleError } = useErrorHandler()
 
 const form = reactive({
   username: '',
@@ -229,7 +230,7 @@ const handleRegister = async () => {
       last_name: form.last_name
     })
     
-    handleSuccess('¡Cuenta creada exitosamente! Bienvenido')
+    handleSuccessfulRegistration('¡Cuenta creada exitosamente! Bienvenido')
     await navigateTo('/')
     
   } catch (err) {

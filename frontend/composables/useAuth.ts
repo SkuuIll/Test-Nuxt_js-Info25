@@ -152,7 +152,7 @@ export const useAuth = () => {
   }
 
   // Enhanced login with comprehensive error handling
-  const loginWithErrorHandling = async (credentials: LoginCredentials) => {
+  const login = async (credentials: LoginCredentials) => {
     try {
       clearAuthErrors()
       updateActivity()
@@ -200,7 +200,7 @@ export const useAuth = () => {
   }
 
   // Enhanced register with comprehensive error handling
-  const registerWithErrorHandling = async (data: RegisterData) => {
+  const register = async (data: RegisterData) => {
     try {
       clearAuthErrors()
       updateActivity()
@@ -259,8 +259,25 @@ export const useAuth = () => {
     return getTimeSinceLastActivity() < authState.value.sessionTimeout
   }
 
+  const getSessionInfo = () => {
+    const timeSinceLastActivity = getTimeSinceLastActivity()
+    const timeUntilExpiry = Math.max(0, authState.value.sessionTimeout - timeSinceLastActivity)
+
+    return {
+      isActive: isSessionActive(),
+      timeSinceLastActivity,
+      timeUntilExpiry,
+      sessionTimeout: authState.value.sessionTimeout,
+      lastActivity: new Date(authState.value.lastActivity),
+      expiresAt: new Date(authState.value.lastActivity + authState.value.sessionTimeout),
+      willExpireAt: new Date(authState.value.lastActivity + authState.value.sessionTimeout),
+      isExpiringSoon: timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0,
+      isExpired: timeUntilExpiry <= 0
+    }
+  }
+
   // Enhanced logout with comprehensive cleanup
-  const safeLogout = async (options: {
+  const logout = async (options: {
     redirectTo?: string
     reason?: 'user' | 'session_expired' | 'token_invalid' | 'security'
     showMessage?: boolean
@@ -299,17 +316,17 @@ export const useAuth = () => {
 
         switch (reason) {
           case 'session_expired':
-            warning('Session Expired', 'Your session has expired. Please log in again.')
+            warning('Sesión Expirada', 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
             break
           case 'token_invalid':
-            warning('Authentication Error', 'Your session is no longer valid. Please log in again.')
+            warning('Error de Autenticación', 'Tu sesión ya no es válida. Por favor inicia sesión nuevamente.')
             break
           case 'security':
-            info('Security Logout', 'You have been logged out for security reasons.')
+            info('Logout de Seguridad', 'Has sido desconectado por razones de seguridad.')
             break
           case 'user':
           default:
-            success('Logged Out', 'You have been successfully logged out.')
+            success('Sesión Cerrada', 'Has cerrado sesión exitosamente.')
             break
         }
       }
@@ -1027,6 +1044,7 @@ export const useAuth = () => {
       activityEvents.forEach(event => {
         document.removeEventListener(event, handleActivity)
       })
+      clearAuthErrors()
     }
 
     // Store cleanup function for later use
@@ -1043,30 +1061,17 @@ export const useAuth = () => {
     success('Session Extended', 'Your session has been extended.')
   }
 
-  // Get session information
-  const getSessionInfo = () => {
-    const timeSinceActivity = getTimeSinceLastActivity()
-    const timeUntilExpiry = authState.value.sessionTimeout - timeSinceActivity
-
-    return {
-      isActive: isSessionActive(),
-      timeSinceLastActivity,
-      timeUntilExpiry: Math.max(0, timeUntilExpiry),
-      sessionTimeout: authState.value.sessionTimeout,
-      lastActivity: new Date(authState.value.lastActivity),
-      willExpireAt: new Date(authState.value.lastActivity + authState.value.sessionTimeout),
-      isExpiringSoon: timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0,
-      isExpired: timeUntilExpiry <= 0
-    }
-  }
-
-  // Cleanup function
+  // Global cleanup function
   const cleanup = () => {
     if (authState.value.cleanup) {
       authState.value.cleanup()
     }
     clearAuthErrors()
   }
+
+
+
+
 
   // Auto-initialize on client side
   if (import.meta.client) {
@@ -1095,9 +1100,9 @@ export const useAuth = () => {
     sessionWarningShown: readonly(sessionWarningShown),
 
     // Enhanced Authentication Methods
-    login: loginWithErrorHandling,
-    register: registerWithErrorHandling,
-    logout: safeLogout,
+    login,
+    register,
+    logout,
     forceLogout,
     fetchProfile: authStore.fetchProfile,
     updateProfile: authStore.updateProfile,

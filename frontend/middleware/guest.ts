@@ -3,26 +3,47 @@
  * Redirects authenticated users away from auth pages
  */
 export default defineNuxtRouteMiddleware(async (to, from) => {
-  const { isAuthenticated, initializeAuth, getAuthStatus } = useAuth()
+  // Only run on client side
+  if (!import.meta.client) return
 
-  // Initialize auth on client side if not already done
-  if (import.meta.client) {
-    try {
-      await initializeAuth()
-    } catch (error) {
-      console.warn('Auth initialization failed in guest middleware:', error)
+  try {
+    const authStore = useAuthStore()
+    const api = useApi()
+
+    // Check if user has valid tokens
+    const tokens = api.tokenUtils.getTokens()
+
+    if (tokens.access && !api.tokenUtils.isTokenExpired(tokens.access)) {
+      // User has valid tokens, check if authenticated in store
+      if (authStore.isAuthenticated) {
+        console.log('👤 User already authenticated, redirecting from guest route')
+
+        // Check if there's a redirect query parameter
+        const redirectTo = to.query.redirect as string
+
+        return navigateTo(redirectTo || '/')
+      }
     }
-  }
 
-  // Check authentication status
-  const authStatus = getAuthStatus()
+    // If tokens exist but user is not authenticated in store, try to initialize
+    if (tokens.access && !authStore.isAuthenticated) {
+      try {
+        await authStore.initializeAuth()
 
-  if (isAuthenticated.value && authStatus.hasValidTokens) {
-    console.log('👤 User already authenticated, redirecting from guest route')
+        // After initialization, check again
+        if (authStore.isAuthenticated) {
+          console.log('👤 User authenticated after initialization, redirecting from guest route')
+          const redirectTo = to.query.redirect as string
+          return navigateTo(redirectTo || '/')
+        }
+      } catch (error) {
+        console.warn('Auth initialization failed in guest middleware:', error)
+        // Clear invalid tokens
+        api.tokenUtils.clearTokens()
+      }
+    }
 
-    // Check if there's a redirect query parameter
-    const redirectTo = to.query.redirect as string
-
-    return navigateTo(redirectTo || '/')
+  } catch (error) {
+    console.error('Error in guest middleware:', error)
   }
 })

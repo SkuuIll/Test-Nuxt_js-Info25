@@ -1,11 +1,11 @@
 export default defineNuxtPlugin(() => {
-    const { globalLoading } = useLoading()
+  const { globalLoading, setLoading } = useLoading()
 
-    // Create global loading indicator
-    if (process.client) {
-        // Add global loading styles
-        const style = document.createElement('style')
-        style.textContent = `
+  // Create global loading indicator
+  if (process.client) {
+    // Add global loading styles
+    const style = document.createElement('style')
+    style.textContent = `
       .global-loading-overlay {
         position: fixed;
         top: 0;
@@ -62,15 +62,15 @@ export default defineNuxtPlugin(() => {
         color: #d1d5db;
       }
     `
-        document.head.appendChild(style)
+    document.head.appendChild(style)
 
-        // Create loading overlay element
-        const overlay = document.createElement('div')
-        overlay.id = 'global-loading-overlay'
-        overlay.className = 'global-loading-overlay'
-        overlay.style.display = 'none'
+    // Create loading overlay element
+    const overlay = document.createElement('div')
+    overlay.id = 'global-loading-overlay'
+    overlay.className = 'global-loading-overlay'
+    overlay.style.display = 'none'
 
-        overlay.innerHTML = `
+    overlay.innerHTML = `
       <div>
         <div class="global-loading-spinner">
           <div class="global-loading-ring"></div>
@@ -82,63 +82,60 @@ export default defineNuxtPlugin(() => {
       </div>
     `
 
-        document.body.appendChild(overlay)
+    document.body.appendChild(overlay)
 
-        // Watch global loading state
-        watch(globalLoading, (isLoading) => {
-            if (isLoading) {
-                overlay.style.display = 'flex'
-                overlay.style.opacity = '0'
-                // Fade in
-                requestAnimationFrame(() => {
-                    overlay.style.opacity = '1'
-                })
-            } else {
-                // Fade out
-                overlay.style.opacity = '0'
-                setTimeout(() => {
-                    overlay.style.display = 'none'
-                }, 300)
-            }
+    // Watch global loading state
+    watch(globalLoading, (isLoading) => {
+      if (isLoading) {
+        overlay.style.display = 'flex'
+        overlay.style.opacity = '0'
+        // Fade in
+        requestAnimationFrame(() => {
+          overlay.style.opacity = '1'
         })
+      } else {
+        // Fade out
+        overlay.style.opacity = '0'
+        setTimeout(() => {
+          overlay.style.display = 'none'
+        }, 300)
+      }
+    })
 
-        // Handle page navigation loading
-        const router = useRouter()
+    // Handle page navigation loading
+    const router = useRouter()
 
-        router.beforeEach((to, from) => {
-            if (to.path !== from.path) {
-                const { setLoading } = useLoading()
-                setLoading(true, { key: 'navigation', showGlobalIndicator: true })
-            }
-        })
+    router.beforeEach((to, from) => {
+      if (to.path !== from.path) {
+        setLoading(true, { key: 'navigation', showGlobalIndicator: true })
+      }
+    })
 
-        router.afterEach(() => {
-            const { setLoading } = useLoading()
-            // Small delay to prevent flashing
-            setTimeout(() => {
-                setLoading(false, { key: 'navigation' })
-            }, 100)
-        })
+    router.afterEach(() => {
+      // Small delay to prevent flashing
+      setTimeout(() => {
+        setLoading(false, { key: 'navigation' })
+      }, 100)
+    })
 
-        // Handle fetch loading states
-        const originalFetch = window.fetch
-        window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
-            const { setLoading } = useLoading()
-            const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    // Handle fetch loading states
+    const originalFetch = window.fetch
+    window.fetch = function (input: RequestInfo | URL, init?: RequestInfo) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
 
-            // Only show loading for API requests
-            const config = useRuntimeConfig()
-            const isApiRequest = url.startsWith(config.public.apiBase)
+      // Only show loading for API requests
+      const config = useRuntimeConfig()
+      const isApiRequest = url.startsWith(config.public.apiBase)
 
-            if (isApiRequest) {
-                setLoading(true, { key: 'fetch', showGlobalIndicator: false })
-            }
+      if (isApiRequest) {
+        setLoading(true, { key: 'fetch', showGlobalIndicator: false })
+      }
 
-            return originalFetch.call(this, input, init).finally(() => {
-                if (isApiRequest) {
-                    setLoading(false, { key: 'fetch' })
-                }
-            })
+      return originalFetch.call(this, input, init).finally(() => {
+        if (isApiRequest) {
+          setLoading(false, { key: 'fetch' })
         }
+      })
     }
+  }
 })

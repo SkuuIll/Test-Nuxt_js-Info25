@@ -14,13 +14,18 @@ import type {
   SearchFilters
 } from '~/types'
 
-// Token utilities remain at the top level as they don't depend on Nuxt context
+// Enhanced token utilities with better error handling
 const tokenUtils = {
   getTokens(): { access: string | null; refresh: string | null } {
     if (process.client) {
-      return {
-        access: localStorage.getItem('access_token'),
-        refresh: localStorage.getItem('refresh_token')
+      try {
+        return {
+          access: localStorage.getItem('access_token'),
+          refresh: localStorage.getItem('refresh_token')
+        }
+      } catch (error) {
+        console.error('Error retrieving tokens from localStorage:', error)
+        return { access: null, refresh: null }
       }
     }
     return { access: null, refresh: null }
@@ -28,24 +33,50 @@ const tokenUtils = {
 
   setTokens(tokens: { access: string; refresh: string }) {
     if (process.client) {
-      localStorage.setItem('access_token', tokens.access)
-      localStorage.setItem('refresh_token', tokens.refresh)
+      try {
+        if (!tokens.access || !tokens.refresh) {
+          console.error('Invalid tokens provided:', tokens)
+          return false
+        }
+
+        localStorage.setItem('access_token', tokens.access)
+        localStorage.setItem('refresh_token', tokens.refresh)
+        console.log('✅ Tokens stored successfully')
+        return true
+      } catch (error) {
+        console.error('Error storing tokens in localStorage:', error)
+        return false
+      }
     }
+    return false
   },
 
   clearTokens() {
     if (process.client) {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+      try {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        console.log('✅ Tokens cleared successfully')
+        return true
+      } catch (error) {
+        console.error('Error clearing tokens from localStorage:', error)
+        return false
+      }
     }
+    return false
   },
 
   isTokenExpired(token: string): boolean {
     if (!token) return true
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
-      return Date.now() >= payload.exp * 1000
-    } catch {
+      const isExpired = Date.now() >= payload.exp * 1000
+      if (isExpired) {
+        console.log('🕐 Token is expired')
+      }
+      return isExpired
+    } catch (error) {
+      console.error('Error checking token expiration:', error)
       return true
     }
   },
@@ -55,8 +86,47 @@ const tokenUtils = {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
       return payload.exp * 1000
-    } catch {
+    } catch (error) {
+      console.error('Error getting token expiry time:', error)
       return 0
+    }
+  },
+
+  validateTokenStructure(token: string): boolean {
+    if (!token) return false
+    try {
+      const parts = token.split('.')
+      if (parts.length !== 3) return false
+
+      // Try to parse the payload
+      JSON.parse(atob(parts[1]))
+      return true
+    } catch (error) {
+      console.error('Invalid token structure:', error)
+      return false
+    }
+  },
+
+  getTokenTimeUntilExpiry(token: string): number {
+    if (!token) return 0
+    try {
+      const expiryTime = this.getTokenExpiryTime(token)
+      return Math.max(0, expiryTime - Date.now())
+    } catch (error) {
+      console.error('Error calculating time until expiry:', error)
+      return 0
+    }
+  },
+
+  shouldRefreshToken(token: string, thresholdMinutes: number = 5): boolean {
+    if (!token) return false
+    try {
+      const timeUntilExpiry = this.getTokenTimeUntilExpiry(token)
+      const thresholdMs = thresholdMinutes * 60 * 1000
+      return timeUntilExpiry < thresholdMs && timeUntilExpiry > 0
+    } catch (error) {
+      console.error('Error checking if token should be refreshed:', error)
+      return false
     }
   }
 }
@@ -102,61 +172,178 @@ const transformCategory = (apiCategory: any): Category => {
   }
 }
 
+// Enhanced API error class for better error handling
+class ApiError extends Error {
+  status: number
+  data: any
+
+  constructor(message: string, status: number, data?: any) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.data = data
+  }
+}
+
+// Response transformation utilities
+const transformAuthResponse = (response: any): AuthTokens => {
+  // Handle Django API response format
+  if (response.success && response.data) {
+    return {
+      access: response.data.access,
+      refresh: response.data.refresh
+    }
+  }
+
+  // Handle direct response format
+  if (response.access && response.refresh) {
+    return {
+      access: response.access,
+      refresh: response.refresh
+    }
+  }
+
+  throw new Error('Invalid authentication response format')
+}
+
+const transformUserResponse = (response: any): User => {
+  // Handle Django API response format
+  if (response.success && response.data) {
+    return response.data
+  }
+
+  // Handle direct response format
+  if (response.id || response.username) {
+    return response
+  }
+
+  throw new Error('Invalid user response format')
+}
+
+const transformApiResponse = <T>(response: any): ApiResponse<T> => {
+  // If already in correct format, return as-is
+  if (response.success !== undefined) {
+    return response
+  }
+
+  // Transform to standard format
+  return {
+    success: true,
+    data: response,
+    message: 'Success'
+  }
+}
+
+const handleApiError = (error: any): never => {
+  let errorMessage = 'Unknown error occurred'
+  let errorData: any = {}
+
+  if (error instanceof ApiError) {
+    errorMessage = error.message
+    errorData = error.data
+
+    // Handle Django API error format
+    if (error.data?.success === false) {
+      errorMessage = error.data.message || error.data.error || errorMessage
+      errorData.errors = error.data.errors
+    }
+  } else if (error.message) {
+    errorMessage = error.message
+  }
+
+  // Create standardized error
+  const standardError = new ApiError(errorMessage, error.status || 500, {
+    ...errorData,
+    originalError: error
+  })
+
+  throw standardError
+}
+
 // The main composable function
 export const useApi = () => {
-  // This function is now safe to be called from anywhere,
-  // as it only returns a set of functions.
-
-  // The actual Nuxt-dependent logic is deferred into apiFetch.
-  const apiFetch = async <T = any>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> => {
-    // *** THE FIX ***
-    // useRuntimeConfig() is now called here, inside the async function,
-    // ensuring it runs in a valid context when an API call is actually made.
-    const runtimeConfig = useRuntimeConfig()
-    const API_BASE_URL = `${runtimeConfig.public.apiBase}/api/v1`
-    const url = `${API_BASE_URL}${endpoint}`
-
-    const tokens = tokenUtils.getTokens()
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    }
-
-    if (tokens.access && !tokenUtils.isTokenExpired(tokens.access)) {
-      headers['Authorization'] = `Bearer ${tokens.access}`
-    }
-
+  // Create API request function that properly handles runtime config
+  const createApiRequest = () => {
     try {
-      const response = await fetch(url, {
-        headers,
-        ...options,
-      })
+      const runtimeConfig = useRuntimeConfig()
+      const API_BASE_URL = `${runtimeConfig.public.apiBase}/api/v1`
 
-      if (!response.ok) {
-        // Try to parse error from response body
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.detail || errorData.message || `HTTP error! status: ${response.status}`
-        throw new Error(errorMessage)
+      return async <T = any>(
+        endpoint: string,
+        options: RequestInit = {}
+      ): Promise<T> => {
+        const url = `${API_BASE_URL}${endpoint}`
+        const tokens = tokenUtils.getTokens()
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string>),
+        }
+
+        if (tokens.access && !tokenUtils.isTokenExpired(tokens.access)) {
+          headers['Authorization'] = `Bearer ${tokens.access}`
+        }
+
+        try {
+          const response = await fetch(url, {
+            headers,
+            ...options,
+          })
+
+          let responseData: any = {}
+
+          // Try to parse JSON response
+          try {
+            responseData = await response.json()
+          } catch (parseError) {
+            // If JSON parsing fails, handle based on status
+            if (response.status === 204) {
+              responseData = {}
+            } else {
+              responseData = { message: 'Invalid response format' }
+            }
+          }
+
+          if (!response.ok) {
+            // Create structured error with response data
+            const errorMessage = responseData.error ||
+              responseData.message ||
+              responseData.detail ||
+              `HTTP error! status: ${response.status}`
+
+            throw new ApiError(errorMessage, response.status, responseData)
+          }
+
+          return responseData
+        } catch (error) {
+          console.error('API fetch error:', error)
+
+          // Re-throw ApiError as-is
+          if (error instanceof ApiError) {
+            throw error
+          }
+
+          // Wrap other errors
+          throw new ApiError(
+            error instanceof Error ? error.message : 'Network error',
+            0,
+            { originalError: error }
+          )
+        }
       }
+    } catch (configError) {
+      console.error('Runtime config error:', configError)
 
-      // Handle cases with empty response body (e.g., 204 No Content)
-      if (response.status === 204) {
-        return {} as T
+      // Return a fallback function that throws an error
+      return async <T = any>(): Promise<T> => {
+        throw new ApiError('Configuration error: Unable to access runtime config', 500, { configError })
       }
-
-      return await response.json()
-    } catch (error) {
-      console.error('API fetch error:', error)
-      throw error
     }
   }
 
   // Each of these functions will call the locally scoped, safe `apiFetch`
   const getPosts = async (params: PostsParams = {}) => {
+    const apiFetch = createApiRequest()
     const searchParams = new URLSearchParams()
     if (params.page) searchParams.append('page', params.page.toString())
     if (params.page_size) searchParams.append('page_size', params.page_size.toString())
@@ -177,6 +364,7 @@ export const useApi = () => {
   }
 
   const getPost = async (id: number | string) => {
+    const apiFetch = createApiRequest()
     const response = await apiFetch<any>(`/posts/${id}/`)
     if (response.success && response.data) {
       return {
@@ -188,10 +376,12 @@ export const useApi = () => {
   }
 
   const getFeaturedPosts = async () => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<Post[]>>('/posts/featured/')
   }
 
   const getCategoryPosts = async (categorySlug: string, params: PostsParams = {}) => {
+    const apiFetch = createApiRequest()
     const searchParams = new URLSearchParams()
     if (params.page) searchParams.append('page', params.page.toString())
     if (params.page_size) searchParams.append('page_size', params.page_size.toString())
@@ -202,6 +392,7 @@ export const useApi = () => {
   }
 
   const createPost = async (postData: Partial<Post>) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<Post>>('/posts/', {
       method: 'POST',
       body: JSON.stringify(postData),
@@ -209,6 +400,7 @@ export const useApi = () => {
   }
 
   const updatePost = async (id: number, postData: Partial<Post>) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<Post>>(`/posts/${id}/`, {
       method: 'PUT',
       body: JSON.stringify(postData),
@@ -216,12 +408,14 @@ export const useApi = () => {
   }
 
   const deletePost = async (id: number) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse>(`/posts/${id}/`, {
       method: 'DELETE',
     })
   }
 
   const getCategories = async () => {
+    const apiFetch = createApiRequest()
     const response = await apiFetch<any>('/categories/')
     if (response.success && response.data) {
       return {
@@ -233,10 +427,12 @@ export const useApi = () => {
   }
 
   const getCategory = async (id: number) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<Category>>(`/categories/${id}/`)
   }
 
   const getComments = async (params: CommentParams = {}) => {
+    const apiFetch = createApiRequest()
     const searchParams = new URLSearchParams()
     if (params.post) searchParams.append('post', params.post.toString())
     if (params.page) searchParams.append('page', params.page.toString())
@@ -247,6 +443,7 @@ export const useApi = () => {
   }
 
   const createComment = async (commentData: CreateCommentData) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<Comment>>('/comments/', {
       method: 'POST',
       body: JSON.stringify(commentData),
@@ -254,6 +451,7 @@ export const useApi = () => {
   }
 
   const searchPosts = async (filters: SearchFilters) => {
+    const apiFetch = createApiRequest()
     const searchParams = new URLSearchParams()
     if (filters.query) searchParams.append('search', filters.query)
     if (filters.category) searchParams.append('category', filters.category)
@@ -268,34 +466,43 @@ export const useApi = () => {
   }
 
   const login = async (credentials: LoginCredentials) => {
-    return apiFetch<AuthTokens>('/users/auth/login/', {
+    const apiFetch = createApiRequest()
+    const response = await apiFetch<any>('/users/auth/login/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     })
+    return transformAuthResponse(response)
   }
 
   const register = async (userData: RegisterData) => {
-    return apiFetch<ApiResponse<User>>('/users/auth/register/', {
+    const apiFetch = createApiRequest()
+    const response = await apiFetch<any>('/users/auth/register/', {
       method: 'POST',
       body: JSON.stringify(userData),
     })
+    return transformApiResponse<User>(response)
   }
 
   const logout = async () => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse>('/users/auth/logout/', {
       method: 'POST',
     })
   }
 
   const getCurrentUser = async () => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<User>>('/users/auth/profile/')
   }
 
   const getProfile = async () => {
-    return apiFetch<ApiResponse<User>>('/users/auth/profile/')
+    const apiFetch = createApiRequest()
+    const response = await apiFetch<any>('/users/auth/profile/')
+    return transformUserResponse(response)
   }
 
   const updateProfile = async (data: Partial<User>) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse<User>>('/users/auth/profile/update/', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -303,6 +510,7 @@ export const useApi = () => {
   }
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse>('/users/auth/change-password/', {
       method: 'POST',
       body: JSON.stringify({
@@ -313,13 +521,16 @@ export const useApi = () => {
   }
 
   const refreshTokens = async (refreshToken: string) => {
-    return apiFetch<AuthTokens>('/users/auth/refresh/', {
+    const apiFetch = createApiRequest()
+    const response = await apiFetch<any>('/users/auth/refresh/', {
       method: 'POST',
       body: JSON.stringify({ refresh: refreshToken }),
     })
+    return transformAuthResponse(response)
   }
 
   const requestPasswordReset = async (email: string) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse>('/users/auth/password-reset/', {
       method: 'POST',
       body: JSON.stringify({ email }),
@@ -327,6 +538,7 @@ export const useApi = () => {
   }
 
   const resetPassword = async (token: string, newPassword: string) => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse>('/users/auth/password-reset/confirm/', {
       method: 'POST',
       body: JSON.stringify({ token, new_password: newPassword }),
@@ -334,11 +546,12 @@ export const useApi = () => {
   }
 
   const healthCheck = async () => {
+    const apiFetch = createApiRequest()
     return apiFetch<ApiResponse>('/health/')
   }
 
   // Expose the generic fetch function as apiRequest
-  const apiRequest = apiFetch
+  const apiRequest = createApiRequest()
 
   return {
     apiRequest, // Generic request function

@@ -1,93 +1,60 @@
 /**
- * Enhanced authentication middleware for protected routes
- * Ensures user is authenticated and has valid tokens before accessing protected pages
+ * Authentication middleware for protected routes
+ * Redirects unauthenticated users to login page
  */
 export default defineNuxtRouteMiddleware(async (to, from) => {
-  const {
-    isAuthenticated,
-    initializeAuth,
-    getAuthStatus,
-    ensureAuthenticated,
-    checkAuthHealth,
-    updateActivity
-  } = useAuth()
+  // Only run on client side
+  if (!import.meta.client) return
 
   try {
-    // Update activity for session tracking
-    updateActivity()
+    const authStore = useAuthStore()
+    const api = useApi()
 
-    // Initialize auth on client side if not already done
-    if (import.meta.client && !isAuthenticated.value) {
-      console.log('🔄 Initializing authentication in middleware...')
+    // Check if user has valid tokens
+    const tokens = api.tokenUtils.getTokens()
+
+    if (!tokens.access || api.tokenUtils.isTokenExpired(tokens.access)) {
+      console.log('🔒 No valid tokens, redirecting to login')
+
+      // Store the intended route for redirect after login
+      const redirectPath = to.fullPath !== '/login' ? to.fullPath : '/'
+
+      return navigateTo(`/login?redirect=${encodeURIComponent(redirectPath)}`)
+    }
+
+    // If tokens exist but user is not authenticated in store, try to initialize
+    if (!authStore.isAuthenticated) {
       try {
-        await initializeAuth()
+        await authStore.initializeAuth()
+
+        // After initialization, check if user is authenticated
+        if (!authStore.isAuthenticated) {
+          console.log('🔒 Authentication initialization failed, redirecting to login')
+
+          // Clear invalid tokens
+          api.tokenUtils.clearTokens()
+
+          const redirectPath = to.fullPath !== '/login' ? to.fullPath : '/'
+          return navigateTo(`/login?redirect=${encodeURIComponent(redirectPath)}`)
+        }
       } catch (error) {
-        console.warn('⚠️ Auth initialization failed in middleware:', error)
+        console.warn('Auth initialization failed in auth middleware:', error)
+
+        // Clear invalid tokens
+        api.tokenUtils.clearTokens()
+
+        const redirectPath = to.fullPath !== '/login' ? to.fullPath : '/'
+        return navigateTo(`/login?redirect=${encodeURIComponent(redirectPath)}`)
       }
     }
 
-    // Perform comprehensive authentication check
-    const authStatus = getAuthStatus()
-    const healthCheck = await checkAuthHealth()
-
-    // Log authentication status for debugging
-    console.log('🔍 Auth middleware check:', {
-      isAuthenticated: isAuthenticated.value,
-      hasValidTokens: authStatus.hasValidTokens,
-      healthStatus: healthCheck.status,
-      route: to.path
-    })
-
-    // If authentication is critical (not healthy), redirect to login
-    if (healthCheck.status === 'critical' || !isAuthenticated.value) {
-      console.log('🔒 Authentication required, redirecting to login')
-      console.log('Issues:', healthCheck.issues)
-
-      // Store the intended destination for post-login redirect
-      const redirectTo = to.fullPath !== '/login' ? to.fullPath : undefined
-
-      return navigateTo({
-        path: '/login',
-        query: redirectTo ? { redirect: redirectTo } : undefined
-      })
-    }
-
-    // If authentication has warnings, try to resolve them
-    if (healthCheck.status === 'warning') {
-      console.log('⚠️ Authentication warnings detected:', healthCheck.issues)
-
-      try {
-        // Attempt to ensure authentication is fully valid
-        await ensureAuthenticated({
-          forceRefresh: false,
-          checkSession: true,
-          maxRetries: 2,
-          validateWithBackend: false
-        })
-        console.log('✅ Authentication warnings resolved')
-      } catch (error) {
-        console.error('❌ Failed to resolve authentication warnings:', error)
-
-        // If we can't resolve warnings, redirect to login
-        const redirectTo = to.fullPath !== '/login' ? to.fullPath : undefined
-        return navigateTo({
-          path: '/login',
-          query: redirectTo ? { redirect: redirectTo } : undefined
-        })
-      }
-    }
-
-    // Authentication is healthy, allow navigation
-    console.log('✅ Authentication verified, allowing navigation to:', to.path)
+    console.log('✅ User authenticated, allowing access to protected route')
 
   } catch (error) {
-    console.error('❌ Authentication middleware error:', error)
+    console.error('Error in auth middleware:', error)
 
-    // On any error, redirect to login for safety
-    const redirectTo = to.fullPath !== '/login' ? to.fullPath : undefined
-    return navigateTo({
-      path: '/login',
-      query: redirectTo ? { redirect: redirectTo } : undefined
-    })
+    // On error, redirect to login
+    const redirectPath = to.fullPath !== '/login' ? to.fullPath : '/'
+    return navigateTo(`/login?redirect=${encodeURIComponent(redirectPath)}`)
   }
 })

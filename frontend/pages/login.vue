@@ -131,8 +131,8 @@ definePageMeta({
 })
 
 const { login, loading, error } = useAuth()
-const route = useRoute()
-const { handleSuccess } = useErrorHandler()
+const { handleSuccessfulAuth } = useAuthRedirect()
+const { authSuccess, authError } = useToast()
 
 const form = reactive({
   username: '',
@@ -147,7 +147,7 @@ const handleLogin = async () => {
       password: form.password
     })
     
-    handleSuccess('¡Bienvenido! Has iniciado sesión correctamente')
+    handleSuccessfulAuth('¡Bienvenido! Has iniciado sesión correctamente')
     
     // Redirect to intended page or home
     const redirectTo = route.query.redirect as string || '/'
@@ -165,7 +165,7 @@ const clearAuth = () => {
     sessionStorage.clear()
     
     // Show success message
-    handleSuccess('Datos de autenticación limpiados')
+    authSuccess('Datos de autenticación limpiados')
     
     // Reload page
     setTimeout(() => {

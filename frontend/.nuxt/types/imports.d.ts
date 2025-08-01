@@ -139,6 +139,7 @@ declare global {
   const resolveComponent: typeof import('../../node_modules/vue')['resolveComponent']
   const resolveRef: typeof import('@vueuse/core')['resolveRef']
   const resolveUnref: typeof import('@vueuse/core')['resolveUnref']
+  const runAllTests: typeof import('../../utils/authTest')['runAllTests']
   const sanitizeSlug: typeof import('../../utils/validation')['sanitizeSlug']
   const setInterval: typeof import('../../node_modules/nuxt/dist/app/compat/interval')['setInterval']
   const setPageLayout: typeof import('../../node_modules/nuxt/dist/app/composables/router')['setPageLayout']
@@ -151,6 +152,11 @@ declare global {
   const syncRef: typeof import('@vueuse/core')['syncRef']
   const syncRefs: typeof import('@vueuse/core')['syncRefs']
   const templateRef: typeof import('@vueuse/core')['templateRef']
+  const testAuthFlow: typeof import('../../utils/authTest')['testAuthFlow']
+  const testLoginFlow: typeof import('../../utils/authTest')['testLoginFlow']
+  const testMiddleware: typeof import('../../utils/authTest')['testMiddleware']
+  const testRegistrationFlow: typeof import('../../utils/authTest')['testRegistrationFlow']
+  const testTokenRefresh: typeof import('../../utils/authTest')['testTokenRefresh']
   const throttledRef: typeof import('@vueuse/core')['throttledRef']
   const throttledWatch: typeof import('@vueuse/core')['throttledWatch']
   const toRaw: typeof import('../../node_modules/vue')['toRaw']
@@ -191,6 +197,7 @@ declare global {
   const useAsyncState: typeof import('@vueuse/core')['useAsyncState']
   const useAttrs: typeof import('../../node_modules/vue')['useAttrs']
   const useAuth: typeof import('../../composables/useAuth')['useAuth']
+  const useAuthErrorHandler: typeof import('../../composables/useAuthErrorHandler')['useAuthErrorHandler']
   const useAuthRedirect: typeof import('../../composables/useAuthRedirect')['useAuthRedirect']
   const useAuthStore: typeof import('../../stores/auth')['useAuthStore']
   const useBase64: typeof import('@vueuse/core')['useBase64']
@@ -594,6 +601,7 @@ declare module 'vue' {
     readonly resolveComponent: UnwrapRef<typeof import('../../node_modules/vue')['resolveComponent']>
     readonly resolveRef: UnwrapRef<typeof import('@vueuse/core')['resolveRef']>
     readonly resolveUnref: UnwrapRef<typeof import('@vueuse/core')['resolveUnref']>
+    readonly runAllTests: UnwrapRef<typeof import('../../utils/authTest')['runAllTests']>
     readonly sanitizeSlug: UnwrapRef<typeof import('../../utils/validation')['sanitizeSlug']>
     readonly setInterval: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/compat/interval')['setInterval']>
     readonly setPageLayout: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/router')['setPageLayout']>
@@ -606,6 +614,11 @@ declare module 'vue' {
     readonly syncRef: UnwrapRef<typeof import('@vueuse/core')['syncRef']>
     readonly syncRefs: UnwrapRef<typeof import('@vueuse/core')['syncRefs']>
     readonly templateRef: UnwrapRef<typeof import('@vueuse/core')['templateRef']>
+    readonly testAuthFlow: UnwrapRef<typeof import('../../utils/authTest')['testAuthFlow']>
+    readonly testLoginFlow: UnwrapRef<typeof import('../../utils/authTest')['testLoginFlow']>
+    readonly testMiddleware: UnwrapRef<typeof import('../../utils/authTest')['testMiddleware']>
+    readonly testRegistrationFlow: UnwrapRef<typeof import('../../utils/authTest')['testRegistrationFlow']>
+    readonly testTokenRefresh: UnwrapRef<typeof import('../../utils/authTest')['testTokenRefresh']>
     readonly throttledRef: UnwrapRef<typeof import('@vueuse/core')['throttledRef']>
     readonly throttledWatch: UnwrapRef<typeof import('@vueuse/core')['throttledWatch']>
     readonly toRaw: UnwrapRef<typeof import('../../node_modules/vue')['toRaw']>
@@ -646,6 +659,7 @@ declare module 'vue' {
     readonly useAsyncState: UnwrapRef<typeof import('@vueuse/core')['useAsyncState']>
     readonly useAttrs: UnwrapRef<typeof import('../../node_modules/vue')['useAttrs']>
     readonly useAuth: UnwrapRef<typeof import('../../composables/useAuth')['useAuth']>
+    readonly useAuthErrorHandler: UnwrapRef<typeof import('../../composables/useAuthErrorHandler')['useAuthErrorHandler']>
     readonly useAuthRedirect: UnwrapRef<typeof import('../../composables/useAuthRedirect')['useAuthRedirect']>
     readonly useAuthStore: UnwrapRef<typeof import('../../stores/auth')['useAuthStore']>
     readonly useBase64: UnwrapRef<typeof import('@vueuse/core')['useBase64']>
