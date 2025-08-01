@@ -93,16 +93,32 @@ export interface Comment {
 
 export interface CreateCommentData {
   content: string
+  post?: number
   parent?: number
+}
+
+// User Filters for Dashboard
+export interface UserFilters {
+  search?: string
+  is_active?: boolean
+  is_staff?: boolean
+  ordering?: string
+  page?: number
+  page_size?: number
 }
 
 // Search and Filter Types
 export interface SearchFilters {
+  query?: string
+  search?: string
   category?: string
   author?: string
   tags?: string[]
   date_from?: string
   date_to?: string
+  page?: number
+  page_size?: number
+  ordering?: string
 }
 
 export interface PostsParams {
@@ -115,6 +131,7 @@ export interface PostsParams {
 }
 
 export interface CommentParams {
+  post?: number
   page?: number
   page_size?: number
 }

@@ -165,7 +165,6 @@ export function createFetchWrapper(baseURL: string, defaultOptions: FetchWrapper
         }
     }
 }
-}
 
 /**
  * Utility function to clean undefined/null parameters

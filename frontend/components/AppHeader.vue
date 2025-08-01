@@ -32,7 +32,7 @@
                 <NuxtLink
                   v-for="category in categories"
                   :key="category.id"
-                  :to="`/category/${category.slug}`"
+                  :to="`/posts?category=${category.slug}`"
                   class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   @click="showCategoriesDropdown = false"
                 >
@@ -43,8 +43,8 @@
             </Transition>
           </div>
 
-          <NuxtLink to="/about" class="nav-link"> Acerca de </NuxtLink>
-          <NuxtLink to="/contact" class="nav-link"> Contacto </NuxtLink>
+          <NuxtLink to="/posts" class="nav-link"> Posts </NuxtLink>
+          <NuxtLink to="/search" class="nav-link"> Buscar </NuxtLink>
         </div>
 
         <!-- Search Bar -->
@@ -96,9 +96,9 @@
                   Mi Perfil
                 </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/admin" class="dropdown-item">
+                <NuxtLink v-if="user?.is_staff" to="/dashboard" class="dropdown-item">
                   <Icon name="settings" class="w-4 h-4" />
-                  Administración
+                  Dashboard
                 </NuxtLink>
 
                 <button class="dropdown-item w-full text-left" @click="handleLogout">
@@ -154,7 +154,7 @@
                   <NuxtLink
                     v-for="category in categories"
                     :key="category.id"
-                    :to="`/category/${category.slug}`"
+                    :to="`/posts?category=${category.slug}`"
                     class="block py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600"
                     @click="showMobileMenu = false"
                   >
@@ -164,11 +164,11 @@
               </Transition>
             </div>
 
-            <NuxtLink to="/about" class="mobile-nav-link" @click="showMobileMenu = false">
-              Acerca de
+            <NuxtLink to="/posts" class="mobile-nav-link" @click="showMobileMenu = false">
+              Posts
             </NuxtLink>
-            <NuxtLink to="/contact" class="mobile-nav-link" @click="showMobileMenu = false">
-              Contacto
+            <NuxtLink to="/search" class="mobile-nav-link" @click="showMobileMenu = false">
+              Buscar
             </NuxtLink>
           </div>
 
@@ -206,6 +206,15 @@ const userDropdown = ref<HTMLElement>()
 
 // Computed
 const categories = computed(() => blogStore.categories)
+
+// Load categories on mount
+onMounted(async () => {
+  try {
+    await blogStore.fetchCategories()
+  } catch (error) {
+    console.error('Error loading categories in header:', error)
+  }
+})
 
 // Methods
 const toggleMobileMenu = () => {

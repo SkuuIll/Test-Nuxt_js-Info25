@@ -10,7 +10,7 @@ urlpatterns = [
     path('posts/featured/', api_views.featured_posts, name='featured_posts'),
     path('posts/search/', api_views.search_posts, name='search_posts'),
     path('posts/<int:post_id>/comments/', api_views.post_comments, name='post_comments'),
-    path('posts/<int:pk>/', api_views.PostDetailAPIView.as_view(), name='post_detail'),
+    path('posts/<str:pk>/', api_views.PostDetailAPIView.as_view(), name='post_detail'),
     path('posts/', api_views.PostListAPIView.as_view(), name='post_list'),
     
     # Search and tags endpoints

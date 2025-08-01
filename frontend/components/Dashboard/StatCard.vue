@@ -70,8 +70,22 @@
   </div>
 </template>
 
-<script setup>
-const props = withDefaults(defineProps(), {
+<script setup lang="ts">
+interface Props {
+  title?: string
+  value?: string | number
+  icon?: string
+  color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'indigo'
+  loading?: boolean
+  format?: 'number' | 'currency' | 'percentage'
+  change?: number
+  changeType?: 'increase' | 'decrease'
+  trend?: number[]
+  subtitle?: string
+  href?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
   color: 'blue',
   loading: false,
   format: 'number'

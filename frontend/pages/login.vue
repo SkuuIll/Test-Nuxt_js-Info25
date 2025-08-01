@@ -26,16 +26,16 @@
               for="username"
               class="sr-only"
             >
-              Usuario
+              Email
             </label>
             <input
               id="username"
               v-model="form.username"
               name="username"
-              type="text"
+              type="email"
               required
               class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-              placeholder="Usuario"
+              placeholder="Email"
             >
           </div>
           <div>

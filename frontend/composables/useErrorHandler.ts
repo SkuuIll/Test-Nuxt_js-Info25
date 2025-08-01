@@ -900,6 +900,14 @@ export const useErrorHandler = () => {
     clearStoredErrors,
 
     // Global setup
-    setupGlobalErrorHandlers
+    setupGlobalErrorHandlers,
+
+    // Success handling (for compatibility)
+    handleSuccess: (message: string) => {
+      console.log('✅ Success:', message)
+      // You can add toast notification here if needed
+      const { success } = useToast()
+      success('Success', message)
+    }
   }
 }

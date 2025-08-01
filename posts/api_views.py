@@ -164,6 +164,35 @@ class PostDetailAPIView(BaseAPIView, generics.RetrieveUpdateDestroyAPIView):
     lookup_field = 'pk'
     permission_classes = [IsAuthorOrReadOnly]
     
+    def get_object(self):
+        """
+        Override to support both ID and slug lookup
+        """
+        lookup_value = self.kwargs[self.lookup_field]
+        
+        # Try to get by ID first (if it's numeric)
+        if lookup_value.isdigit():
+            try:
+                return self.queryset.get(pk=int(lookup_value))
+            except Post.DoesNotExist:
+                pass
+        
+        # Try to get by slug (format: id-slug)
+        if '-' in lookup_value:
+            try:
+                # Extract ID from slug (first part before first dash)
+                post_id = lookup_value.split('-')[0]
+                if post_id.isdigit():
+                    post = self.queryset.get(pk=int(post_id))
+                    # Verify the slug matches
+                    if post.slug == lookup_value:
+                        return post
+            except (Post.DoesNotExist, ValueError, IndexError):
+                pass
+        
+        # If nothing found, raise DoesNotExist
+        raise Post.DoesNotExist()
+    
     def retrieve(self, request, *args, **kwargs):
         try:
             instance = self.get_object()

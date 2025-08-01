@@ -227,7 +227,10 @@ const performSearch = async () => {
   })
   
   // Perform search
-  await blogStore.searchPosts(searchQuery.value, filters)
+  await blogStore.searchPosts({
+    query: searchQuery.value,
+    ...filters
+  })
 }
 
 const updateDateFilter = () => {
@@ -235,27 +238,31 @@ const updateDateFilter = () => {
   
   switch (dateFilter.value) {
     case 'today':
-      filters.date_from = now.toISOString().split('T')[0]
+      (filters as any).date_from = now.toISOString().split('T')[0]
       break
     case 'week':
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      filters.date_from = weekAgo.toISOString().split('T')[0]
+      ;(filters as any).date_from = weekAgo.toISOString().split('T')[0]
       break
     case 'month':
       const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
-      filters.date_from = monthAgo.toISOString().split('T')[0]
+      ;(filters as any).date_from = monthAgo.toISOString().split('T')[0]
       break
     case 'year':
       const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-      filters.date_from = yearAgo.toISOString().split('T')[0]
+      ;(filters as any).date_from = yearAgo.toISOString().split('T')[0]
       break
     default:
-      delete filters.date_from
+      delete (filters as any).date_from
   }
 }
 
 const loadPage = async (page: number) => {
-  await blogStore.searchPosts(searchQuery.value, { ...filters, page })
+  await blogStore.searchPosts({
+    query: searchQuery.value,
+    ...filters,
+    page
+  })
 }
 
 // Initialize search if query params exist
@@ -264,7 +271,10 @@ onMounted(async () => {
   
   if (route.query.q) {
     hasSearched.value = true
-    await blogStore.searchPosts(searchQuery.value, filters)
+    await blogStore.searchPosts({
+      query: searchQuery.value,
+      ...filters
+    })
   }
 })
 

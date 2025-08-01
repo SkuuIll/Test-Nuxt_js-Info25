@@ -1085,6 +1085,7 @@ export const useAuth = () => {
     user: computed(() => authStore.user),
     isAdmin: computed(() => authStore.isAdmin),
     isLoading: computed(() => authStore.isLoading),
+    loading: computed(() => authStore.isLoading), // Alias for compatibility
     error: computed(() => authStore.error),
 
     // Enhanced Auth State

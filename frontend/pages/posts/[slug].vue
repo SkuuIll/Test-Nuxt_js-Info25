@@ -53,7 +53,7 @@
           <!-- Category -->
           <div class="mb-4">
             <NuxtLink
-              :to="`/category/${post.category.slug}`"
+              :to="`/posts?category=${post.category.slug}`"
               class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors duration-200"
             >
               {{ post.category.name }}
@@ -171,7 +171,7 @@
             <NuxtLink
               v-for="tag in post.tags"
               :key="tag.id"
-              :to="`/tag/${tag.slug}`"
+              :to="`/posts?tags=${tag.slug}`"
               class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-primary-100 dark:hover:bg-primary-900 hover:text-primary-700 dark:hover:text-primary-300 transition-colors duration-200"
             >
               <Icon
@@ -341,19 +341,25 @@ const fetchPost = async () => {
       throw new Error('Slug de post inválido')
     }
     
-    post.value = await api.getPost(slug)
+    const response = await api.getPost(slug)
+    post.value = response.data || response
     
     // Fetch comments
-    const commentsResponse = await api.getComments(post.value.id)
-    comments.value = commentsResponse.results
+    const commentsResponse = await api.getComments({ post: post.value.id })
+    comments.value = commentsResponse.results || commentsResponse.data || []
     hasMoreComments.value = !!commentsResponse.next
     
   } catch (err: any) {
+    console.error('❌ Error fetching post:', err)
     error.value = err.message || 'Post no encontrado'
-    throw createError({
-      statusCode: 404,
-      statusMessage: 'Post no encontrado'
-    })
+    
+    // Only throw error for actual 404s, not network errors
+    if (err.status === 404 || err.statusCode === 404) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: 'Post no encontrado'
+      })
+    }
   } finally {
     loading.value = false
   }
@@ -367,9 +373,11 @@ const submitComment = async () => {
     commentLoading.value = true
     const api = useApi()
     
-    const comment = await api.createComment(post.value.id, {
-      content: newComment.value.trim()
+    const response = await api.createComment({
+      content: newComment.value.trim(),
+      post: post.value.id
     })
+    const comment = response.data || response
     
     comments.value.unshift(comment)
     newComment.value = ''
@@ -389,11 +397,12 @@ const loadMoreComments = async () => {
   
   try {
     const api = useApi()
-    const response = await api.getComments(post.value.id, {
+    const response = await api.getComments({
+      post: post.value.id,
       page: Math.floor(comments.value.length / 20) + 2
     })
     
-    comments.value.push(...response.results)
+    comments.value.push(...(response.results || response.data || []))
     hasMoreComments.value = !!response.next
   } catch (error) {
     $toast.error('Error al cargar más comentarios')
@@ -478,8 +487,12 @@ watchEffect(() => {
 })
 
 // Initialize
-onMounted(() => {
-  fetchPost()
+onMounted(async () => {
+  try {
+    await fetchPost()
+  } catch (error) {
+    console.error('Error initializing post page:', error)
+  }
 })
 </script>
 

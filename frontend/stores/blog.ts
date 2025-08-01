@@ -55,16 +55,16 @@ export const useBlogStore = defineStore('blog', () => {
       const api = useApi()
       const { handleError } = useErrorHandler()
 
-      const response: ApiResponse<Post> = await api.getPosts({
+      const response = await api.getPosts({
         page_size: pagination.value.pageSize,
         ...params
       })
 
       if (params.page === 1 || !params.page) {
-        posts.value = response.results
+        posts.value = response.results || response.data || []
       } else {
         // Append for infinite scroll
-        posts.value.push(...response.results)
+        posts.value.push(...(response.results || response.data || []))
       }
 
       // Update pagination
@@ -73,7 +73,7 @@ export const useBlogStore = defineStore('blog', () => {
         page: params.page || 1,
         hasNext: !!response.next,
         hasPrevious: !!response.previous,
-        total: response.count
+        total: response.count || 0
       }
 
     } catch (err: any) {
@@ -101,7 +101,8 @@ export const useBlogStore = defineStore('blog', () => {
       const api = useApi()
       const { handleError } = useErrorHandler()
 
-      currentPost.value = await api.getPost(slug)
+      const response = await api.getPost(slug)
+      currentPost.value = response.data || response
 
     } catch (err: any) {
       const errorInfo = handleError(err, 'fetchPost')
@@ -119,7 +120,8 @@ export const useBlogStore = defineStore('blog', () => {
       const { handleError } = useErrorHandler()
 
       console.log('📂 Cargando categorías...')
-      categories.value = await api.getCategories()
+      const response = await api.getCategories()
+      categories.value = response.data || response.results || []
       console.log('✅ Categorías cargadas:', categories.value.length)
     } catch (err: any) {
       console.error('❌ Error cargando categorías:', err)
@@ -134,7 +136,8 @@ export const useBlogStore = defineStore('blog', () => {
       const api = useApi()
       const { handleError } = useErrorHandler()
 
-      featuredPosts.value = await api.getFeaturedPosts()
+      const response = await api.getFeaturedPosts()
+      featuredPosts.value = response.data || response.results || []
     } catch (err: any) {
       handleError(err, 'fetchFeaturedPosts')
       console.error('Error fetching featured posts:', err)
@@ -151,9 +154,9 @@ export const useBlogStore = defineStore('blog', () => {
       const api = useApi()
       const { handleError } = useErrorHandler()
 
-      const response: ApiResponse<Post> = await api.searchPosts(query, filters)
+      const response = await api.searchPosts({ query, ...filters })
 
-      posts.value = response.results
+      posts.value = response.results || response.data || []
       pagination.value = {
         ...pagination.value,
         page: 1,
@@ -177,15 +180,15 @@ export const useBlogStore = defineStore('blog', () => {
       error.value = null
 
       const api = useApi()
-      const response: ApiResponse<Post> = await api.getCategoryPosts(categorySlug, {
+      const response = await api.getCategoryPosts(categorySlug, {
         page_size: pagination.value.pageSize,
         ...params
       })
 
       if (params.page === 1 || !params.page) {
-        posts.value = response.results
+        posts.value = response.results || response.data || []
       } else {
-        posts.value.push(...response.results)
+        posts.value.push(...(response.results || response.data || []))
       }
 
       pagination.value = {

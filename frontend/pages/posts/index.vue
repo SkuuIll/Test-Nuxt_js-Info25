@@ -26,7 +26,7 @@
             </h1>
             <p class="text-gray-600 dark:text-gray-400 mt-1">
               {{ pagination.total }} artículo{{ pagination.total !== 1 ? 's' : '' }}
-              {{ currentFilters.search ? `para "${currentFilters.search}"` : '' }}
+              {{ (currentFilters.query || currentFilters.search) ? `para "${currentFilters.query || currentFilters.search}"` : '' }}
             </p>
           </div>
           
@@ -75,13 +75,13 @@
           </div>
           <div class="flex flex-wrap gap-2">
             <span
-              v-if="currentFilters.search"
+              v-if="currentFilters.query || currentFilters.search"
               class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200"
             >
-              Búsqueda: "{{ currentFilters.search }}"
+              Búsqueda: "{{ currentFilters.query || currentFilters.search }}"
               <button
                 class="ml-2 hover:text-primary-600"
-                @click="clearFilter('search')"
+                @click="clearFilter(currentFilters.query ? 'query' : 'search')"
               >
                 <Icon
                   name="x"
@@ -146,14 +146,17 @@ const pageTitle = computed(() => {
     const category = categories.value.find(cat => cat.slug === currentFilters.value.category)
     return `Artículos en ${category?.name || 'Categoría'}`
   }
-  if (currentFilters.value.search) {
+  if (currentFilters.value.query || currentFilters.value.search) {
     return `Resultados de búsqueda`
   }
   return 'Todos los Artículos'
 })
 
 const hasActiveFilters = computed(() => {
-  return Object.keys(currentFilters.value).length > 0
+  return Object.keys(currentFilters.value).some(key => 
+    currentFilters.value[key as keyof SearchFilters] !== undefined && 
+    currentFilters.value[key as keyof SearchFilters] !== ''
+  )
 })
 
 // Methods
@@ -167,8 +170,8 @@ const handleFilterChange = async (filters: SearchFilters) => {
   })
   
   // Apply filters
-  if (filters.search) {
-    await blogStore.searchPosts(filters.search, filters)
+  if (filters.query || filters.search) {
+    await blogStore.searchPosts(filters)
   } else {
     await blogStore.fetchPosts(filters)
   }
@@ -188,9 +191,9 @@ const clearAllFilters = async () => {
 }
 
 const loadMorePosts = async () => {
-  if (currentFilters.value.search) {
+  if (currentFilters.value.query || currentFilters.value.search) {
     // Continue search with next page
-    await blogStore.searchPosts(currentFilters.value.search, {
+    await blogStore.searchPosts({
       ...currentFilters.value,
       page: pagination.value.page + 1
     })
@@ -212,6 +215,7 @@ const initializeFilters = () => {
   const filters: SearchFilters = {}
   
   if (route.query.search) filters.search = route.query.search as string
+  if (route.query.query) filters.query = route.query.query as string
   if (route.query.category) filters.category = route.query.category as string
   if (route.query.tags) {
     filters.tags = Array.isArray(route.query.tags) 
@@ -227,21 +231,26 @@ const initializeFilters = () => {
 
 // Initialize on mount
 onMounted(async () => {
-  // Load categories and tags
-  await Promise.all([
-    blogStore.fetchCategories(),
-    // blogStore.fetchTags() // Uncomment when tags endpoint is ready
-  ])
-  
-  // Initialize filters from URL
-  const initialFilters = initializeFilters()
-  currentFilters.value = initialFilters
-  
-  // Load posts with initial filters
-  if (initialFilters.search) {
-    await blogStore.searchPosts(initialFilters.search, initialFilters)
-  } else {
-    await blogStore.fetchPosts(initialFilters)
+  try {
+    // Load categories and tags
+    await Promise.all([
+      blogStore.fetchCategories(),
+      // blogStore.fetchTags() // Uncomment when tags endpoint is ready
+    ])
+    
+    // Initialize filters from URL
+    const initialFilters = initializeFilters()
+    currentFilters.value = initialFilters
+    
+    // Load posts with initial filters
+    if (initialFilters.query || initialFilters.search) {
+      await blogStore.searchPosts(initialFilters)
+    } else {
+      await blogStore.fetchPosts(initialFilters)
+    }
+  } catch (error) {
+    console.error('Error initializing posts page:', error)
+    // Show error state or fallback
   }
 })
 
@@ -252,8 +261,8 @@ useHead({
     { 
       name: 'description', 
       content: computed(() => 
-        currentFilters.value.search 
-          ? `Resultados de búsqueda para "${currentFilters.value.search}" en nuestro blog de noticias.`
+        (currentFilters.value.query || currentFilters.value.search)
+          ? `Resultados de búsqueda para "${currentFilters.value.query || currentFilters.value.search}" en nuestro blog de noticias.`
           : 'Explora todos nuestros artículos y noticias. Encuentra contenido relevante y actualizado.'
       )
     }
