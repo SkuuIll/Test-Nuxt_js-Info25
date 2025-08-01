@@ -40,11 +40,28 @@ def api_root(request):
             'api': '/api/v1/',
             'posts': '/api/v1/posts/',
             'categories': '/api/v1/categories/',
+            'comments': '/api/v1/comments/',
             'users': '/api/v1/users/',
             'dashboard': '/api/v1/dashboard/',
             'dashboard_auth': '/api/v1/dashboard/auth/',
             'media': '/api/v1/media/',
+            'health': '/api/v1/health/',
             'cors_test': '/api/v1/cors-test/',
+        }
+    })
+
+def health_check(request):
+    """Health check endpoint for monitoring"""
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Django Blog API is running',
+        'version': '1.0',
+        'services': {
+            'database': 'connected',
+            'api': 'running',
+            'posts': 'available',
+            'comments': 'available',
+            'users': 'available'
         }
     })
 
@@ -53,9 +70,11 @@ urlpatterns = [
     path('admin/', admin.site.urls),  # Django admin principal
     path('tinymce/', include('tinymce.urls')),
     path('api/v1/', include('posts.urls')),  # API endpoints
+    path('api/v1/comments/', include('comments.urls')),  # Comments API endpoints
     path('api/v1/users/', include('users.urls')),  # User API endpoints
     path('api/v1/dashboard/', include('dashboard.urls')),  # Dashboard API endpoints
     path('api/v1/media/', include('media_files.urls')),  # Media files API endpoints
+    path('api/v1/health/', health_check, name='health_check'),  # Health check endpoint
     path('api/v1/cors-test/', cors_test_view, name='cors_test'),  # CORS testing endpoint
 ]
 

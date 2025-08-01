@@ -55,6 +55,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django_blog.middleware.SecurityHeadersMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -62,6 +63,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_blog.middleware.RequestLoggingMiddleware',
+    'django_blog.middleware.APIErrorHandlingMiddleware',
+    'django_blog.middleware.ResponseTimeMiddleware',
+    'django_blog.middleware.APIVersionMiddleware',
 ]
 
 ROOT_URLCONF = 'django_blog.urls'
@@ -303,131 +308,37 @@ SIMPLE_JWT = {
 from .cors_settings import configure_cors
 
 # Apply CORS configuration
-cors_config = configure_cors()
-for key, value in cors_config.items():
-    globals()[key] = value
-
-# Get environment variables
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'http://localhost:3000')
-
-# Production origins (should be set via environment variables)
-CORS_ALLOWED_ORIGINS = [
-    FRONTEND_URL,
-    DASHBOARD_URL,
-    "http://localhost:3000",  # Nuxt.js development server
-    "http://127.0.0.1:3000",
-    "http://localhost:8080",  # Alternative frontend port
-    "http://127.0.0.1:8080",
-    "http://localhost:3001",  # Alternative development port
-    "http://127.0.0.1:3001",
-]
-
-# Remove duplicates and None values
-CORS_ALLOWED_ORIGINS = list(set(filter(None, CORS_ALLOWED_ORIGINS)))
-
-# Allow credentials (cookies, authorization headers, etc.)
-CORS_ALLOW_CREDENTIALS = True
-
-# Headers that can be sent during the actual request
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'accept-language',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-    'x-forwarded-for',
-    'x-forwarded-proto',
-    'x-real-ip',
-    'cache-control',
-    'pragma',
-    'if-modified-since',
-    'if-none-match',
-]
-
-# Methods allowed during the actual request
-CORS_ALLOWED_METHODS = [
-    'DELETE',
-    'GET',
-    'HEAD',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
-# Headers that can be exposed to the browser
-CORS_EXPOSE_HEADERS = [
-    'content-type',
-    'content-length',
-    'content-encoding',
-    'content-disposition',
-    'x-csrftoken',
-    'x-total-count',
-    'x-page-count',
-    'x-current-page',
-    'x-per-page',
-    'etag',
-    'last-modified',
-    'cache-control',
-]
-
-# Preflight request cache time (in seconds) - 24 hours
-CORS_PREFLIGHT_MAX_AGE = 86400
-
-# Development vs Production CORS settings
-if DEBUG:
-    # Development: Allow all origins for easier development
-    CORS_ALLOW_ALL_ORIGINS = True
+try:
+    cors_config = configure_cors()
+    for key, value in cors_config.items():
+        globals()[key] = value
     
-    # Additional development settings
-    # CORS_REPLACE_HTTPS_REFERER has been removed in newer versions
-    
-    # Allow additional development headers
-    CORS_ALLOW_HEADERS.extend([
-        'x-debug',
-        'x-development',
-        'x-test-mode',
-    ])
-    
-    # Shorter preflight cache for development
-    CORS_PREFLIGHT_MAX_AGE = 600  # 10 minutes
-    
-    print(f"🔧 CORS Development Mode:")
-    print(f"   - Allow all origins: {CORS_ALLOW_ALL_ORIGINS}")
-    print(f"   - Allowed origins: {CORS_ALLOWED_ORIGINS}")
-    print(f"   - Allow credentials: {CORS_ALLOW_CREDENTIALS}")
-    
-else:
-    # Production: Strict CORS settings
-    CORS_ALLOW_ALL_ORIGINS = False
-    
-    # Ensure we have valid origins in production
-    if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['http://localhost:3000']:
-        raise ValueError(
-            "CORS_ALLOWED_ORIGINS must be properly configured for production. "
-            "Set FRONTEND_URL and DASHBOARD_URL environment variables."
-        )
-    
-    print(f"🔒 CORS Production Mode:")
-    print(f"   - Allowed origins: {CORS_ALLOWED_ORIGINS}")
-    print(f"   - Allow credentials: {CORS_ALLOW_CREDENTIALS}")
-
-# CORS regex patterns for dynamic subdomains (if needed)
-# CORS_ALLOWED_ORIGIN_REGEXES = [
-#     r"^https://\w+\.yourdomain\.com$",
-# ]
-
-# Additional CORS settings for specific use cases
-CORS_URLS_REGEX = r'^/api/.*$'  # Only apply CORS to API endpoints
-
-# Custom CORS settings for different endpoints
-CORS_ALLOW_PRIVATE_NETWORK = True  # Allow private network requests
+    if DEBUG:
+        print("CORS configuration loaded successfully")
+except Exception as e:
+    print(f"CORS configuration error: {e}")
+    # Fallback CORS settings
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+    CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOW_ALL_ORIGINS = DEBUG
+    CORS_ALLOW_HEADERS = [
+        'accept',
+        'accept-encoding',
+        'authorization',
+        'content-type',
+        'origin',
+        'user-agent',
+        'x-csrftoken',
+        'x-requested-with',
+    ]
+    CORS_ALLOWED_METHODS = ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT']
+    CORS_EXPOSE_HEADERS = ['content-type', 'x-csrftoken']
+    CORS_PREFLIGHT_MAX_AGE = 600 if DEBUG else 86400
 
 # Logging Configuration
 LOGGING = {

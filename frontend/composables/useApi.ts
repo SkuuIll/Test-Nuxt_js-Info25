@@ -14,10 +14,7 @@ import type {
   SearchFilters
 } from '~/types'
 
-// Base API configuration
-const API_BASE_URL = 'http://localhost:8000/api/v1'
-
-// Token utilities
+// Token utilities remain at the top level as they don't depend on Nuxt context
 const tokenUtils = {
   getTokens(): { access: string | null; refresh: string | null } {
     if (process.client) {
@@ -64,32 +61,7 @@ const tokenUtils = {
   }
 }
 
-// Simple API response types
-interface StandardApiResponse<T = any> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-  errors?: Record<string, string[]>
-}
-
-interface PaginatedApiResponse<T = any> extends StandardApiResponse<T[]> {
-  pagination?: {
-    count: number
-    next: string | null
-    previous: string | null
-    page_size: number
-    current_page: number
-    total_pages: number
-  }
-  // Legacy support
-  count?: number
-  results?: T[]
-  next?: string | null
-  previous?: string | null
-}
-
-// Data transformation utilities
+// Data transformation utilities also remain at the top level
 const transformPost = (apiPost: any): Post => {
   return {
     id: apiPost.id,
@@ -130,171 +102,159 @@ const transformCategory = (apiCategory: any): Category => {
   }
 }
 
-// Simple fetch wrapper with error handling
-async function apiFetch<T = any>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`
-  const tokens = tokenUtils.getTokens()
+// The main composable function
+export const useApi = () => {
+  // This function is now safe to be called from anywhere,
+  // as it only returns a set of functions.
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...options.headers as Record<string, string>,
-  }
+  // The actual Nuxt-dependent logic is deferred into apiFetch.
+  const apiFetch = async <T = any>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> => {
+    // *** THE FIX ***
+    // useRuntimeConfig() is now called here, inside the async function,
+    // ensuring it runs in a valid context when an API call is actually made.
+    const runtimeConfig = useRuntimeConfig()
+    const API_BASE_URL = `${runtimeConfig.public.apiBase}/api/v1`
+    const url = `${API_BASE_URL}${endpoint}`
 
-  // Add auth token if available
-  if (tokens.access && !tokenUtils.isTokenExpired(tokens.access)) {
-    headers['Authorization'] = `Bearer ${tokens.access}`
-  }
+    const tokens = tokenUtils.getTokens()
 
-  try {
-    const response = await fetch(url, {
-      headers,
-      ...options,
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
     }
 
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error('API fetch error:', error)
-    throw error
+    if (tokens.access && !tokenUtils.isTokenExpired(tokens.access)) {
+      headers['Authorization'] = `Bearer ${tokens.access}`
+    }
+
+    try {
+      const response = await fetch(url, {
+        headers,
+        ...options,
+      })
+
+      if (!response.ok) {
+        // Try to parse error from response body
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.detail || errorData.message || `HTTP error! status: ${response.status}`
+        throw new Error(errorMessage)
+      }
+
+      // Handle cases with empty response body (e.g., 204 No Content)
+      if (response.status === 204) {
+        return {} as T
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('API fetch error:', error)
+      throw error
+    }
   }
-}
 
-export const useApi = () => {
-  // Posts endpoints
-  const getPosts = async (params: PostsParams = {}): Promise<PaginatedApiResponse<Post>> => {
+  // Each of these functions will call the locally scoped, safe `apiFetch`
+  const getPosts = async (params: PostsParams = {}) => {
     const searchParams = new URLSearchParams()
-
     if (params.page) searchParams.append('page', params.page.toString())
     if (params.page_size) searchParams.append('page_size', params.page_size.toString())
     if (params.category) searchParams.append('category', params.category)
     if (params.search) searchParams.append('search', params.search)
     if (params.ordering) searchParams.append('ordering', params.ordering)
-
     const queryString = searchParams.toString()
     const endpoint = `/posts/${queryString ? `?${queryString}` : ''}`
-
     const response = await apiFetch<any>(endpoint)
-
-    // Transform the response
     if (response.success && response.data) {
       return {
-        success: response.success,
+        ...response,
         data: response.data.map(transformPost),
         results: response.data.map(transformPost),
-        pagination: response.pagination,
-        count: response.pagination?.count || 0,
-        next: response.pagination?.next,
-        previous: response.pagination?.previous
       }
     }
-
     return response
   }
 
-  const getPost = async (id: number | string): Promise<StandardApiResponse<Post>> => {
+  const getPost = async (id: number | string) => {
     const response = await apiFetch<any>(`/posts/${id}/`)
-
-    // Transform the response
     if (response.success && response.data) {
       return {
-        success: response.success,
+        ...response,
         data: transformPost(response.data),
-        message: response.message
       }
     }
-
     return response
   }
 
-  const getFeaturedPosts = async (): Promise<StandardApiResponse<Post[]>> => {
-    return apiFetch<StandardApiResponse<Post[]>>('/posts/featured/')
+  const getFeaturedPosts = async () => {
+    return apiFetch<ApiResponse<Post[]>>('/posts/featured/')
   }
 
-  const getCategoryPosts = async (categorySlug: string, params: PostsParams = {}): Promise<PaginatedApiResponse<Post>> => {
+  const getCategoryPosts = async (categorySlug: string, params: PostsParams = {}) => {
     const searchParams = new URLSearchParams()
-
     if (params.page) searchParams.append('page', params.page.toString())
     if (params.page_size) searchParams.append('page_size', params.page_size.toString())
     if (params.ordering) searchParams.append('ordering', params.ordering)
-
     const queryString = searchParams.toString()
     const endpoint = `/categories/${categorySlug}/posts/${queryString ? `?${queryString}` : ''}`
-
-    return apiFetch<PaginatedApiResponse<Post>>(endpoint)
+    return apiFetch<ApiResponse<Post[]>>(endpoint)
   }
 
-  const createPost = async (postData: Partial<Post>): Promise<StandardApiResponse<Post>> => {
-    return apiFetch<StandardApiResponse<Post>>('/posts/', {
+  const createPost = async (postData: Partial<Post>) => {
+    return apiFetch<ApiResponse<Post>>('/posts/', {
       method: 'POST',
       body: JSON.stringify(postData),
     })
   }
 
-  const updatePost = async (id: number, postData: Partial<Post>): Promise<StandardApiResponse<Post>> => {
-    return apiFetch<StandardApiResponse<Post>>(`/posts/${id}/`, {
+  const updatePost = async (id: number, postData: Partial<Post>) => {
+    return apiFetch<ApiResponse<Post>>(`/posts/${id}/`, {
       method: 'PUT',
       body: JSON.stringify(postData),
     })
   }
 
-  const deletePost = async (id: number): Promise<StandardApiResponse> => {
-    return apiFetch<StandardApiResponse>(`/posts/${id}/`, {
+  const deletePost = async (id: number) => {
+    return apiFetch<ApiResponse>(`/posts/${id}/`, {
       method: 'DELETE',
     })
   }
 
-  // Categories endpoints
-  const getCategories = async (): Promise<StandardApiResponse<Category[]>> => {
+  const getCategories = async () => {
     const response = await apiFetch<any>('/categories/')
-
-    // Transform the response
     if (response.success && response.data) {
       return {
-        success: response.success,
+        ...response,
         data: response.data.map(transformCategory),
-        message: response.message
       }
     }
-
     return response
   }
 
-  const getCategory = async (id: number): Promise<StandardApiResponse<Category>> => {
-    return apiFetch<StandardApiResponse<Category>>(`/categories/${id}/`)
+  const getCategory = async (id: number) => {
+    return apiFetch<ApiResponse<Category>>(`/categories/${id}/`)
   }
 
-  // Comments endpoints
-  const getComments = async (params: CommentParams = {}): Promise<PaginatedApiResponse<Comment>> => {
+  const getComments = async (params: CommentParams = {}) => {
     const searchParams = new URLSearchParams()
-
     if (params.post) searchParams.append('post', params.post.toString())
     if (params.page) searchParams.append('page', params.page.toString())
     if (params.page_size) searchParams.append('page_size', params.page_size.toString())
-
     const queryString = searchParams.toString()
     const endpoint = `/comments/${queryString ? `?${queryString}` : ''}`
-
-    return apiFetch<PaginatedApiResponse<Comment>>(endpoint)
+    return apiFetch<ApiResponse<Comment[]>>(endpoint)
   }
 
-  const createComment = async (commentData: CreateCommentData): Promise<StandardApiResponse<Comment>> => {
-    return apiFetch<StandardApiResponse<Comment>>('/comments/', {
+  const createComment = async (commentData: CreateCommentData) => {
+    return apiFetch<ApiResponse<Comment>>('/comments/', {
       method: 'POST',
       body: JSON.stringify(commentData),
     })
   }
 
-  // Search endpoints
-  const searchPosts = async (filters: SearchFilters): Promise<PaginatedApiResponse<Post>> => {
+  const searchPosts = async (filters: SearchFilters) => {
     const searchParams = new URLSearchParams()
-
     if (filters.query) searchParams.append('search', filters.query)
     if (filters.category) searchParams.append('category', filters.category)
     if (filters.author) searchParams.append('author', filters.author)
@@ -302,51 +262,48 @@ export const useApi = () => {
     if (filters.date_to) searchParams.append('date_to', filters.date_to)
     if (filters.page) searchParams.append('page', filters.page.toString())
     if (filters.page_size) searchParams.append('page_size', filters.page_size.toString())
-
     const queryString = searchParams.toString()
     const endpoint = `/posts/search/${queryString ? `?${queryString}` : ''}`
-
-    return apiFetch<PaginatedApiResponse<Post>>(endpoint)
+    return apiFetch<ApiResponse<Post[]>>(endpoint)
   }
 
-  // Auth endpoints
-  const login = async (credentials: LoginCredentials): Promise<AuthTokens> => {
+  const login = async (credentials: LoginCredentials) => {
     return apiFetch<AuthTokens>('/users/auth/login/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     })
   }
 
-  const register = async (userData: RegisterData): Promise<StandardApiResponse<User>> => {
-    return apiFetch<StandardApiResponse<User>>('/users/auth/register/', {
+  const register = async (userData: RegisterData) => {
+    return apiFetch<ApiResponse<User>>('/users/auth/register/', {
       method: 'POST',
       body: JSON.stringify(userData),
     })
   }
 
-  const logout = async (): Promise<StandardApiResponse> => {
-    return apiFetch<StandardApiResponse>('/users/auth/logout/', {
+  const logout = async () => {
+    return apiFetch<ApiResponse>('/users/auth/logout/', {
       method: 'POST',
     })
   }
 
-  const getCurrentUser = async (): Promise<StandardApiResponse<User>> => {
-    return apiFetch<StandardApiResponse<User>>('/users/auth/profile/')
+  const getCurrentUser = async () => {
+    return apiFetch<ApiResponse<User>>('/users/auth/profile/')
   }
 
-  const getProfile = async (): Promise<StandardApiResponse<User>> => {
-    return apiFetch<StandardApiResponse<User>>('/users/auth/profile/')
+  const getProfile = async () => {
+    return apiFetch<ApiResponse<User>>('/users/auth/profile/')
   }
 
-  const updateProfile = async (data: Partial<User>): Promise<StandardApiResponse<User>> => {
-    return apiFetch<StandardApiResponse<User>>('/users/auth/profile/update/', {
+  const updateProfile = async (data: Partial<User>) => {
+    return apiFetch<ApiResponse<User>>('/users/auth/profile/update/', {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
-  const changePassword = async (currentPassword: string, newPassword: string): Promise<StandardApiResponse> => {
-    return apiFetch<StandardApiResponse>('/users/auth/change-password/', {
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    return apiFetch<ApiResponse>('/users/auth/change-password/', {
       method: 'POST',
       body: JSON.stringify({
         current_password: currentPassword,
@@ -355,34 +312,36 @@ export const useApi = () => {
     })
   }
 
-  const refreshTokens = async (refreshToken: string): Promise<AuthTokens> => {
+  const refreshTokens = async (refreshToken: string) => {
     return apiFetch<AuthTokens>('/users/auth/refresh/', {
       method: 'POST',
       body: JSON.stringify({ refresh: refreshToken }),
     })
   }
 
-  const requestPasswordReset = async (email: string): Promise<StandardApiResponse> => {
-    return apiFetch<StandardApiResponse>('/users/auth/password-reset/', {
+  const requestPasswordReset = async (email: string) => {
+    return apiFetch<ApiResponse>('/users/auth/password-reset/', {
       method: 'POST',
       body: JSON.stringify({ email }),
     })
   }
 
-  const resetPassword = async (token: string, newPassword: string): Promise<StandardApiResponse> => {
-    return apiFetch<StandardApiResponse>('/users/auth/password-reset/confirm/', {
+  const resetPassword = async (token: string, newPassword: string) => {
+    return apiFetch<ApiResponse>('/users/auth/password-reset/confirm/', {
       method: 'POST',
       body: JSON.stringify({ token, new_password: newPassword }),
     })
   }
 
-  // Health check endpoint
-  const healthCheck = async (): Promise<StandardApiResponse> => {
-    return apiFetch<StandardApiResponse>('/health/')
+  const healthCheck = async () => {
+    return apiFetch<ApiResponse>('/health/')
   }
 
+  // Expose the generic fetch function as apiRequest
+  const apiRequest = apiFetch
+
   return {
-    // Posts
+    apiRequest, // Generic request function
     getPosts,
     getPost,
     getFeaturedPosts,
@@ -390,19 +349,11 @@ export const useApi = () => {
     createPost,
     updatePost,
     deletePost,
-
-    // Categories
     getCategories,
     getCategory,
-
-    // Comments
     getComments,
     createComment,
-
-    // Search
     searchPosts,
-
-    // Auth
     login,
     register,
     logout,
@@ -413,9 +364,7 @@ export const useApi = () => {
     refreshTokens,
     requestPasswordReset,
     resetPassword,
-
-    // Utils
     healthCheck,
-    tokenUtils,
+    tokenUtils, // Expose token utilities as well
   }
 }

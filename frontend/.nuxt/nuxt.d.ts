@@ -1,6 +1,6 @@
+/// <reference types="@nuxtjs/tailwindcss" />
 /// <reference types="@vueuse/nuxt" />
 /// <reference types="@pinia/nuxt" />
-/// <reference types="@nuxtjs/tailwindcss" />
 /// <reference types="@nuxt/devtools" />
 /// <reference types="@nuxt/image" />
 /// <reference types="@nuxt/telemetry" />

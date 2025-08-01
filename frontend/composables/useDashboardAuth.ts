@@ -57,8 +57,24 @@ interface DashboardAuthError {
 export const useDashboardAuth = () => {
     // Error handlers are now imported from utils to avoid circular dependencies
     const { dashboardLoading } = useLoading()
-    const api = useApi()
-    const router = useRouter()
+
+    // Defer api and router initialization
+    let api: ReturnType<typeof useApi>;
+    let router: ReturnType<typeof useRouter>;
+
+    const getApi = () => {
+        if (!api) {
+            api = useApi();
+        }
+        return api;
+    };
+
+    const getRouter = () => {
+        if (!router) {
+            router = useRouter();
+        }
+        return router;
+    };
 
     // Enhanced State
     const user = ref<DashboardUser | null>(null)
@@ -217,7 +233,7 @@ export const useDashboardAuth = () => {
             const tokenData = {
                 ...tokens,
                 stored_at: Date.now(),
-                expires_at: api.tokenUtils.getTokenExpiryTime(tokens.access)
+                expires_at: getApi().tokenUtils.getTokenExpiryTime(tokens.access)
             }
             localStorage.setItem(DASHBOARD_TOKEN_KEY, JSON.stringify(tokenData))
 
@@ -246,11 +262,11 @@ export const useDashboardAuth = () => {
             hasTokens: true,
             accessToken: tokens.access,
             refreshToken: tokens.refresh,
-            isAccessExpired: api.tokenUtils.isTokenExpired(tokens.access),
-            isRefreshExpired: tokens.refresh ? api.tokenUtils.isTokenExpired(tokens.refresh) : true,
-            accessExpiryTime: api.tokenUtils.getTokenExpiryTime(tokens.access),
-            refreshExpiryTime: tokens.refresh ? api.tokenUtils.getTokenExpiryTime(tokens.refresh) : 0,
-            timeUntilExpiry: api.tokenUtils.getTokenExpiryTime(tokens.access) - Date.now(),
+            isAccessExpired: getApi().tokenUtils.isTokenExpired(tokens.access),
+            isRefreshExpired: tokens.refresh ? getApi().tokenUtils.isTokenExpired(tokens.refresh) : true,
+            accessExpiryTime: getApi().tokenUtils.getTokenExpiryTime(tokens.access),
+            refreshExpiryTime: tokens.refresh ? getApi().tokenUtils.getTokenExpiryTime(tokens.refresh) : 0,
+            timeUntilExpiry: getApi().tokenUtils.getTokenExpiryTime(tokens.access) - Date.now(),
             storedAt: tokens.stored_at || 0
         }
     }
@@ -271,7 +287,7 @@ export const useDashboardAuth = () => {
                 }
 
                 // Use dashboard-specific login endpoint
-                const response = await api.apiRequest<AuthTokens>('/dashboard/auth/login/', {
+                const response = await getApi().apiRequest<AuthTokens>('/dashboard/auth/login/', {
                     method: 'POST',
                     body: credentials
                 })
@@ -409,7 +425,7 @@ export const useDashboardAuth = () => {
                 // Try to logout from backend
                 if (tokens?.refresh) {
                     try {
-                        await api.apiRequest('/dashboard/auth/logout/', {
+                        await getApi().apiRequest('/dashboard/auth/logout/', {
                             method: 'POST',
                             body: { refresh: tokens.refresh },
                             headers: {
@@ -452,7 +468,7 @@ export const useDashboardAuth = () => {
                 console.log('👋 Enhanced dashboard logout completed successfully')
 
                 // Redirect to specified route
-                if (redirectTo && redirectTo !== router.currentRoute.value.path) {
+                if (redirectTo && redirectTo !== getRouter().currentRoute.value.path) {
                     await navigateTo(redirectTo)
                 }
 
@@ -474,7 +490,7 @@ export const useDashboardAuth = () => {
                 })
 
                 // Still redirect on error
-                if (redirectTo && redirectTo !== router.currentRoute.value.path) {
+                if (redirectTo && redirectTo !== getRouter().currentRoute.value.path) {
                     await navigateTo(redirectTo)
                 }
 
@@ -504,7 +520,7 @@ export const useDashboardAuth = () => {
                 throw new Error('No dashboard access token available')
             }
 
-            const profile = await api.apiRequest<DashboardUser>('/dashboard/auth/profile/', {
+            const profile = await getApi().apiRequest<DashboardUser>('/dashboard/auth/profile/', {
                 headers: {
                     'Authorization': `Bearer ${tokens.access}`
                 }
@@ -547,7 +563,7 @@ export const useDashboardAuth = () => {
         }
 
         // Check if refresh token is expired
-        if (api.tokenUtils.isTokenExpired(tokens.refresh)) {
+        if (getApi().tokenUtils.isTokenExpired(tokens.refresh)) {
             console.log('🚫 Dashboard refresh token is expired')
             addDashboardError({
                 type: 'session',
@@ -575,7 +591,7 @@ export const useDashboardAuth = () => {
 
             sessionInfo.value.refreshAttempts++
 
-            const newTokens = await api.apiRequest<AuthTokens>('/dashboard/auth/refresh/', {
+            const newTokens = await getApi().apiRequest<AuthTokens>('/dashboard/auth/refresh/', {
                 method: 'POST',
                 body: { refresh: tokens.refresh },
                 timeout: 10000 // 10 second timeout for refresh
@@ -591,8 +607,8 @@ export const useDashboardAuth = () => {
             updateDashboardActivity()
 
             console.log('✅ Dashboard tokens refreshed successfully', {
-                newAccessExpiry: api.tokenUtils.getTokenExpiryTime(newTokens.access),
-                newRefreshExpiry: api.tokenUtils.getTokenExpiryTime(newTokens.refresh)
+                newAccessExpiry: getApi().tokenUtils.getTokenExpiryTime(newTokens.access),
+                newRefreshExpiry: getApi().tokenUtils.getTokenExpiryTime(newTokens.refresh)
             })
 
             return true
@@ -793,17 +809,17 @@ export const useDashboardAuth = () => {
             }
 
             console.log('🔍 Found existing dashboard tokens, validating...', {
-                accessExpired: api.tokenUtils.isTokenExpired(tokens.access),
-                refreshExpired: tokens.refresh ? api.tokenUtils.isTokenExpired(tokens.refresh) : true,
-                accessExpiry: api.tokenUtils.getTokenExpiryTime(tokens.access),
-                refreshExpiry: tokens.refresh ? api.tokenUtils.getTokenExpiryTime(tokens.refresh) : 0
+                accessExpired: getApi().tokenUtils.isTokenExpired(tokens.access),
+                refreshExpired: tokens.refresh ? getApi().tokenUtils.isTokenExpired(tokens.refresh) : true,
+                accessExpiry: getApi().tokenUtils.getTokenExpiryTime(tokens.access),
+                refreshExpiry: tokens.refresh ? getApi().tokenUtils.getTokenExpiryTime(tokens.refresh) : 0
             })
 
             // Check if access token is expired
-            if (api.tokenUtils.isTokenExpired(tokens.access)) {
+            if (getApi().tokenUtils.isTokenExpired(tokens.access)) {
                 console.log('⏰ Dashboard access token expired, attempting refresh...')
 
-                if (tokens.refresh && !api.tokenUtils.isTokenExpired(tokens.refresh)) {
+                if (tokens.refresh && !getApi().tokenUtils.isTokenExpired(tokens.refresh)) {
                     const refreshed = await refreshDashboardTokens({ force: true })
                     if (!refreshed) {
                         console.log('❌ Token refresh failed during initialization')
@@ -952,7 +968,7 @@ export const useDashboardAuth = () => {
         }
 
         try {
-            return await api.apiRequest<T>(endpoint, {
+            return await getApi().apiRequest<T>(endpoint, {
                 ...options,
                 headers: {
                     ...options.headers,
@@ -969,7 +985,7 @@ export const useDashboardAuth = () => {
                     const newTokens = getDashboardTokens()
                     if (newTokens?.access) {
                         console.log('✅ Dashboard token refreshed, retrying API call')
-                        return await api.apiRequest<T>(endpoint, {
+                        return await getApi().apiRequest<T>(endpoint, {
                             ...options,
                             headers: {
                                 ...options.headers,
@@ -991,13 +1007,13 @@ export const useDashboardAuth = () => {
     // Check dashboard authentication status
     const checkDashboardAuthStatus = () => {
         const tokens = getDashboardTokens()
-        const hasValidTokens = tokens?.access && !api.tokenUtils.isTokenExpired(tokens.access)
+        const hasValidTokens = tokens?.access && !getApi().tokenUtils.isTokenExpired(tokens.access)
 
         return {
             hasTokens: !!tokens,
             hasValidTokens,
-            isExpired: tokens?.access ? api.tokenUtils.isTokenExpired(tokens.access) : true,
-            expiryTime: tokens?.access ? api.tokenUtils.getTokenExpiryTime(tokens.access) : 0,
+            isExpired: tokens?.access ? getApi().tokenUtils.isTokenExpired(tokens.access) : true,
+            expiryTime: tokens?.access ? getApi().tokenUtils.getTokenExpiryTime(tokens.access) : 0,
             isInitialized: initialized.value
         }
     }
@@ -1015,7 +1031,7 @@ export const useDashboardAuth = () => {
 
         // Check if token needs refresh
         const tokens = getDashboardTokens()
-        if (tokens?.access && api.tokenUtils.isTokenExpired(tokens.access)) {
+        if (tokens?.access && getApi().tokenUtils.isTokenExpired(tokens.access)) {
             const refreshed = await refreshDashboardTokens()
             if (!refreshed) {
                 await navigateTo('/dashboard/login')
@@ -1057,7 +1073,7 @@ export const useDashboardAuth = () => {
             const tokens = getDashboardTokens()
             if (!tokens?.access) {
                 result.tokenStatus = 'missing'
-            } else if (api.tokenUtils.isTokenExpired(tokens.access)) {
+            } else if (getApi().tokenUtils.isTokenExpired(tokens.access)) {
                 result.tokenStatus = 'expired'
             } else {
                 result.tokenStatus = 'valid'

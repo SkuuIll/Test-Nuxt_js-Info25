@@ -1,3 +1,4 @@
+
 """
 Enhanced CORS Configuration for Django Blog
 Provides comprehensive CORS settings for frontend-backend communication
@@ -20,7 +21,7 @@ def configure_cors():
     # Validate URLs format
     def validate_url(url, name):
         if url and not re.match(r'^https?://', url):
-            print(f"⚠️  Warning: {name} should start with http:// or https://")
+            print(f"Warning: {name} should start with http:// or https://")
         return url
     
     FRONTEND_URL = validate_url(FRONTEND_URL, 'FRONTEND_URL')
@@ -246,14 +247,14 @@ def configure_cors():
             rf"^https://.*\.{re.escape(PRODUCTION_DOMAIN)}$",  # Subdomains
             rf"^https://{re.escape(PRODUCTION_DOMAIN)}$",      # Main domain
         ])
-        print(f"🌐 CORS regex patterns added for production domain: {PRODUCTION_DOMAIN}")
+        print(f"CORS regex patterns added for production domain: {PRODUCTION_DOMAIN}")
     
     if STAGING_DOMAIN:
         CORS_ALLOWED_ORIGIN_REGEXES.extend([
             rf"^https://.*\.{re.escape(STAGING_DOMAIN)}$",     # Staging subdomains
             rf"^https://{re.escape(STAGING_DOMAIN)}$",         # Staging main domain
         ])
-        print(f"🌐 CORS regex patterns added for staging domain: {STAGING_DOMAIN}")
+        print(f"CORS regex patterns added for staging domain: {STAGING_DOMAIN}")
     
     # Development vs Production settings
     DEBUG = getattr(settings, 'DEBUG', True)
@@ -290,7 +291,7 @@ def configure_cors():
             'x-mock-response',
         ])
         
-        print(f"🔧 Enhanced CORS Development Mode:")
+        print(f"Enhanced CORS Development Mode:")
         print(f"   - Allow all origins: {CORS_ALLOW_ALL_ORIGINS}")
         print(f"   - Configured origins: {len(CORS_ALLOWED_ORIGINS)} origins")
         print(f"   - Allowed headers: {len(CORS_ALLOW_HEADERS)} headers")
@@ -311,13 +312,13 @@ def configure_cors():
         ]
         
         if not production_origins:
-            print("⚠️  Warning: No production origins configured. Using development origins.")
+            print("Warning: No production origins configured. Using development origins.")
             print("   Set FRONTEND_URL, DASHBOARD_URL, and API_URL environment variables for production.")
         else:
             CORS_ALLOWED_ORIGINS = production_origins
-            print(f"✅ Using {len(production_origins)} production origins")
+            print(f"Using {len(production_origins)} production origins")
         
-        print(f"🔒 Enhanced CORS Production Mode:")
+        print(f"Enhanced CORS Production Mode:")
         print(f"   - Allowed origins: {CORS_ALLOWED_ORIGINS}")
         print(f"   - Allowed headers: {len(CORS_ALLOW_HEADERS)} headers")
         print(f"   - Exposed headers: {len(CORS_EXPOSE_HEADERS)} headers")
@@ -351,7 +352,7 @@ def test_cors_configuration():
     """
     Test CORS configuration for common scenarios
     """
-    print("\n🧪 Testing CORS Configuration:")
+    print("\nTesting CORS Configuration:")
     
     config = configure_cors()
     
@@ -364,12 +365,12 @@ def test_cors_configuration():
         'https://app.example.com',
     ]
     
-    print("\n📋 Origin Tests:")
+    print("\nOrigin Tests:")
     for origin in test_origins:
         if config['CORS_ALLOW_ALL_ORIGINS']:
-            print(f"   ✅ {origin} - Allowed (all origins allowed)")
+            print(f"   - {origin} - Allowed (all origins allowed)")
         elif origin in config['CORS_ALLOWED_ORIGINS']:
-            print(f"   ✅ {origin} - Allowed (in allowed list)")
+            print(f"   - {origin} - Allowed (in allowed list)")
         else:
             # Check regex patterns
             allowed_by_regex = False
@@ -379,9 +380,9 @@ def test_cors_configuration():
                     break
             
             if allowed_by_regex:
-                print(f"   ✅ {origin} - Allowed (matches regex pattern)")
+                print(f"   - {origin} - Allowed (matches regex pattern)")
             else:
-                print(f"   ❌ {origin} - Not allowed")
+                print(f"   - {origin} - Not allowed")
     
     # Test headers
     test_headers = [
@@ -392,14 +393,14 @@ def test_cors_configuration():
         'x-custom-header',
     ]
     
-    print("\n📋 Header Tests:")
+    print("\nHeader Tests:")
     for header in test_headers:
         if header.lower() in [h.lower() for h in config['CORS_ALLOW_HEADERS']]:
-            print(f"   ✅ {header} - Allowed")
+            print(f"   - {header} - Allowed")
         else:
-            print(f"   ❌ {header} - Not allowed")
+            print(f"   - {header} - Not allowed")
     
-    print(f"\n📊 Configuration Summary:")
+    print(f"\nConfiguration Summary:")
     print(f"   - Total allowed origins: {len(config['CORS_ALLOWED_ORIGINS'])}")
     print(f"   - Regex patterns: {len(config['CORS_ALLOWED_ORIGIN_REGEXES'])}")
     print(f"   - Allowed headers: {len(config['CORS_ALLOW_HEADERS'])}")

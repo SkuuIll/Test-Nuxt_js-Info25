@@ -62,7 +62,7 @@ class PostSerializer(PostBasicSerializer, SEOSerializer):
         return {
             'meta_title': obj.meta_title or obj.titulo,
             'meta_description': obj.meta_description or obj.excerpt,
-            'canonical_url': f"/posts/{self.get_slug(obj)}",
+            'canonical_url': f"/posts/{obj.slug}",
             'og_image': obj.imagen.url if obj.imagen else None,
             'published_date': obj.fecha_publicacion.isoformat() if obj.fecha_publicacion else None,
             'modified_date': obj.fecha_actualizacion.isoformat() if obj.fecha_actualizacion else None
@@ -343,7 +343,7 @@ class PostDetailSerializer(PostSerializer):
         
         breadcrumbs.append({
             'name': obj.titulo,
-            'url': f'/blog/post/{self.get_slug(obj)}/',
+            'url': f'/blog/post/{obj.slug}/',
             'current': True
         })
         

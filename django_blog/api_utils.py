@@ -12,16 +12,25 @@ logger = logging.getLogger(__name__)
 
 class StandardAPIResponse:
     """
-    Centralized utility class for standardized API responses across all apps
+    Unified API response class for all applications
+    Supports both standard and dashboard response formats
     """
     
     @staticmethod
-    def success(data=None, message=None, status_code=status.HTTP_200_OK, **kwargs):
+    def success(data=None, message=None, status_code=status.HTTP_200_OK, dashboard_format=False, **kwargs):
         """Return a standardized success response"""
-        response_data = {
-            'success': True,
-            'data': data,
-        }
+        if dashboard_format:
+            response_data = {
+                'error': False,
+                'success': True,
+                'data': data,
+            }
+        else:
+            response_data = {
+                'success': True,
+                'data': data,
+            }
+        
         if message:
             response_data['message'] = message
         
@@ -31,14 +40,24 @@ class StandardAPIResponse:
         return Response(response_data, status=status_code)
     
     @staticmethod
-    def error(error_message, message=None, status_code=status.HTTP_400_BAD_REQUEST, errors=None, **kwargs):
+    def error(error_message, message=None, status_code=status.HTTP_400_BAD_REQUEST, errors=None, dashboard_format=False, **kwargs):
         """Return a standardized error response"""
-        response_data = {
-            'success': False,
-            'error': error_message,
-        }
-        if message:
-            response_data['message'] = message
+        if dashboard_format:
+            response_data = {
+                'error': True,
+                'success': False,
+                'message': error_message,
+            }
+            if message and message != error_message:
+                response_data['details'] = message
+        else:
+            response_data = {
+                'success': False,
+                'error': error_message,
+            }
+            if message:
+                response_data['message'] = message
+        
         if errors:
             response_data['errors'] = errors
         
@@ -48,7 +67,7 @@ class StandardAPIResponse:
         return Response(response_data, status=status_code)
     
     @staticmethod
-    def not_found(message="Resource not found", resource_type=None):
+    def not_found(message="Resource not found", resource_type=None, dashboard_format=False):
         """Return a standardized 404 response"""
         error_message = message
         if resource_type:
@@ -56,11 +75,12 @@ class StandardAPIResponse:
         
         return StandardAPIResponse.error(
             error_message=error_message,
-            status_code=status.HTTP_404_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def permission_denied(message="Permission denied", required_permission=None):
+    def permission_denied(message="Permission denied", required_permission=None, dashboard_format=False):
         """Return a standardized 403 response"""
         error_message = message
         if required_permission:
@@ -68,60 +88,67 @@ class StandardAPIResponse:
         
         return StandardAPIResponse.error(
             error_message=error_message,
-            status_code=status.HTTP_403_FORBIDDEN
+            status_code=status.HTTP_403_FORBIDDEN,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def unauthorized(message="Authentication required"):
+    def unauthorized(message="Authentication required", dashboard_format=False):
         """Return a standardized 401 response"""
         return StandardAPIResponse.error(
             error_message=message,
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def validation_error(serializer_errors, message="Validation failed"):
+    def validation_error(serializer_errors, message="Validation failed", dashboard_format=False):
         """Return a standardized validation error response"""
         return StandardAPIResponse.error(
             error_message=message,
             errors=serializer_errors,
-            status_code=status.HTTP_400_BAD_REQUEST
+            status_code=status.HTTP_400_BAD_REQUEST,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def server_error(message="Internal server error", exception=None):
+    def server_error(message="Internal server error", exception=None, dashboard_format=False):
         """Return a standardized 500 response"""
         if exception:
             logger.error(f"Server error: {str(exception)}", exc_info=True)
         
         return StandardAPIResponse.error(
             error_message=message,
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def method_not_allowed(message="Method not allowed"):
+    def method_not_allowed(message="Method not allowed", dashboard_format=False):
         """Return a standardized 405 response"""
         return StandardAPIResponse.error(
             error_message=message,
-            status_code=status.HTTP_405_METHOD_NOT_ALLOWED
+            status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def conflict(message="Resource conflict", details=None):
+    def conflict(message="Resource conflict", details=None, dashboard_format=False):
         """Return a standardized 409 response"""
         return StandardAPIResponse.error(
             error_message=message,
             message=details,
-            status_code=status.HTTP_409_CONFLICT
+            status_code=status.HTTP_409_CONFLICT,
+            dashboard_format=dashboard_format
         )
     
     @staticmethod
-    def rate_limited(message="Rate limit exceeded"):
+    def rate_limited(message="Rate limit exceeded", dashboard_format=False):
         """Return a standardized 429 response"""
         return StandardAPIResponse.error(
             error_message=message,
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            dashboard_format=dashboard_format
         )
 
 
@@ -202,77 +229,35 @@ class BaseAPIView(APIView):
             return self.server_error_response(exception=e)
 
 
+# Backward compatibility aliases
 class DashboardAPIResponse:
     """
-    Specialized response class for dashboard APIs with consistent format
+    Backward compatibility wrapper for dashboard APIs
     """
     
     @staticmethod
     def success(data=None, message=None, status_code=status.HTTP_200_OK, **kwargs):
-        """Return a standardized dashboard success response"""
-        response_data = {
-            'error': False,
-            'success': True,
-            'data': data,
-        }
-        if message:
-            response_data['message'] = message
-        
-        # Add any additional fields
-        response_data.update(kwargs)
-        
-        return Response(response_data, status=status_code)
+        return StandardAPIResponse.success(data, message, status_code, dashboard_format=True, **kwargs)
     
     @staticmethod
     def error(error_message, message=None, status_code=status.HTTP_400_BAD_REQUEST, errors=None, **kwargs):
-        """Return a standardized dashboard error response"""
-        response_data = {
-            'error': True,
-            'success': False,
-            'message': error_message,
-        }
-        if message and message != error_message:
-            response_data['details'] = message
-        if errors:
-            response_data['errors'] = errors
-        
-        # Add any additional fields
-        response_data.update(kwargs)
-        
-        return Response(response_data, status=status_code)
+        return StandardAPIResponse.error(error_message, message, status_code, errors, dashboard_format=True, **kwargs)
     
     @staticmethod
     def not_found(message="Resource not found"):
-        """Return a standardized dashboard 404 response"""
-        return DashboardAPIResponse.error(
-            error_message=message,
-            status_code=status.HTTP_404_NOT_FOUND
-        )
+        return StandardAPIResponse.not_found(message, dashboard_format=True)
     
     @staticmethod
     def permission_denied(message="Permission denied"):
-        """Return a standardized dashboard 403 response"""
-        return DashboardAPIResponse.error(
-            error_message=message,
-            status_code=status.HTTP_403_FORBIDDEN
-        )
+        return StandardAPIResponse.permission_denied(message, dashboard_format=True)
     
     @staticmethod
     def unauthorized(message="Unauthorized"):
-        """Return a standardized dashboard 401 response"""
-        return DashboardAPIResponse.error(
-            error_message=message,
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
+        return StandardAPIResponse.unauthorized(message, dashboard_format=True)
     
     @staticmethod
     def validation_error(serializer_errors, message="Validation failed"):
-        """Return a standardized dashboard validation error response"""
-        return DashboardAPIResponse.error(
-            error_message=message,
-            errors=serializer_errors,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+        return StandardAPIResponse.validation_error(serializer_errors, message, dashboard_format=True)
 
 
 class BaseDashboardAPIView(APIView):
@@ -282,27 +267,27 @@ class BaseDashboardAPIView(APIView):
     
     def success_response(self, data=None, message=None, status_code=status.HTTP_200_OK, **kwargs):
         """Return a standardized dashboard success response"""
-        return DashboardAPIResponse.success(data, message, status_code, **kwargs)
+        return StandardAPIResponse.success(data, message, status_code, dashboard_format=True, **kwargs)
     
     def error_response(self, error_message, message=None, status_code=status.HTTP_400_BAD_REQUEST, errors=None, **kwargs):
         """Return a standardized dashboard error response"""
-        return DashboardAPIResponse.error(error_message, message, status_code, errors, **kwargs)
+        return StandardAPIResponse.error(error_message, message, status_code, errors, dashboard_format=True, **kwargs)
     
     def not_found_response(self, message="Resource not found"):
         """Return a standardized dashboard 404 response"""
-        return DashboardAPIResponse.not_found(message)
+        return StandardAPIResponse.not_found(message, dashboard_format=True)
     
     def permission_denied_response(self, message="Permission denied"):
         """Return a standardized dashboard 403 response"""
-        return DashboardAPIResponse.permission_denied(message)
+        return StandardAPIResponse.permission_denied(message, dashboard_format=True)
     
     def unauthorized_response(self, message="Unauthorized"):
         """Return a standardized dashboard 401 response"""
-        return DashboardAPIResponse.unauthorized(message)
+        return StandardAPIResponse.unauthorized(message, dashboard_format=True)
     
     def validation_error_response(self, serializer_errors, message="Validation failed"):
         """Return a standardized dashboard validation error response"""
-        return DashboardAPIResponse.validation_error(serializer_errors, message)
+        return StandardAPIResponse.validation_error(serializer_errors, message, dashboard_format=True)
     
     def handle_exceptions(self, func, *args, **kwargs):
         """
