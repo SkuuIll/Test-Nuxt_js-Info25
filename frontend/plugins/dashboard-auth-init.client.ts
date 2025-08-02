@@ -1,10 +1,4 @@
 export default defineNuxtPlugin(async () => {
-    const { initializeAuth } = useDashboardAuth()
-
-    // Initialize dashboard authentication state on app startup
-    try {
-        await initializeAuth()
-    } catch (error) {
-        console.error('Error initializing dashboard auth on startup:', error)
-    }
+    // Skip dashboard auth initialization for now since we're using simplified auth
+    console.log('Dashboard auth plugin loaded (using simplified auth)')
 })

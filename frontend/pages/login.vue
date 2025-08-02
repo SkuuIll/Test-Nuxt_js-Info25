@@ -142,16 +142,27 @@ const form = reactive({
 
 const handleLogin = async () => {
   try {
-    await login({
+    const result = await login({
       username: form.username,
       password: form.password
     })
     
-    handleSuccessfulAuth('¡Bienvenido! Has iniciado sesión correctamente')
+    // Determine where to redirect based on user type and context
+    let redirectTo = '/' // Default to home page
     
-    // Redirect to intended page or home
-    const redirectTo = route.query.redirect as string || '/'
-    await navigateTo(redirectTo)
+    // If there's a specific redirect URL in query params, use it
+    if (route.query.redirect) {
+      redirectTo = route.query.redirect as string
+    } 
+    // If user is staff/admin, they might want to go to dashboard
+    else if (result?.user?.is_staff) {
+      // For admin users, we could redirect to dashboard, but let's keep it simple
+      // and go to home page unless they specifically came from a protected route
+      redirectTo = '/'
+    }
+    
+    // Handle successful authentication with proper redirect
+    await handleSuccessfulAuth(redirectTo)
     
   } catch (err) {
     // Error is handled by the auth store

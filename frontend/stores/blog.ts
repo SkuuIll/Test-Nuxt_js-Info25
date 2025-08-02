@@ -245,16 +245,16 @@ export const useBlogStore = defineStore('blog', () => {
 
   return {
     // State
-    posts: readonly(posts),
-    currentPost: readonly(currentPost),
-    categories: readonly(categories),
-    tags: readonly(tags),
-    featuredPosts: readonly(featuredPosts),
-    loading: readonly(loading),
-    error: readonly(error),
-    pagination: readonly(pagination),
-    searchQuery: readonly(searchQuery),
-    activeFilters: readonly(activeFilters),
+    posts,
+    currentPost,
+    categories,
+    tags,
+    featuredPosts,
+    loading,
+    error,
+    pagination,
+    searchQuery,
+    activeFilters,
 
     // Getters
     publishedPosts,

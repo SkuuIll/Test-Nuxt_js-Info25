@@ -91,7 +91,7 @@ export default defineNuxtConfig({
 
   // Build configuration
   build: {
-    transpile: ['vue-toastification']
+    transpile: []
   },
 
   // Nitro configuration for API routes

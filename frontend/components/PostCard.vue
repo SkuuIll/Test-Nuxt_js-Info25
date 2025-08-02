@@ -2,23 +2,16 @@
   <article class="card group cursor-pointer">
     <!-- Image -->
     <div class="relative overflow-hidden rounded-t-lg">
-      <NuxtImg
-        v-if="post.image"
-        :src="post.image"
-        :alt="post.title"
-        class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-        loading="lazy"
-        format="webp"
+      <EnhancedImage
+        :src="post.image || post.imagen"
+        :alt="post.title || post.titulo"
+        :fallback-src="DEFAULT_FALLBACKS.post"
+        aspect-ratio="16/9"
+        container-class="w-full h-48"
+        image-class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+        :lazy-loading="true"
+        error-message="Error al cargar imagen del artículo"
       />
-      <div
-        v-else
-        class="w-full h-48 bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center"
-      >
-        <Icon
-          name="newspaper"
-          class="w-12 h-12 text-white opacity-50"
-        />
-      </div>
       
       <!-- Category Badge -->
       <div
@@ -137,6 +130,7 @@
 <script setup lang="ts">
 import type { Post } from '~/types'
 import { createPostUrl } from '~/utils/validation'
+import { DEFAULT_FALLBACKS } from '~/composables/useImageFallback'
 
 interface Props {
   post: Post

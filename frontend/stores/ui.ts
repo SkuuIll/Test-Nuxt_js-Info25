@@ -204,16 +204,16 @@ export const useUIStore = defineStore('ui', () => {
 
   return {
     // State
-    theme: readonly(theme),
-    isDark: readonly(isDark),
-    sidebarOpen: readonly(sidebarOpen),
-    mobileMenuOpen: readonly(mobileMenuOpen),
-    searchOpen: readonly(searchOpen),
-    loading: readonly(loading),
-    notifications: readonly(notifications),
-    windowWidth: readonly(windowWidth),
-    windowHeight: readonly(windowHeight),
-    scrollY: readonly(scrollY),
+    theme,
+    isDark,
+    sidebarOpen,
+    mobileMenuOpen,
+    searchOpen,
+    loading,
+    notifications,
+    windowWidth,
+    windowHeight,
+    scrollY,
 
     // Getters
     currentTheme,

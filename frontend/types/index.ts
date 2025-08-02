@@ -212,3 +212,6 @@ export interface SEOMeta {
   siteName?: string
   locale?: string
 }
+
+// Export notification types
+export * from './notifications'

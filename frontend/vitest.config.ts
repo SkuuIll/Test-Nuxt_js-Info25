@@ -8,11 +8,16 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     exclude: ['**/node_modules/**', '**/tests/e2e/**'],
+    setupFiles: ['./tests/setup.ts'],
   },
   resolve: {
     alias: {
       '~': resolve(__dirname, '.'),
       '@': resolve(__dirname, '.'),
     },
+  },
+  define: {
+    __VUE_OPTIONS_API__: true,
+    __VUE_PROD_DEVTOOLS__: false,
   },
 })

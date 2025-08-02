@@ -39,6 +39,8 @@ interface _GlobalComponents {
     'HeroSection': typeof import("../components/HeroSection.vue")['default']
     'Icon': typeof import("../components/Icon.vue")['default']
     'LoadingIndicator': typeof import("../components/LoadingIndicator.vue")['default']
+    'NotificationCenter': typeof import("../components/NotificationCenter.vue")['default']
+    'NotificationItem': typeof import("../components/NotificationItem.vue")['default']
     'PostCard': typeof import("../components/PostCard.vue")['default']
     'PostCardSkeleton': typeof import("../components/PostCardSkeleton.vue")['default']
     'PostGrid': typeof import("../components/PostGrid.vue")['default']
@@ -48,6 +50,9 @@ interface _GlobalComponents {
     'SocialShare': typeof import("../components/SocialShare.vue")['default']
     'TableOfContents': typeof import("../components/TableOfContents.vue")['default']
     'ThemeToggle': typeof import("../components/ThemeToggle.vue")['default']
+    'ToastContainer': typeof import("../components/ToastContainer.vue")['default']
+    'ToastNotification': typeof import("../components/ToastNotification.vue")['default']
+    'ToggleSwitch': typeof import("../components/ToggleSwitch.vue")['default']
     'UiErrorBoundary': typeof import("../components/ui/ErrorBoundary.vue")['default']
     'UiErrorDisplay': typeof import("../components/ui/ErrorDisplay.vue")['default']
     'UiErrorMessage': typeof import("../components/ui/ErrorMessage.vue")['default']
@@ -106,6 +111,8 @@ interface _GlobalComponents {
     'LazyHeroSection': LazyComponent<typeof import("../components/HeroSection.vue")['default']>
     'LazyIcon': LazyComponent<typeof import("../components/Icon.vue")['default']>
     'LazyLoadingIndicator': LazyComponent<typeof import("../components/LoadingIndicator.vue")['default']>
+    'LazyNotificationCenter': LazyComponent<typeof import("../components/NotificationCenter.vue")['default']>
+    'LazyNotificationItem': LazyComponent<typeof import("../components/NotificationItem.vue")['default']>
     'LazyPostCard': LazyComponent<typeof import("../components/PostCard.vue")['default']>
     'LazyPostCardSkeleton': LazyComponent<typeof import("../components/PostCardSkeleton.vue")['default']>
     'LazyPostGrid': LazyComponent<typeof import("../components/PostGrid.vue")['default']>
@@ -115,6 +122,9 @@ interface _GlobalComponents {
     'LazySocialShare': LazyComponent<typeof import("../components/SocialShare.vue")['default']>
     'LazyTableOfContents': LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
     'LazyThemeToggle': LazyComponent<typeof import("../components/ThemeToggle.vue")['default']>
+    'LazyToastContainer': LazyComponent<typeof import("../components/ToastContainer.vue")['default']>
+    'LazyToastNotification': LazyComponent<typeof import("../components/ToastNotification.vue")['default']>
+    'LazyToggleSwitch': LazyComponent<typeof import("../components/ToggleSwitch.vue")['default']>
     'LazyUiErrorBoundary': LazyComponent<typeof import("../components/ui/ErrorBoundary.vue")['default']>
     'LazyUiErrorDisplay': LazyComponent<typeof import("../components/ui/ErrorDisplay.vue")['default']>
     'LazyUiErrorMessage': LazyComponent<typeof import("../components/ui/ErrorMessage.vue")['default']>
@@ -179,6 +189,8 @@ export const DebugPanel: typeof import("../components/DebugPanel.vue")['default'
 export const HeroSection: typeof import("../components/HeroSection.vue")['default']
 export const Icon: typeof import("../components/Icon.vue")['default']
 export const LoadingIndicator: typeof import("../components/LoadingIndicator.vue")['default']
+export const NotificationCenter: typeof import("../components/NotificationCenter.vue")['default']
+export const NotificationItem: typeof import("../components/NotificationItem.vue")['default']
 export const PostCard: typeof import("../components/PostCard.vue")['default']
 export const PostCardSkeleton: typeof import("../components/PostCardSkeleton.vue")['default']
 export const PostGrid: typeof import("../components/PostGrid.vue")['default']
@@ -188,6 +200,9 @@ export const SkeletonLoader: typeof import("../components/SkeletonLoader.vue")['
 export const SocialShare: typeof import("../components/SocialShare.vue")['default']
 export const TableOfContents: typeof import("../components/TableOfContents.vue")['default']
 export const ThemeToggle: typeof import("../components/ThemeToggle.vue")['default']
+export const ToastContainer: typeof import("../components/ToastContainer.vue")['default']
+export const ToastNotification: typeof import("../components/ToastNotification.vue")['default']
+export const ToggleSwitch: typeof import("../components/ToggleSwitch.vue")['default']
 export const UiErrorBoundary: typeof import("../components/ui/ErrorBoundary.vue")['default']
 export const UiErrorDisplay: typeof import("../components/ui/ErrorDisplay.vue")['default']
 export const UiErrorMessage: typeof import("../components/ui/ErrorMessage.vue")['default']
@@ -246,6 +261,8 @@ export const LazyDebugPanel: LazyComponent<typeof import("../components/DebugPan
 export const LazyHeroSection: LazyComponent<typeof import("../components/HeroSection.vue")['default']>
 export const LazyIcon: LazyComponent<typeof import("../components/Icon.vue")['default']>
 export const LazyLoadingIndicator: LazyComponent<typeof import("../components/LoadingIndicator.vue")['default']>
+export const LazyNotificationCenter: LazyComponent<typeof import("../components/NotificationCenter.vue")['default']>
+export const LazyNotificationItem: LazyComponent<typeof import("../components/NotificationItem.vue")['default']>
 export const LazyPostCard: LazyComponent<typeof import("../components/PostCard.vue")['default']>
 export const LazyPostCardSkeleton: LazyComponent<typeof import("../components/PostCardSkeleton.vue")['default']>
 export const LazyPostGrid: LazyComponent<typeof import("../components/PostGrid.vue")['default']>
@@ -255,6 +272,9 @@ export const LazySkeletonLoader: LazyComponent<typeof import("../components/Skel
 export const LazySocialShare: LazyComponent<typeof import("../components/SocialShare.vue")['default']>
 export const LazyTableOfContents: LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
 export const LazyThemeToggle: LazyComponent<typeof import("../components/ThemeToggle.vue")['default']>
+export const LazyToastContainer: LazyComponent<typeof import("../components/ToastContainer.vue")['default']>
+export const LazyToastNotification: LazyComponent<typeof import("../components/ToastNotification.vue")['default']>
+export const LazyToggleSwitch: LazyComponent<typeof import("../components/ToggleSwitch.vue")['default']>
 export const LazyUiErrorBoundary: LazyComponent<typeof import("../components/ui/ErrorBoundary.vue")['default']>
 export const LazyUiErrorDisplay: LazyComponent<typeof import("../components/ui/ErrorDisplay.vue")['default']>
 export const LazyUiErrorMessage: LazyComponent<typeof import("../components/ui/ErrorMessage.vue")['default']>

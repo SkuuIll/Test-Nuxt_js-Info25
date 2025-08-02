@@ -45,8 +45,13 @@ def api_root(request):
             'dashboard': '/api/v1/dashboard/',
             'dashboard_auth': '/api/v1/dashboard/auth/',
             'media': '/api/v1/media/',
+            'notifications': '/api/v1/notifications/',
             'health': '/api/v1/health/',
             'cors_test': '/api/v1/cors-test/',
+        },
+        'websockets': {
+            'notifications': '/ws/notifications/',
+            'dashboard': '/ws/dashboard/',
         }
     })
 
@@ -74,6 +79,7 @@ urlpatterns = [
     path('api/v1/users/', include('users.urls')),  # User API endpoints
     path('api/v1/dashboard/', include('dashboard.urls')),  # Dashboard API endpoints
     path('api/v1/media/', include('media_files.urls')),  # Media files API endpoints
+    path('api/v1/notifications/', include('notifications.urls')),  # Notifications API endpoints
     path('api/v1/health/', health_check, name='health_check'),  # Health check endpoint
     path('api/v1/cors-test/', cors_test_view, name='cors_test'),  # CORS testing endpoint
 ]

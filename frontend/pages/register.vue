@@ -227,11 +227,11 @@ const handleRegister = async () => {
       password: form.password,
       password_confirm: form.password_confirm,
       first_name: form.first_name,
-      last_name: form.last_name
+      last_name: form.last_name,
+      terms_accepted: form.acceptTerms
     })
     
-    handleSuccessfulRegistration('¡Cuenta creada exitosamente! Bienvenido')
-    await navigateTo('/')
+    await handleSuccessfulRegistration('/')
     
   } catch (err) {
     // Error is handled by the auth store

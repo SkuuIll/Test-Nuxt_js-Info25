@@ -77,7 +77,7 @@ export const useAuthRedirect = () => {
     const handleSuccessfulAuth = async (redirectTo?: string) => {
         const { authSuccess } = useToast()
 
-        authSuccess('Has iniciado sesión correctamente')
+        authSuccess('¡Bienvenido! Has iniciado sesión correctamente')
 
         // Get redirect from query params or use provided redirect
         const targetUrl = redirectTo ||
@@ -90,7 +90,7 @@ export const useAuthRedirect = () => {
     const handleSuccessfulRegistration = async (redirectTo?: string) => {
         const { authSuccess } = useToast()
 
-        authSuccess('Cuenta creada exitosamente. ¡Bienvenido!')
+        authSuccess('¡Cuenta creada exitosamente! Bienvenido al blog')
 
         // Get redirect from query params or use provided redirect
         const targetUrl = redirectTo ||

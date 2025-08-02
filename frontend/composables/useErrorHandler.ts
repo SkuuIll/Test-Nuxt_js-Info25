@@ -842,8 +842,8 @@ export const useErrorHandler = () => {
     })
   }
 
-  // Initialize global error handlers on client
-  if (import.meta.client) {
+  // Initialize global error handlers on client (only if we're in a component context)
+  if (import.meta.client && getCurrentInstance()) {
     onMounted(() => {
       setupGlobalErrorHandlers()
     })

@@ -5,6 +5,8 @@ django-cors-headers==4.3.1
 django-filter==24.2
 django-tinymce==4.1.0
 django-admin-interface==0.28.8
+channels==4.0.0
+channels-redis==4.2.0
 Pillow==10.4.0
 python-decouple==3.8
 psycopg2-binary==2.9.9

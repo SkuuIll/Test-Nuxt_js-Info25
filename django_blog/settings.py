@@ -45,12 +45,14 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'tinymce',
+    'channels',
     'posts',
     'users',
     'dashboard',
     'accounts',
     'comments',
     'media_files',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -412,3 +414,32 @@ import os
 logs_dir = BASE_DIR / 'logs'
 if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
+
+# Django Channels Configuration
+ASGI_APPLICATION = 'django_blog.asgi.application'
+
+# Channel layers configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+# For development without Redis, use in-memory channel layer
+if DEBUG:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
+# WebSocket settings
+WEBSOCKET_SETTINGS = {
+    'HEARTBEAT_INTERVAL': 30,  # seconds
+    'CONNECTION_TIMEOUT': 300,  # seconds
+    'MAX_CONNECTIONS_PER_USER': 5,
+    'NOTIFICATION_BATCH_SIZE': 10,
+}

@@ -38,6 +38,37 @@
       />
     </div>
 
+    <!-- Notification stats -->
+    <div class="mb-8">
+      <h2 class="text-lg font-medium text-gray-900 mb-4">Estadísticas de Notificaciones</h2>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <DashboardStatCard
+          title="Total Notificaciones"
+          :value="notificationStats?.total_notifications || 0"
+          icon="BellIcon"
+          color="indigo"
+        />
+        <DashboardStatCard
+          title="Sin Leer"
+          :value="notificationStats?.unread_notifications || 0"
+          icon="ExclamationCircleIcon"
+          color="red"
+        />
+        <DashboardStatCard
+          title="Esta Semana"
+          :value="notificationStats?.recent_notifications_count || 0"
+          icon="ClockIcon"
+          color="green"
+        />
+        <DashboardStatCard
+          title="Usuarios Activos"
+          :value="notificationStats?.active_users_with_notifications || 0"
+          icon="UserGroupIcon"
+          color="blue"
+        />
+      </div>
+    </div>
+
     <!-- Charts section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
       <!-- Posts by month chart -->
@@ -240,6 +271,10 @@ definePageMeta({
 
 // Composables
 const { fetchUserStats, fetchContentStats } = useDashboardStats()
+const { fetchAdminStats } = useNotifications()
+
+// State for notification stats
+const notificationStats = ref(null)
 
 // State
 const userStats = ref(null)
@@ -340,13 +375,15 @@ onMounted(async () => {
   loading.value = true
   
   try {
-    const [userStatsData, contentStatsData] = await Promise.all([
+    const [userStatsData, contentStatsData, notificationStatsData] = await Promise.all([
       fetchUserStats(),
-      fetchContentStats()
+      fetchContentStats(),
+      fetchAdminStats()
     ])
     
     userStats.value = userStatsData
     contentStats.value = contentStatsData
+    notificationStats.value = notificationStatsData
     
     // Mock monthly stats for now
     monthlyStats.value = {

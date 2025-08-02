@@ -54,6 +54,9 @@
 
         <!-- Right Side Actions -->
         <div class="flex items-center space-x-4">
+          <!-- Notification Center (only for authenticated users) -->
+          <NotificationCenter v-if="isAuthenticated" />
+          
           <!-- Theme Toggle -->
           <ThemeToggle />
 

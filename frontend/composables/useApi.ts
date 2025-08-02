@@ -553,6 +553,12 @@ export const useApi = () => {
   // Expose the generic fetch function as apiRequest
   const apiRequest = createApiRequest()
 
+  // Notification endpoints
+  const getNotificationStats = async () => {
+    const apiFetch = createApiRequest()
+    return apiFetch<any>('/notifications/admin/stats/')
+  }
+
   return {
     apiRequest, // Generic request function
     getPosts,
@@ -578,6 +584,7 @@ export const useApi = () => {
     requestPasswordReset,
     resetPassword,
     healthCheck,
+    getNotificationStats,
     tokenUtils, // Expose token utilities as well
   }
 }

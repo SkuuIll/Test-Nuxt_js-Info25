@@ -1,138 +1,220 @@
 /**
- * Toast notification composable
- * Provides user-friendly notifications for various scenarios
+ * Composable for toast notifications
  */
+import type { ToastNotification } from '~/types/notifications'
 
 interface ToastOptions {
+    title: string
+    message: string
+    type?: 'info' | 'success' | 'warning' | 'error'
     duration?: number
-    position?: 'top' | 'bottom' | 'center'
     persistent?: boolean
-    actions?: Array<{
+    action?: {
         label: string
-        action: () => void
-    }>
+        handler: () => void
+    }
 }
 
 export const useToast = () => {
-    const notifications = ref<Array<{
-        id: string
-        type: 'success' | 'error' | 'warning' | 'info'
-        title: string
-        message: string
-        timestamp: Date
-        duration: number
-        persistent: boolean
-    }>>([])
+    const nuxtApp = useNuxtApp()
 
-    const generateId = () => {
-        return `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const showToast = (options: ToastOptions) => {
+        const toast: Omit<ToastNotification, 'id'> = {
+            title: options.title,
+            message: options.message,
+            type: options.type || 'info',
+            priority: 'normal', // Default priority
+            duration: options.persistent ? 0 : (options.duration ?? 5000),
+            persistent: options.persistent || false,
+            action: options.action
+        }
+
+        // Use the provided toast service
+        if (nuxtApp.$toast) {
+            nuxtApp.$toast.show(toast)
+        } else {
+            // Fallback: emit event for ToastContainer to catch
+            nuxtApp.$bus?.emit('show-toast', toast)
+        }
     }
 
-    const addNotification = (
-        type: 'success' | 'error' | 'warning' | 'info',
-        title: string,
-        message: string,
-        options: ToastOptions = {}
-    ) => {
-        const notification = {
-            id: generateId(),
-            type,
+    const showSuccess = (title: string, message: string, options?: Partial<ToastOptions>) => {
+        showToast({
             title,
             message,
-            timestamp: new Date(),
-            duration: options.duration || (type === 'error' ? 5000 : 3000),
-            persistent: options.persistent || false
-        }
-
-        notifications.value.unshift(notification)
-
-        // Auto-remove non-persistent notifications
-        if (!notification.persistent) {
-            setTimeout(() => {
-                removeNotification(notification.id)
-            }, notification.duration)
-        }
-
-        // Keep only last 10 notifications
-        if (notifications.value.length > 10) {
-            notifications.value = notifications.value.slice(0, 10)
-        }
-
-        // Log to console for debugging
-        console.log(`🔔 ${type.toUpperCase()}: ${title} - ${message}`)
-
-        return notification.id
-    }
-
-    const removeNotification = (id: string) => {
-        const index = notifications.value.findIndex(n => n.id === id)
-        if (index > -1) {
-            notifications.value.splice(index, 1)
-        }
-    }
-
-    const clearAll = () => {
-        notifications.value = []
-    }
-
-    const success = (title: string, message: string, options?: ToastOptions) => {
-        return addNotification('success', title, message, options)
-    }
-
-    const error = (title: string, message: string, options?: ToastOptions) => {
-        return addNotification('error', title, message, {
-            duration: 5000,
+            type: 'success',
             ...options
         })
     }
 
-    const warning = (title: string, message: string, options?: ToastOptions) => {
-        return addNotification('warning', title, message, {
-            duration: 4000,
+    const showError = (title: string, message: string, options?: Partial<ToastOptions>) => {
+        showToast({
+            title,
+            message,
+            type: 'error',
+            persistent: true, // Errors should be persistent by default
             ...options
         })
     }
 
-    const info = (title: string, message: string, options?: ToastOptions) => {
-        return addNotification('info', title, message, options)
-    }
-
-    // Auth-specific toast methods
-    const authSuccess = (message: string) => {
-        return success('Autenticación Exitosa', message)
-    }
-
-    const authError = (message: string) => {
-        return error('Error de Autenticación', message, { duration: 6000 })
-    }
-
-    const validationError = (message: string) => {
-        return warning('Datos Inválidos', message, { duration: 5000 })
-    }
-
-    const networkError = (message: string = 'Error de conexión. Verifica tu internet.') => {
-        return error('Error de Conexión', message, {
-            duration: 7000,
-            persistent: false
+    const showWarning = (title: string, message: string, options?: Partial<ToastOptions>) => {
+        showToast({
+            title,
+            message,
+            type: 'warning',
+            duration: 7000, // Warnings should stay longer
+            ...options
         })
     }
 
-    const serverError = (message: string = 'Error del servidor. Intenta más tarde.') => {
-        return error('Error del Servidor', message, { duration: 6000 })
+    const showInfo = (title: string, message: string, options?: Partial<ToastOptions>) => {
+        showToast({
+            title,
+            message,
+            type: 'info',
+            ...options
+        })
+    }
+
+    const removeToast = (id: string) => {
+        nuxtApp.$bus?.emit('remove-toast', id)
+
+        if (nuxtApp.$toast) {
+            nuxtApp.$toast.remove(id)
+        }
+    }
+
+    const clearAllToasts = () => {
+        nuxtApp.$bus?.emit('clear-toasts')
+
+        if (nuxtApp.$toast) {
+            nuxtApp.$toast.clear()
+        }
+    }
+
+    // Notification-specific toast methods
+    const showNotificationToast = (notification: any) => {
+        const toastType = (() => {
+            switch (notification.priority) {
+                case 'urgent':
+                    return 'error'
+                case 'high':
+                    return 'warning'
+                case 'low':
+                    return 'info'
+                default:
+                    return 'info'
+            }
+        })()
+
+        showToast({
+            title: notification.title,
+            message: notification.message,
+            type: toastType,
+            duration: notification.priority === 'urgent' ? 0 : 5000,
+            persistent: notification.priority === 'urgent',
+            action: notification.action_url ? {
+                label: 'Ver',
+                handler: () => navigateTo(notification.action_url)
+            } : undefined
+        })
+    }
+
+    const showSystemAnnouncementToast = (announcement: any) => {
+        showToast({
+            title: '📢 ' + announcement.title,
+            message: announcement.message,
+            type: 'warning',
+            duration: 10000,
+            persistent: announcement.priority === 'urgent',
+            action: announcement.action_url ? {
+                label: 'Ver más',
+                handler: () => navigateTo(announcement.action_url)
+            } : undefined
+        })
+    }
+
+    // API error toast helper
+    const showApiError = (error: any, defaultMessage: string = 'Ha ocurrido un error') => {
+        let title = 'Error'
+        let message = defaultMessage
+
+        if (error?.response?.data?.message) {
+            message = error.response.data.message
+        } else if (error?.message) {
+            message = error.message
+        }
+
+        // Handle validation errors
+        if (error?.response?.data?.errors) {
+            const errors = error.response.data.errors
+            const errorMessages = Object.values(errors).flat().join(', ')
+            message = errorMessages || message
+        }
+
+        showError(title, message)
+    }
+
+    // Network error toast helper
+    const showNetworkError = () => {
+        showError(
+            'Error de conexión',
+            'No se pudo conectar al servidor. Verifica tu conexión a internet.'
+        )
+    }
+
+    // Loading toast helper
+    const showLoadingToast = (message: string = 'Cargando...') => {
+        return showToast({
+            title: 'Cargando',
+            message,
+            type: 'info',
+            persistent: true
+        })
+    }
+
+    // Auth-specific toast helpers for compatibility
+    const authSuccess = (message: string = 'Autenticación exitosa') => {
+        showSuccess('Éxito', message)
+    }
+
+    const authError = (message: string = 'Error de autenticación') => {
+        showError('Error de autenticación', message)
+    }
+
+    // Simple success/error methods for compatibility with existing code
+    const success = (message: string, title?: string) => {
+        if (nuxtApp.$toast?.success) {
+            nuxtApp.$toast.success(message, title)
+        } else {
+            showSuccess(title || 'Éxito', message)
+        }
+    }
+
+    const error = (message: string, title?: string) => {
+        if (nuxtApp.$toast?.error) {
+            nuxtApp.$toast.error(message, title)
+        } else {
+            showError(title || 'Error', message)
+        }
     }
 
     return {
-        notifications: readonly(notifications),
-        success,
-        error,
-        warning,
-        info,
+        showToast,
+        showSuccess,
+        showError,
+        showWarning,
+        showInfo,
+        removeToast,
+        clearAllToasts,
+        showNotificationToast,
+        showSystemAnnouncementToast,
+        showApiError,
+        showNetworkError,
+        showLoadingToast,
         authSuccess,
         authError,
-        validationError,
-        networkError,
-        serverError,
-        removeNotification,
-        clearAll
+        success,
+        error
     }
 }

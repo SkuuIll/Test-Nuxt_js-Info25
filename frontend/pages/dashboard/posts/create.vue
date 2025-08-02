@@ -340,22 +340,87 @@ const handleImageUpload = async (event) => {
   if (!file) return
 
   try {
+    loading.value = true
+    
+    console.log('🖼️ Starting image upload:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    })
+    
+    // Get dashboard auth tokens
+    const dashboardAuth = useDashboardAuthSimple()
+    const tokens = dashboardAuth.getDashboardTokens()
+    
+    console.log('🔑 Dashboard tokens:', {
+      hasTokens: !!tokens,
+      hasAccess: !!tokens?.access,
+      hasRefresh: !!tokens?.refresh
+    })
+    
+    if (!tokens?.access) {
+      handleError('No se encontró token de autenticación. Por favor, inicia sesión nuevamente.', 'handleImageUpload')
+      return
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      handleError('Tipo de archivo no permitido. Solo se permiten imágenes (JPG, PNG, GIF, WebP)', 'handleImageUpload')
+      return
+    }
+
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      handleError('El archivo es demasiado grande. Máximo 10MB permitido', 'handleImageUpload')
+      return
+    }
+
+    console.log('✅ File validation passed')
+
     const formData = new FormData()
-    formData.append('image', file)
+    formData.append('file', file)
+    formData.append('alt_text', `Imagen para ${form.title || 'post'}`)
+    formData.append('is_public', 'true')
+
+    console.log('📤 Sending upload request to /api/v1/media/upload/')
 
     const response = await $fetch('/api/v1/media/upload/', {
       method: 'POST',
       body: formData,
       headers: {
-        'Authorization': `Bearer ${useDashboardAuth().getAccessToken()}`
+        'Authorization': `Bearer ${tokens.access}`
       }
     })
 
-    form.featured_image = response.url
-    handleSuccess('Imagen subida exitosamente')
+    console.log('📥 Upload response received:', response)
+
+    // Check if upload was successful
+    if (response.error === false && response.data?.file_url) {
+      form.featured_image = response.data.file_url
+      handleSuccess('Imagen subida exitosamente')
+      console.log('✅ Image upload successful, URL:', response.data.file_url)
+    } else {
+      const errorMsg = response.message || 'Error en la respuesta del servidor al subir la imagen'
+      console.error('❌ Upload failed:', errorMsg)
+      handleError(errorMsg, 'handleImageUpload')
+    }
 
   } catch (error) {
-    handleError(error, 'handleImageUpload')
+    console.error('❌ Error uploading image:', error)
+    
+    // Handle different types of errors
+    if (error.data?.message) {
+      handleError(error.data.message, 'handleImageUpload')
+    } else if (error.data?.errors) {
+      const errorMessages = Object.values(error.data.errors).flat().join(', ')
+      handleError(`Errores de validación: ${errorMessages}`, 'handleImageUpload')
+    } else {
+      handleError(error.message || 'Error al subir la imagen', 'handleImageUpload')
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -371,6 +436,15 @@ const submitPost = async (status) => {
   try {
     loading.value = true
 
+    // Get dashboard auth tokens
+    const dashboardAuth = useDashboardAuthSimple()
+    const tokens = dashboardAuth.getDashboardTokens()
+    
+    if (!tokens?.access) {
+      handleError('No se encontró token de autenticación. Por favor, inicia sesión nuevamente.', 'submitPost')
+      return
+    }
+
     const postData = {
       ...form,
       status,
@@ -381,7 +455,7 @@ const submitPost = async (status) => {
       method: 'POST',
       body: postData,
       headers: {
-        'Authorization': `Bearer ${useDashboardAuth().getAccessToken()}`
+        'Authorization': `Bearer ${tokens.access}`
       }
     })
 

@@ -1073,8 +1073,8 @@ export const useAuth = () => {
 
 
 
-  // Auto-initialize on client side
-  if (import.meta.client) {
+  // Auto-initialize on client side (only if we're in a component context)
+  if (import.meta.client && getCurrentInstance()) {
     onMounted(() => {
       initializeAuth()
     })

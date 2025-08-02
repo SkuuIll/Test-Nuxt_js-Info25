@@ -224,6 +224,7 @@ declare global {
   const useCycleList: typeof import('@vueuse/core')['useCycleList']
   const useDark: typeof import('@vueuse/core')['useDark']
   const useDashboardAuth: typeof import('../../composables/useDashboardAuth')['useDashboardAuth']
+  const useDashboardAuthSimple: typeof import('../../composables/useDashboardAuthSimple')['useDashboardAuthSimple']
   const useDashboardComments: typeof import('../../composables/useDashboardComments')['useDashboardComments']
   const useDashboardMedia: typeof import('../../composables/useDashboardMedia')['useDashboardMedia']
   const useDashboardNotifications: typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']
@@ -301,10 +302,11 @@ declare global {
   const useMutationObserver: typeof import('@vueuse/core')['useMutationObserver']
   const useNavigatorLanguage: typeof import('@vueuse/core')['useNavigatorLanguage']
   const useNetwork: typeof import('@vueuse/core')['useNetwork']
+  const useNotificationStore: typeof import('../../stores/notifications')['useNotificationStore']
+  const useNotifications: typeof import('../../composables/useNotifications')['useNotifications']
   const useNow: typeof import('@vueuse/core')['useNow']
   const useNuxtApp: typeof import('../../node_modules/nuxt/dist/app/nuxt')['useNuxtApp']
   const useNuxtData: typeof import('../../node_modules/nuxt/dist/app/composables/asyncData')['useNuxtData']
-  const useNuxtDevTools: typeof import('../../node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools')['useNuxtDevTools']
   const useObjectUrl: typeof import('@vueuse/core')['useObjectUrl']
   const useOffsetPagination: typeof import('@vueuse/core')['useOffsetPagination']
   const useOnline: typeof import('@vueuse/core')['useOnline']
@@ -686,6 +688,7 @@ declare module 'vue' {
     readonly useCycleList: UnwrapRef<typeof import('@vueuse/core')['useCycleList']>
     readonly useDark: UnwrapRef<typeof import('@vueuse/core')['useDark']>
     readonly useDashboardAuth: UnwrapRef<typeof import('../../composables/useDashboardAuth')['useDashboardAuth']>
+    readonly useDashboardAuthSimple: UnwrapRef<typeof import('../../composables/useDashboardAuthSimple')['useDashboardAuthSimple']>
     readonly useDashboardComments: UnwrapRef<typeof import('../../composables/useDashboardComments')['useDashboardComments']>
     readonly useDashboardMedia: UnwrapRef<typeof import('../../composables/useDashboardMedia')['useDashboardMedia']>
     readonly useDashboardNotifications: UnwrapRef<typeof import('../../composables/useDashboardNotifications')['useDashboardNotifications']>
@@ -763,10 +766,11 @@ declare module 'vue' {
     readonly useMutationObserver: UnwrapRef<typeof import('@vueuse/core')['useMutationObserver']>
     readonly useNavigatorLanguage: UnwrapRef<typeof import('@vueuse/core')['useNavigatorLanguage']>
     readonly useNetwork: UnwrapRef<typeof import('@vueuse/core')['useNetwork']>
+    readonly useNotificationStore: UnwrapRef<typeof import('../../stores/notifications')['useNotificationStore']>
+    readonly useNotifications: UnwrapRef<typeof import('../../composables/useNotifications')['useNotifications']>
     readonly useNow: UnwrapRef<typeof import('@vueuse/core')['useNow']>
     readonly useNuxtApp: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/nuxt')['useNuxtApp']>
     readonly useNuxtData: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/asyncData')['useNuxtData']>
-    readonly useNuxtDevTools: UnwrapRef<typeof import('../../node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools')['useNuxtDevTools']>
     readonly useObjectUrl: UnwrapRef<typeof import('@vueuse/core')['useObjectUrl']>
     readonly useOffsetPagination: UnwrapRef<typeof import('@vueuse/core')['useOffsetPagination']>
     readonly useOnline: UnwrapRef<typeof import('@vueuse/core')['useOnline']>

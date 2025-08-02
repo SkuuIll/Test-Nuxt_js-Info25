@@ -15,7 +15,7 @@
     <BackToTop />
     
     <!-- Toast Container -->
-    <div id="toast-container" />
+    <ToastContainer />
     
     <!-- Debug Panel (only in development) -->
     <DebugPanel />
@@ -27,6 +27,7 @@
 const blogStore = useBlogStore()
 const authStore = useAuthStore()
 const uiStore = useUIStore()
+const { initializeNotifications } = useNotifications()
 
 // Initialize app data
 onMounted(async () => {
@@ -37,6 +38,11 @@ onMounted(async () => {
   
   // Initialize authentication
   await authStore.initializeAuth()
+  
+  // Initialize notifications after authentication
+  if (authStore.isAuthenticated) {
+    await initializeNotifications()
+  }
   
   // Fetch initial data
   try {
