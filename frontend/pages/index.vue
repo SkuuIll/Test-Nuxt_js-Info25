@@ -1,7 +1,37 @@
 <template>
   <div>
+    <!-- Welcome Message for Authenticated Users -->
+    <div v-if="isAuthenticated" class="bg-primary-50 dark:bg-primary-900/20 border-b border-primary-200 dark:border-primary-800">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium">
+              {{ user?.username?.charAt(0).toUpperCase() }}
+            </div>
+            <div>
+              <h2 class="text-lg font-semibold text-primary-900 dark:text-primary-100">
+                ¡Bienvenido, {{ user?.username }}!
+              </h2>
+              <p class="text-sm text-primary-700 dark:text-primary-300">
+                {{ user?.is_staff ? 'Tienes acceso completo al sistema de administración' : 'Disfruta del contenido personalizado' }}
+              </p>
+            </div>
+          </div>
+          <div v-if="user?.is_staff" class="hidden md:block">
+            <NuxtLink 
+              to="/dashboard" 
+              class="inline-flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+            >
+              <Icon name="settings" class="w-4 h-4" />
+              <span>Ir al Dashboard</span>
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Hero Section -->
-    <HeroSection />
+    <HeroSection v-if="!isAuthenticated" />
     
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-8">
@@ -129,8 +159,9 @@ useHead({
   ]
 })
 
-// Store
+// Store and Auth
 const blogStore = useBlogStore()
+const { user, isAuthenticated } = useAuth()
 
 // Computed
 const posts = computed(() => blogStore.posts)

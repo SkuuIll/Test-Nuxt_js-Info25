@@ -84,7 +84,10 @@ export const useAuthRedirect = () => {
             (route.query.redirect as string) ||
             '/'
 
-        await navigateTo(targetUrl)
+        // Ensure we navigate to the home page by default
+        console.log('🔄 Redirecting after successful auth to:', targetUrl)
+
+        await navigateTo(targetUrl, { replace: true })
     }
 
     const handleSuccessfulRegistration = async (redirectTo?: string) => {

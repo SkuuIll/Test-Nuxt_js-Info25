@@ -30,22 +30,24 @@ export default defineNuxtPlugin(() => {
             }
         })
 
-        // Override console.error to catch CORS errors
-        const originalConsoleError = console.error
-        console.error = function (...args) {
-            const message = args.join(' ')
+        // Override console.error to catch CORS errors (only in development)
+        if (process.env.NODE_ENV === 'development') {
+            const originalConsoleError = console.error
+            console.error = function (...args) {
+                const message = args.join(' ')
 
-            if (
-                message.includes('CORS') ||
-                message.includes('Cross-Origin') ||
-                message.includes('Access-Control-Allow-Origin')
-            ) {
-                console.warn('🔧 CORS Configuration Issue:', ...args)
-                console.warn('💡 Check Django CORS settings and ensure the frontend URL is allowed')
-                return
+                if (
+                    message.includes('CORS') ||
+                    message.includes('Cross-Origin') ||
+                    message.includes('Access-Control-Allow-Origin')
+                ) {
+                    console.warn('🔧 CORS Configuration Issue:', ...args)
+                    console.warn('💡 Check Django CORS settings and ensure the frontend URL is allowed')
+                    return
+                }
+
+                originalConsoleError.apply(console, args)
             }
-
-            originalConsoleError.apply(console, args)
         }
     }
 })

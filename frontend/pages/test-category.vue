@@ -79,5 +79,3 @@ useHead({
   ]
 })
 </script>
-</script>
-</template>

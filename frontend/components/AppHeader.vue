@@ -54,6 +54,17 @@
 
         <!-- Right Side Actions -->
         <div class="flex items-center space-x-4">
+          <!-- Dashboard Quick Access (only for admin users) -->
+          <NuxtLink 
+            v-if="isAuthenticated && user?.is_staff" 
+            to="/dashboard"
+            class="hidden md:flex items-center space-x-1 px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors text-sm font-medium"
+            title="Acceder al Dashboard de Administración"
+          >
+            <Icon name="settings" class="w-4 h-4" />
+            <span>Dashboard</span>
+          </NuxtLink>
+          
           <!-- Notification Center (only for authenticated users) -->
           <NotificationCenter v-if="isAuthenticated" />
           
@@ -99,9 +110,12 @@
                   Mi Perfil
                 </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/dashboard" class="dropdown-item">
+                <NuxtLink v-if="user?.is_staff" to="/dashboard" class="dropdown-item bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300">
                   <Icon name="settings" class="w-4 h-4" />
-                  Dashboard
+                  <span class="flex items-center space-x-2">
+                    <span>Dashboard</span>
+                    <span class="text-xs bg-primary-100 dark:bg-primary-800 px-2 py-0.5 rounded-full">Admin</span>
+                  </span>
                 </NuxtLink>
 
                 <button class="dropdown-item w-full text-left" @click="handleLogout">

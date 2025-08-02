@@ -188,4 +188,3 @@ useHead({
   ]
 })
 </script>
-</template>

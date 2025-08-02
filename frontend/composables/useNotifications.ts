@@ -31,15 +31,26 @@ export const useNotifications = () => {
 
     // Initialize notifications
     const initializeNotifications = async () => {
+        // Only run on client side
+        if (!process.client) return
+
         try {
+            // Check if user is authenticated before initializing
+            const authStore = useAuthStore()
+            if (!authStore.isAuthenticated.value) {
+                console.log('ℹ️ User not authenticated, skipping notification initialization')
+                return
+            }
+
             await notificationStore.initializeNotifications()
         } catch (error) {
             console.error('Error initializing notifications:', error)
-            showToast({
-                title: 'Error',
-                message: 'No se pudieron cargar las notificaciones',
-                type: 'error'
-            })
+            // Don't show toast error for initialization failures to avoid spam
+            // showToast({
+            //     title: 'Error',
+            //     message: 'No se pudieron cargar las notificaciones',
+            //     type: 'error'
+            // })
         }
     }
 

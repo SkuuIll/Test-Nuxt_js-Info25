@@ -107,6 +107,15 @@
                 Privacidad
               </NuxtLink>
             </li>
+            <li>
+              <NuxtLink
+                to="/dashboard-info"
+                class="text-gray-300 hover:text-primary-400 transition-colors duration-200 flex items-center space-x-1"
+              >
+                <Icon name="settings" class="w-4 h-4" />
+                <span>Dashboard</span>
+              </NuxtLink>
+            </li>
           </ul>
         </div>
 

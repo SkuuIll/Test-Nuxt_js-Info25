@@ -1,8 +1,9 @@
 <template>
-  <div 
-    v-if="isDev && showDebug" 
-    class="fixed bottom-4 right-4 z-50 bg-black/90 text-white p-4 rounded-lg shadow-lg max-w-sm"
-  >
+  <ClientOnly>
+    <div 
+      v-if="isDev && showDebug" 
+      class="fixed bottom-4 right-4 z-50 bg-black/90 text-white p-4 rounded-lg shadow-lg max-w-sm"
+    >
     <div class="flex justify-between items-center mb-2">
       <h3 class="text-sm font-bold">🐛 Debug Panel</h3>
       <button 
@@ -65,15 +66,16 @@
     </div>
   </div>
   
-  <!-- Toggle Button -->
-  <button
-    v-if="isDev && !showDebug"
-    @click="showDebug = true"
-    class="fixed bottom-4 right-4 z-50 bg-black/70 text-white p-2 rounded-full shadow-lg hover:bg-black/90 transition-colors"
-    title="Show Debug Panel"
-  >
-    🐛
-  </button>
+    <!-- Toggle Button -->
+    <button
+      v-if="isDev && !showDebug"
+      @click="showDebug = true"
+      class="fixed bottom-4 right-4 z-50 bg-black/70 text-white p-2 rounded-full shadow-lg hover:bg-black/90 transition-colors"
+      title="Show Debug Panel"
+    >
+      🐛
+    </button>
+  </ClientOnly>
 </template>
 
 <script setup lang="ts">

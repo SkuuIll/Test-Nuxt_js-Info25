@@ -91,6 +91,7 @@ global.useScroll = vi.fn(() => ({
 
 // Mock useToast composable
 global.useToast = vi.fn(() => ({
+    toasts: { value: [] },
     showToast: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
@@ -138,6 +139,46 @@ global.useNotifications = vi.fn(() => ({
 
 global.useErrorHandler = vi.fn(() => ({
     handleError: vi.fn().mockReturnValue({ message: 'Test error' }),
+}))
+
+global.useErrorRecovery = vi.fn(() => ({
+    hasError: { value: false },
+    errorMessage: { value: '' },
+    retryCount: { value: 0 },
+    isRecovering: { value: false },
+    recoveryActions: { value: [] },
+    handleError: vi.fn(),
+    clearError: vi.fn(),
+    getErrorStats: vi.fn().mockReturnValue({
+        total: 0,
+        byType: {},
+        bySeverity: {},
+        recent: []
+    })
+}))
+
+global.useMediaErrorHandler = vi.fn(() => ({
+    handleMediaError: vi.fn(),
+    testImageLoad: vi.fn().mockResolvedValue(true),
+    resetErrorState: vi.fn(),
+}))
+
+global.useImageFallback = vi.fn(() => ({
+    DEFAULT_FALLBACKS: {
+        post: '/images/post-placeholder.svg',
+        avatar: '/images/placeholder.svg',
+        category: '/images/placeholder.svg',
+        general: '/images/placeholder.svg'
+    }
+}))
+
+global.useImagePlaceholder = vi.fn(() => ({
+    generateImagePlaceholder: vi.fn().mockReturnValue('data:image/svg+xml;base64,test')
+}))
+
+global.useIPXFallback = vi.fn(() => ({
+    handleIPXError: vi.fn().mockReturnValue('/fallback-image.jpg'),
+    createIPXFallbackSrc: vi.fn().mockReturnValue('/fallback-image.jpg')
 }))
 
 global.useApi = vi.fn(() => ({

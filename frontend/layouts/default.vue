@@ -31,28 +31,40 @@ const { initializeNotifications } = useNotifications()
 
 // Initialize app data
 onMounted(async () => {
-  // Initialize UI state
-  uiStore.initializeTheme()
-  uiStore.initializeWindowSize()
-  uiStore.initializeScroll()
+  // Only run on client side to avoid hydration issues
+  if (!process.client) return
   
-  // Initialize authentication
-  await authStore.initializeAuth()
-  
-  // Initialize notifications after authentication
-  if (authStore.isAuthenticated) {
-    await initializeNotifications()
-  }
-  
-  // Fetch initial data
   try {
-    await Promise.all([
-      blogStore.fetchCategories(),
-      blogStore.fetchFeaturedPosts()
-    ])
+    // Initialize UI state
+    uiStore.initializeTheme()
+    uiStore.initializeWindowSize()
+    uiStore.initializeScroll()
+    
+    // Initialize authentication
+    await authStore.initializeAuth()
+    
+    // Initialize notifications after authentication (with safety check)
+    if (authStore.isAuthenticated.value) {
+      try {
+        await initializeNotifications()
+      } catch (notificationError) {
+        console.warn('⚠️ Notification initialization failed:', notificationError)
+        // Continue without notifications
+      }
+    }
+    
+    // Fetch initial data
+    try {
+      await Promise.all([
+        blogStore.fetchCategories(),
+        blogStore.fetchFeaturedPosts()
+      ])
+    } catch (error) {
+      console.error('❌ Error cargando datos iniciales:', error)
+      // Continue anyway - components will handle empty states
+    }
   } catch (error) {
-    console.error('❌ Error cargando datos iniciales:', error)
-    // Continue anyway - components will handle empty states
+    console.error('❌ Error in layout initialization:', error)
   }
 })
 </script>

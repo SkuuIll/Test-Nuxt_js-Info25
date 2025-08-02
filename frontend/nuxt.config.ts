@@ -94,10 +94,18 @@ export default defineNuxtConfig({
     transpile: []
   },
 
-  // Nitro configuration for API routes
+  // Nitro configuration for API routes and media proxy
   nitro: {
     experimental: {
       wasm: true
+    },
+    // Proxy media files to Django backend
+    devProxy: {
+      '/media': {
+        target: process.env.API_BASE_URL || 'http://localhost:8000',
+        changeOrigin: true,
+        prependPath: true
+      }
     }
   }
 })

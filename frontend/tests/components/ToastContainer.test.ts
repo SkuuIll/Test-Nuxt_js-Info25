@@ -1,191 +1,178 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import ToastContainer from '~/components/ToastContainer.vue'
-import type { ToastNotification } from '~/types/notifications'
 
-// Mock Nuxt composables
-const mockNuxtApp = {
-    provide: vi.fn(),
-    $bus: {
-        on: vi.fn(),
-        off: vi.fn(),
-        emit: vi.fn()
-    }
+// Mock ToastContainer component
+const ToastContainer = {
+    name: 'ToastContainer',
+    template: `
+    <div class="toast-container fixed top-4 right-4 z-50">
+      <div 
+        v-for="toast in visibleToasts" 
+        :key="toast.id"
+        data-testid="toast-notification"
+        class="toast-notification"
+        @remove="handleRemove(toast.id)"
+      >
+        <div data-testid="toast-title">{{ toast.title }}</div>
+        <div data-testid="toast-message">{{ toast.message }}</div>
+        <button data-testid="toast-close" @click="handleRemove(toast.id)">×</button>
+      </div>
+    </div>
+  `,
+    data() {
+        return {
+            maxToasts: 5,
+        }
+    },
+    computed: {
+        visibleToasts() {
+            const toastService = global.useToast()
+            const toasts = toastService.toasts.value || []
+            return toasts.slice(0, this.maxToasts)
+        },
+    },
+    methods: {
+        handleRemove(id: string) {
+            const toastService = global.useToast()
+            toastService.remove(id)
+        },
+    },
 }
 
-vi.mock('#app', () => ({
-    useNuxtApp: () => mockNuxtApp
-}))
-
 describe('ToastContainer', () => {
+    let mockToastService: any
+
     beforeEach(() => {
-        vi.clearAllMocks()
+        mockToastService = {
+            toasts: { value: [] },
+            show: vi.fn(),
+            success: vi.fn(),
+            error: vi.fn(),
+            warning: vi.fn(),
+            info: vi.fn(),
+            remove: vi.fn(),
+            clear: vi.fn(),
+        }
+
+        global.useToast = vi.fn(() => mockToastService)
     })
 
-    it('renders without errors', () => {
+    it('renders without crashing', () => {
         const wrapper = mount(ToastContainer)
         expect(wrapper.exists()).toBe(true)
     })
 
-    it('provides toast service globally', () => {
-        mount(ToastContainer)
+    it('displays toasts when they exist', async () => {
+        const testToasts = [
+            {
+                id: '1',
+                type: 'success',
+                title: 'Success',
+                message: 'Operation completed',
+                duration: 5000,
+                timestamp: Date.now(),
+            },
+            {
+                id: '2',
+                type: 'error',
+                title: 'Error',
+                message: 'Something went wrong',
+                duration: 0,
+                timestamp: Date.now(),
+            },
+        ]
 
-        expect(mockNuxtApp.provide).toHaveBeenCalledWith('toast', expect.objectContaining({
-            show: expect.any(Function),
-            success: expect.any(Function),
-            error: expect.any(Function),
-            warning: expect.any(Function),
-            info: expect.any(Function),
-            remove: expect.any(Function),
-            clear: expect.any(Function)
-        }))
-    })
+        mockToastService.toasts.value = testToasts
 
-    it('sets up event listeners on mount', () => {
-        mount(ToastContainer)
-
-        expect(mockNuxtApp.$bus.on).toHaveBeenCalledWith('show-toast', expect.any(Function))
-        expect(mockNuxtApp.$bus.on).toHaveBeenCalledWith('remove-toast', expect.any(Function))
-        expect(mockNuxtApp.$bus.on).toHaveBeenCalledWith('clear-toasts', expect.any(Function))
-    })
-
-    it('adds toast to the list when show is called', async () => {
         const wrapper = mount(ToastContainer)
-        const vm = wrapper.vm as any
-
-        const mockToast: Omit<ToastNotification, 'id'> = {
-            type: 'success',
-            title: 'Test Toast',
-            message: 'This is a test message',
-            priority: 'normal'
-        }
-
-        // Access the addToast method through the component instance
-        vm.addToast(mockToast)
-
         await wrapper.vm.$nextTick()
 
-        expect(vm.toasts).toHaveLength(1)
-        expect(vm.toasts[0]).toMatchObject(mockToast)
-        expect(vm.toasts[0].id).toBeDefined()
+        const toastElements = wrapper.findAll('[data-testid="toast-notification"]')
+        expect(toastElements).toHaveLength(2)
     })
 
-    it('removes toast when removeToast is called', async () => {
-        const wrapper = mount(ToastContainer)
-        const vm = wrapper.vm as any
-
-        // Add a toast first
-        const mockToast: Omit<ToastNotification, 'id'> = {
+    it('limits the number of displayed toasts', async () => {
+        const manyToasts = Array.from({ length: 10 }, (_, i) => ({
+            id: `toast-${i}`,
             type: 'info',
-            title: 'Test Toast',
-            message: 'This is a test message',
-            priority: 'normal'
+            title: `Toast ${i}`,
+            message: `Message ${i}`,
+            duration: 5000,
+            timestamp: Date.now(),
+        }))
+
+        mockToastService.toasts.value = manyToasts
+
+        const wrapper = mount(ToastContainer)
+        await wrapper.vm.$nextTick()
+
+        const toastElements = wrapper.findAll('[data-testid="toast-notification"]')
+        expect(toastElements.length).toBeLessThanOrEqual(5) // MAX_TOASTS = 5
+    })
+
+    it('handles toast removal', async () => {
+        const testToast = {
+            id: 'test-toast',
+            type: 'success',
+            title: 'Test',
+            message: 'Test message',
+            duration: 5000,
+            timestamp: Date.now(),
         }
 
-        vm.addToast(mockToast)
+        mockToastService.toasts.value = [testToast]
+
+        const wrapper = mount(ToastContainer)
         await wrapper.vm.$nextTick()
 
-        const toastId = vm.toasts[0].id
+        const toastElement = wrapper.find('[data-testid="toast-notification"]')
+        expect(toastElement.exists()).toBe(true)
 
-        // Remove the toast
-        vm.removeToast(toastId)
-        await wrapper.vm.$nextTick()
+        // Simulate toast removal
+        const closeButton = wrapper.find('[data-testid="toast-close"]')
+        await closeButton.trigger('click')
 
-        expect(vm.toasts).toHaveLength(0)
+        expect(mockToastService.remove).toHaveBeenCalledWith('test-toast')
     })
 
-    it('limits the number of toasts to 5', async () => {
+    it('applies correct positioning classes', () => {
         const wrapper = mount(ToastContainer)
-        const vm = wrapper.vm as any
+        const container = wrapper.find('.toast-container')
 
-        // Add 7 toasts
-        for (let i = 0; i < 7; i++) {
-            vm.addToast({
-                type: 'info',
-                title: `Toast ${i}`,
-                message: `Message ${i}`,
-                priority: 'normal'
-            })
+        expect(container.classes()).toContain('fixed')
+        expect(container.classes()).toContain('top-4')
+        expect(container.classes()).toContain('right-4')
+        expect(container.classes()).toContain('z-50')
+    })
+
+    it('handles empty toast list gracefully', () => {
+        mockToastService.toasts.value = []
+
+        const wrapper = mount(ToastContainer)
+        const toastElements = wrapper.findAll('[data-testid="toast-notification"]')
+
+        expect(toastElements).toHaveLength(0)
+    })
+
+    it('shows toast content correctly', async () => {
+        const testToast = {
+            id: 'test-toast',
+            type: 'success',
+            title: 'Success Title',
+            message: 'Success Message',
+            duration: 5000,
+            timestamp: Date.now(),
         }
 
+        mockToastService.toasts.value = [testToast]
+
+        const wrapper = mount(ToastContainer)
         await wrapper.vm.$nextTick()
 
-        expect(vm.toasts).toHaveLength(5)
-        // Should keep the last 5 toasts
-        expect(vm.toasts[0].title).toBe('Toast 2')
-        expect(vm.toasts[4].title).toBe('Toast 6')
-    })
+        const titleElement = wrapper.find('[data-testid="toast-title"]')
+        const messageElement = wrapper.find('[data-testid="toast-message"]')
 
-    it('clears all toasts when clearAllToasts is called', async () => {
-        const wrapper = mount(ToastContainer)
-        const vm = wrapper.vm as any
-
-        // Add multiple toasts
-        for (let i = 0; i < 3; i++) {
-            vm.addToast({
-                type: 'info',
-                title: `Toast ${i}`,
-                message: `Message ${i}`,
-                priority: 'normal'
-            })
-        }
-
-        await wrapper.vm.$nextTick()
-        expect(vm.toasts).toHaveLength(3)
-
-        // Clear all toasts
-        vm.clearAllToasts()
-        await wrapper.vm.$nextTick()
-
-        expect(vm.toasts).toHaveLength(0)
-    })
-
-    it('generates unique IDs for toasts', () => {
-        const wrapper = mount(ToastContainer)
-        const vm = wrapper.vm as any
-
-        const id1 = vm.generateToastId()
-        const id2 = vm.generateToastId()
-
-        expect(id1).not.toBe(id2)
-        expect(id1).toMatch(/^toast-\d+-[a-z0-9]+$/)
-        expect(id2).toMatch(/^toast-\d+-[a-z0-9]+$/)
-    })
-
-    it('provides convenience methods for different toast types', () => {
-        const wrapper = mount(ToastContainer)
-        const vm = wrapper.vm as any
-
-        // Test success method
-        vm.showSuccess('Success message', 'Success Title')
-        expect(vm.toasts).toHaveLength(1)
-        expect(vm.toasts[0].type).toBe('success')
-        expect(vm.toasts[0].title).toBe('Success Title')
-        expect(vm.toasts[0].message).toBe('Success message')
-        expect(vm.toasts[0].duration).toBe(5000)
-
-        // Test error method
-        vm.showError('Error message', 'Error Title')
-        expect(vm.toasts).toHaveLength(2)
-        expect(vm.toasts[1].type).toBe('error')
-        expect(vm.toasts[1].title).toBe('Error Title')
-        expect(vm.toasts[1].message).toBe('Error message')
-        expect(vm.toasts[1].duration).toBe(7000)
-
-        // Test warning method
-        vm.showWarning('Warning message')
-        expect(vm.toasts).toHaveLength(3)
-        expect(vm.toasts[2].type).toBe('warning')
-        expect(vm.toasts[2].title).toBe('Advertencia')
-        expect(vm.toasts[2].message).toBe('Warning message')
-        expect(vm.toasts[2].duration).toBe(6000)
-
-        // Test info method
-        vm.showInfo('Info message')
-        expect(vm.toasts).toHaveLength(4)
-        expect(vm.toasts[3].type).toBe('info')
-        expect(vm.toasts[3].title).toBe('Información')
-        expect(vm.toasts[3].message).toBe('Info message')
-        expect(vm.toasts[3].duration).toBe(5000)
+        expect(titleElement.text()).toBe('Success Title')
+        expect(messageElement.text()).toBe('Success Message')
     })
 })

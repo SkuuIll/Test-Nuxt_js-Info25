@@ -142,14 +142,18 @@
 
           <!-- Featured Image -->
           <div
-            v-if="post.image"
+            v-if="getImageUrl(post)"
             class="mb-8"
           >
-            <NuxtImg
-              :src="post.image"
+            <SafeImage
+              :src="getImageUrl(post)"
               :alt="post.title"
-              class="w-full h-64 md:h-96 object-cover rounded-lg shadow-lg"
-              format="webp"
+              :fallback-src="getPlaceholderUrl('post')"
+              aspect-ratio="16/9"
+              image-container-class="w-full h-64 md:h-96"
+              image-class="w-full h-full object-cover rounded-lg shadow-lg"
+              :lazy-loading="false"
+              error-message="Error al cargar imagen del artículo"
             />
           </div>
         </header>
@@ -307,9 +311,15 @@
 <script setup lang="ts">
 import type { Post, Comment } from '~/types'
 
+// Disable SSR to avoid hydration issues
+definePageMeta({
+  ssr: false
+})
+
 const route = useRoute()
 const { user, isAuthenticated } = useAuth()
 const { $toast } = useNuxtApp()
+const { getImageUrl, getPlaceholderUrl } = useImageUrl()
 
 // Reactive state
 const post = ref<Post | null>(null)

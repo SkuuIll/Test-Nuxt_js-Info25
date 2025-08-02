@@ -102,13 +102,22 @@
             {{ loading ? 'Iniciando sesión...' : 'Iniciar Sesión' }}
           </button>
           
-          <button
-            type="button"
-            @click="clearAuth"
-            class="w-full text-sm text-gray-500 hover:text-gray-700 py-2"
-          >
-            🧹 Limpiar datos de autenticación
-          </button>
+          <div class="flex space-x-2">
+            <button
+              type="button"
+              @click="clearAuth"
+              class="flex-1 text-sm text-gray-500 hover:text-gray-700 py-2"
+            >
+              🧹 Limpiar datos
+            </button>
+            <button
+              type="button"
+              @click="forceRedirectToHome"
+              class="flex-1 text-sm text-blue-600 hover:text-blue-700 py-2"
+            >
+              🏠 Ir a Inicio
+            </button>
+          </div>
         </div>
 
         <div
@@ -131,8 +140,8 @@ definePageMeta({
 })
 
 const { login, loading, error } = useAuth()
-const { handleSuccessfulAuth } = useAuthRedirect()
-const { authSuccess, authError } = useToast()
+const { handleSuccessfulLogin, forceRedirectToHome } = useLoginRedirect()
+const { authError } = useToast()
 
 const form = reactive({
   username: '',
@@ -142,30 +151,21 @@ const form = reactive({
 
 const handleLogin = async () => {
   try {
+    console.log('🔐 Starting login process...')
+    
     const result = await login({
       username: form.username,
       password: form.password
     })
     
-    // Determine where to redirect based on user type and context
-    let redirectTo = '/' // Default to home page
+    console.log('✅ Login successful, proceeding with redirect...')
     
-    // If there's a specific redirect URL in query params, use it
-    if (route.query.redirect) {
-      redirectTo = route.query.redirect as string
-    } 
-    // If user is staff/admin, they might want to go to dashboard
-    else if (result?.user?.is_staff) {
-      // For admin users, we could redirect to dashboard, but let's keep it simple
-      // and go to home page unless they specifically came from a protected route
-      redirectTo = '/'
-    }
+    // Use the specialized login redirect handler
+    await handleSuccessfulLogin(result)
     
-    // Handle successful authentication with proper redirect
-    await handleSuccessfulAuth(redirectTo)
-    
-  } catch (err) {
-    // Error is handled by the auth store
+  } catch (err: any) {
+    console.error('❌ Login error:', err)
+    authError(err.message || 'Error al iniciar sesión')
   }
 }
 

@@ -2,296 +2,225 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import EnhancedImage from '~/components/EnhancedImage.vue'
 
-// Mock useIntersectionObserver
-const mockStop = vi.fn()
-vi.mock('@vueuse/core', () => ({
-    useIntersectionObserver: vi.fn(() => ({ stop: mockStop }))
-}))
-
 describe('EnhancedImage', () => {
+    let mockMediaErrorHandler: any
+
     beforeEach(() => {
-        vi.clearAllMocks()
+        mockMediaErrorHandler = {
+            handleMediaError: vi.fn(),
+            testImageLoad: vi.fn().mockResolvedValue(true),
+            resetErrorState: vi.fn(),
+        }
+
+        global.useMediaErrorHandler = vi.fn(() => mockMediaErrorHandler)
+
+        global.useImageFallback = vi.fn(() => ({
+            DEFAULT_FALLBACKS: {
+                post: '/images/post-placeholder.svg',
+                avatar: '/images/placeholder.svg',
+                category: '/images/placeholder.svg',
+                general: '/images/placeholder.svg'
+            }
+        }))
+
+        global.useImagePlaceholder = vi.fn(() => ({
+            generateImagePlaceholder: vi.fn().mockReturnValue('data:image/svg+xml;base64,test')
+        }))
+
+        global.useIPXFallback = vi.fn(() => ({
+            handleIPXError: vi.fn().mockReturnValue('/fallback-image.jpg'),
+            createIPXFallbackSrc: vi.fn().mockReturnValue('/fallback-image.jpg')
+        }))
     })
 
-    it('renders with default props', () => {
+    it('renders with basic props', () => {
         const wrapper = mount(EnhancedImage, {
             props: {
                 src: '/test-image.jpg',
-                alt: 'Test Image'
-            }
+                alt: 'Test image',
+            },
         })
 
-        expect(wrapper.exists()).toBe(true)
-        expect(wrapper.find('img').exists()).toBe(true)
+        const img = wrapper.find('img')
+        expect(img.exists()).toBe(true)
+        expect(img.attributes('alt')).toBe('Test image')
+    })
+
+    it('applies custom CSS classes', () => {
+        const wrapper = mount(EnhancedImage, {
+            props: {
+                src: '/test-image.jpg',
+                alt: 'Test image',
+                containerClass: 'custom-container',
+                imageClass: 'custom-image',
+            },
+        })
+
+        const container = wrapper.find('.image-container')
+        const img = wrapper.find('img')
+
+        expect(container.classes()).toContain('custom-container')
+        expect(img.classes()).toContain('custom-image')
     })
 
     it('shows loading state initially', () => {
         const wrapper = mount(EnhancedImage, {
             props: {
                 src: '/test-image.jpg',
-                alt: 'Test Image'
-            }
+                alt: 'Test image',
+            },
         })
 
-        expect(wrapper.find('.loading-spinner').exists()).toBe(true)
-        expect(wrapper.find('img').exists()).toBe(false)
+        const loadingElement = wrapper.find('[data-testid="image-loading"]')
+        expect(loadingElement.exists()).toBe(true)
     })
 
-    it('shows image after loading', async () => {
+    it('handles image load success', async () => {
         const wrapper = mount(EnhancedImage, {
             props: {
                 src: '/test-image.jpg',
-                alt: 'Test Image'
-            }
+                alt: 'Test image',
+            },
         })
 
         const img = wrapper.find('img')
         await img.trigger('load')
 
-        expect(wrapper.find('.loading-spinner').exists()).toBe(false)
-        expect(img.exists()).toBe(true)
+        expect(wrapper.find('[data-testid="image-loading"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="image-error"]').exists()).toBe(false)
     })
 
-    it('shows error state when image fails to load', async () => {
+    it('handles image load error with fallback', async () => {
+        mockMediaErrorHandler.handleMediaError.mockResolvedValue('/fallback-image.jpg')
+
         const wrapper = mount(EnhancedImage, {
             props: {
-                src: '/non-existent-image.jpg',
-                alt: 'Test Image'
-            }
+                src: '/broken-image.jpg',
+                alt: 'Test image',
+                fallbackSrc: '/fallback-image.jpg',
+            },
         })
 
         const img = wrapper.find('img')
         await img.trigger('error')
 
-        expect(wrapper.find('.error-content').exists()).toBe(true)
-        expect(wrapper.find('.loading-spinner').exists()).toBe(false)
+        expect(mockMediaErrorHandler.handleMediaError).toHaveBeenCalledWith(
+            '/broken-image.jpg',
+            'image',
+            { fallbackSrc: '/fallback-image.jpg' }
+        )
     })
 
-    it('tries fallback image when main image fails', async () => {
+    it('shows error state when all fallbacks fail', async () => {
+        mockMediaErrorHandler.handleMediaError.mockResolvedValue(null)
+
         const wrapper = mount(EnhancedImage, {
             props: {
-                src: '/non-existent-image.jpg',
-                alt: 'Test Image',
-                fallbackSrc: '/fallback-image.jpg'
-            }
+                src: '/broken-image.jpg',
+                alt: 'Test image',
+                errorMessage: 'Custom error message',
+            },
         })
 
         const img = wrapper.find('img')
         await img.trigger('error')
+        await wrapper.vm.$nextTick()
 
-        // Should switch to fallback image
-        expect(img.attributes('src')).toBe('/fallback-image.jpg')
+        const errorElement = wrapper.find('[data-testid="image-error"]')
+        expect(errorElement.exists()).toBe(true)
+        expect(errorElement.text()).toContain('Custom error message')
     })
 
-    it('shows retry button when showRetryButton is true', async () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/non-existent-image.jpg',
-                alt: 'Test Image',
-                showRetryButton: true,
-                retryAttempts: 0 // No retries, go straight to error
-            }
-        })
-
-        const img = wrapper.find('img')
-        await img.trigger('error')
-
-        expect(wrapper.find('button').exists()).toBe(true)
-        expect(wrapper.find('button').text()).toBe('Reintentar')
-    })
-
-    it('retries loading when retry button is clicked', async () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/non-existent-image.jpg',
-                alt: 'Test Image',
-                showRetryButton: true,
-                retryAttempts: 0
-            }
-        })
-
-        const img = wrapper.find('img')
-        await img.trigger('error')
-
-        const retryButton = wrapper.find('button')
-        await retryButton.trigger('click')
-
-        // Should reset to loading state
-        expect(wrapper.find('.loading-spinner').exists()).toBe(true)
-        expect(wrapper.find('.error-content').exists()).toBe(false)
-    })
-
-    it('emits load event when image loads', async () => {
+    it('applies aspect ratio styling', () => {
         const wrapper = mount(EnhancedImage, {
             props: {
                 src: '/test-image.jpg',
-                alt: 'Test Image'
-            }
+                alt: 'Test image',
+                aspectRatio: '16/9',
+            },
+        })
+
+        const container = wrapper.find('.image-container')
+        expect(container.attributes('style')).toContain('aspect-ratio: 16/9')
+    })
+
+    it('handles lazy loading', () => {
+        const wrapper = mount(EnhancedImage, {
+            props: {
+                src: '/test-image.jpg',
+                alt: 'Test image',
+                lazyLoading: true,
+            },
         })
 
         const img = wrapper.find('img')
-        const loadEvent = new Event('load')
+        expect(img.attributes('loading')).toBe('lazy')
+    })
+
+    it('disables lazy loading when specified', () => {
+        const wrapper = mount(EnhancedImage, {
+            props: {
+                src: '/test-image.jpg',
+                alt: 'Test image',
+                lazyLoading: false,
+            },
+        })
+
+        const img = wrapper.find('img')
+        expect(img.attributes('loading')).toBe('eager')
+    })
+
+    it('handles retry functionality', async () => {
+        mockMediaErrorHandler.handleMediaError.mockResolvedValue(null)
+
+        const wrapper = mount(EnhancedImage, {
+            props: {
+                src: '/broken-image.jpg',
+                alt: 'Test image',
+            },
+        })
+
+        // Trigger error to show error state
+        const img = wrapper.find('img')
+        await img.trigger('error')
+        await wrapper.vm.$nextTick()
+
+        // Find and click retry button
+        const retryButton = wrapper.find('[data-testid="image-retry"]')
+        expect(retryButton.exists()).toBe(true)
+
+        await retryButton.trigger('click')
+        expect(mockMediaErrorHandler.resetErrorState).toHaveBeenCalled()
+    })
+
+    it('emits load event when image loads successfully', async () => {
+        const wrapper = mount(EnhancedImage, {
+            props: {
+                src: '/test-image.jpg',
+                alt: 'Test image',
+            },
+        })
+
+        const img = wrapper.find('img')
         await img.trigger('load')
 
         expect(wrapper.emitted('load')).toBeTruthy()
-        expect(wrapper.emitted('load')).toHaveLength(1)
     })
 
     it('emits error event when image fails to load', async () => {
+        mockMediaErrorHandler.handleMediaError.mockResolvedValue(null)
+
         const wrapper = mount(EnhancedImage, {
             props: {
-                src: '/non-existent-image.jpg',
-                alt: 'Test Image',
-                retryAttempts: 0
-            }
+                src: '/broken-image.jpg',
+                alt: 'Test image',
+            },
         })
 
         const img = wrapper.find('img')
         await img.trigger('error')
+        await wrapper.vm.$nextTick()
 
         expect(wrapper.emitted('error')).toBeTruthy()
-        expect(wrapper.emitted('error')).toHaveLength(1)
-    })
-
-    it('emits click event when image is clicked', async () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image'
-            }
-        })
-
-        // First load the image
-        const img = wrapper.find('img')
-        await img.trigger('load')
-
-        // Then click it
-        await img.trigger('click')
-
-        expect(wrapper.emitted('click')).toBeTruthy()
-        expect(wrapper.emitted('click')).toHaveLength(1)
-    })
-
-    it('applies custom classes correctly', () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image',
-                containerClass: 'custom-container',
-                imageClass: 'custom-image'
-            }
-        })
-
-        expect(wrapper.find('.enhanced-image-container').classes()).toContain('custom-container')
-        expect(wrapper.find('img').classes()).toContain('custom-image')
-    })
-
-    it('sets aspect ratio correctly', () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image',
-                aspectRatio: '16/9'
-            }
-        })
-
-        const placeholder = wrapper.find('.image-placeholder')
-        expect(placeholder.attributes('style')).toContain('aspect-ratio: 16/9')
-    })
-
-    it('sets width and height styles correctly', () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image',
-                width: 300,
-                height: '200px'
-            }
-        })
-
-        const img = wrapper.find('img')
-        const style = img.attributes('style')
-        expect(style).toContain('width: 300px')
-        expect(style).toContain('height: 200px')
-    })
-
-    it('sets loading attribute based on lazyLoading prop', () => {
-        const eagerWrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image',
-                lazyLoading: false
-            }
-        })
-
-        const lazyWrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image',
-                lazyLoading: true
-            }
-        })
-
-        expect(eagerWrapper.find('img').attributes('loading')).toBe('eager')
-        expect(lazyWrapper.find('img').attributes('loading')).toBe('lazy')
-    })
-
-    it('updates src when prop changes', async () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image-1.jpg',
-                alt: 'Test Image'
-            }
-        })
-
-        await wrapper.setProps({ src: '/test-image-2.jpg' })
-
-        expect(wrapper.find('img').attributes('src')).toBe('/test-image-2.jpg')
-    })
-
-    it('renders overlay slot content', () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image'
-            },
-            slots: {
-                overlay: '<div class="custom-overlay">Overlay Content</div>'
-            }
-        })
-
-        expect(wrapper.find('.image-overlay').exists()).toBe(true)
-        expect(wrapper.find('.custom-overlay').exists()).toBe(true)
-        expect(wrapper.find('.custom-overlay').text()).toBe('Overlay Content')
-    })
-
-    it('shows custom error message', async () => {
-        const customErrorMessage = 'Custom error message'
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/non-existent-image.jpg',
-                alt: 'Test Image',
-                errorMessage: customErrorMessage,
-                retryAttempts: 0
-            }
-        })
-
-        const img = wrapper.find('img')
-        await img.trigger('error')
-
-        expect(wrapper.find('.error-content p').text()).toBe(customErrorMessage)
-    })
-
-    it('cleans up intersection observer on unmount', () => {
-        const wrapper = mount(EnhancedImage, {
-            props: {
-                src: '/test-image.jpg',
-                alt: 'Test Image'
-            }
-        })
-
-        wrapper.unmount()
-
-        expect(mockStop).toHaveBeenCalled()
     })
 })

@@ -131,15 +131,58 @@ const tokenUtils = {
   }
 }
 
+// Helper function to normalize image URLs
+const normalizeImageUrl = (imageUrl: string | null | undefined, baseUrl: string): string | null => {
+  if (!imageUrl) return null
+
+  console.log('🖼️ API normalizing image URL:', imageUrl)
+
+  // If it's already a full URL, return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    console.log('✅ Already full URL:', imageUrl)
+    return imageUrl
+  }
+
+  // Clean up the image URL to avoid double /media/
+  let cleanImageUrl = imageUrl
+  // Remove leading slash if present
+  if (cleanImageUrl.startsWith('/')) {
+    cleanImageUrl = cleanImageUrl.substring(1)
+  }
+
+  // If it already starts with media/, don't add it again
+  if (cleanImageUrl.startsWith('media/')) {
+    const fullUrl = `${baseUrl}/${cleanImageUrl}`
+    console.log('📁 Media URL (cleaned):', fullUrl)
+    return fullUrl
+  }
+
+  // Otherwise, add media/ prefix
+  const fullUrl = `${baseUrl}/media/${cleanImageUrl}`
+  console.log('📂 Added media prefix:', fullUrl)
+  return fullUrl
+}
+
 // Data transformation utilities also remain at the top level
 const transformPost = (apiPost: any): Post => {
+  // Get base URL safely
+  let baseUrl = 'http://localhost:8000'
+  try {
+    if (process.client) {
+      const config = useRuntimeConfig()
+      baseUrl = config.public.apiBase || 'http://localhost:8000'
+    }
+  } catch (e) {
+    console.warn('Could not get runtime config, using default base URL')
+  }
+
   return {
     id: apiPost.id,
     title: apiPost.titulo || apiPost.title,
     slug: apiPost.slug,
     content: apiPost.contenido || apiPost.content,
     excerpt: apiPost.excerpt,
-    image: apiPost.image_url || apiPost.image,
+    image: normalizeImageUrl(apiPost.image_url || apiPost.image || apiPost.imagen, baseUrl),
     author: apiPost.author,
     category: {
       id: apiPost.category.id,

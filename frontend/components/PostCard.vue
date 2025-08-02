@@ -2,12 +2,12 @@
   <article class="card group cursor-pointer">
     <!-- Image -->
     <div class="relative overflow-hidden rounded-t-lg">
-      <EnhancedImage
-        :src="post.image || post.imagen"
+      <SafeImage
+        :src="getImageUrl(post)"
         :alt="post.title || post.titulo"
-        :fallback-src="DEFAULT_FALLBACKS.post"
+        :fallback-src="getPlaceholderUrl('post')"
         aspect-ratio="16/9"
-        container-class="w-full h-48"
+        image-container-class="w-full h-48"
         image-class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         :lazy-loading="true"
         error-message="Error al cargar imagen del artículo"
@@ -131,6 +131,8 @@
 import type { Post } from '~/types'
 import { createPostUrl } from '~/utils/validation'
 import { DEFAULT_FALLBACKS } from '~/composables/useImageFallback'
+
+const { getImageUrl, getPlaceholderUrl } = useImageUrl()
 
 interface Props {
   post: Post
