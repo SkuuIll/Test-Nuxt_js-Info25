@@ -71,11 +71,11 @@
               <!-- Author -->
               <div class="flex items-center space-x-2">
                 <div class="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium">
-                  {{ post.author.username.charAt(0).toUpperCase() }}
+                  {{ getAuthorInitials(post.author) }}
                 </div>
                 <div>
                   <p class="font-medium text-gray-900 dark:text-white">
-                    {{ post.author.username }}
+                    {{ getAuthorDisplayName(post.author) }}
                   </p>
                   <p class="text-sm">
                     Autor
@@ -268,12 +268,12 @@
             >
               <div class="flex items-start space-x-4">
                 <div class="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0">
-                  {{ comment.author.username.charAt(0).toUpperCase() }}
+                  {{ getAuthorInitials(comment.author) }}
                 </div>
                 <div class="flex-1">
                   <div class="flex items-center space-x-2 mb-2">
                     <h4 class="font-medium text-gray-900 dark:text-white">
-                      {{ comment.author.username }}
+                      {{ getAuthorDisplayName(comment.author) }}
                     </h4>
                     <time
                       class="text-sm text-gray-500 dark:text-gray-400"
@@ -320,6 +320,7 @@ const route = useRoute()
 const { user, isAuthenticated } = useAuth()
 const { $toast } = useNuxtApp()
 const { getImageUrl, getPlaceholderUrl } = useImageUrl()
+const { getAuthorInitials, getAuthorDisplayName } = useUserUtils()
 
 // Reactive state
 const post = ref<Post | null>(null)

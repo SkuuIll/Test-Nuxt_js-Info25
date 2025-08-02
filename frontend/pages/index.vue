@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-3">
             <div class="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium">
-              {{ user?.username?.charAt(0).toUpperCase() }}
+              {{ (user?.username || user?.name || 'U').charAt(0).toUpperCase() }}
             </div>
             <div>
               <h2 class="text-lg font-semibold text-primary-900 dark:text-primary-100">

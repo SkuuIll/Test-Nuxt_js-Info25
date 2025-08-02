@@ -68,9 +68,9 @@
             class="flex items-center space-x-2"
           >
             <div class="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
-              {{ post.author.username.charAt(0).toUpperCase() }}
+              {{ getAuthorInitials(post.author) }}
             </div>
-            <span>{{ post.author.username }}</span>
+            <span>{{ getAuthorDisplayName(post.author) }}</span>
           </div>
 
           <!-- Date -->
@@ -133,6 +133,7 @@ import { createPostUrl } from '~/utils/validation'
 import { DEFAULT_FALLBACKS } from '~/composables/useImageFallback'
 
 const { getImageUrl, getPlaceholderUrl } = useImageUrl()
+const { getAuthorInitials, getAuthorDisplayName } = useUserUtils()
 
 interface Props {
   post: Post

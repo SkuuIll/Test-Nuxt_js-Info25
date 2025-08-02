@@ -86,7 +86,7 @@
               <div
                 class="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white text-sm font-medium"
               >
-                {{ user?.username?.charAt(0).toUpperCase() }}
+                {{ (user?.username || user?.name || 'U').charAt(0).toUpperCase() }}
               </div>
               <Icon name="chevron-down" class="w-4 h-4" />
             </button>

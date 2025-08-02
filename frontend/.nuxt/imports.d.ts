@@ -61,6 +61,7 @@ export { useNotifications } from '../composables/useNotifications';
 export { usePageLoading } from '../composables/usePageLoading';
 export { useTheme } from '../composables/useTheme';
 export { useToast } from '../composables/useToast';
+export { useUserUtils } from '../composables/useUserUtils';
 export { testAuthFlow, testLoginFlow, testRegistrationFlow, testTokenRefresh, testMiddleware, runAllTests } from '../utils/authTest';
 export { createDirectFetch } from '../utils/directFetch';
 export { handleApiError, handleAuthError, handleValidationError, handleNetworkError, handleError, getErrorMessage, isRetryableError, logError, ErrorInfo } from '../utils/errorHandling';
