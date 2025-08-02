@@ -272,8 +272,8 @@
 
 <script setup>
 definePageMeta({
-  layout: 'dashboard',
-  middleware: 'dashboard-auth'
+  layout: 'default',
+  middleware: 'simple-admin'
 })
 
 // Composables
@@ -348,17 +348,14 @@ const handleImageUpload = async (event) => {
       fileType: file.type
     })
     
-    // Get dashboard auth tokens
-    const dashboardAuth = useDashboardAuthSimple()
-    const tokens = dashboardAuth.getDashboardTokens()
+    // Get auth tokens from main auth system
+    const { token } = useAuth()
     
-    console.log('🔑 Dashboard tokens:', {
-      hasTokens: !!tokens,
-      hasAccess: !!tokens?.access,
-      hasRefresh: !!tokens?.refresh
+    console.log('🔑 Auth token:', {
+      hasToken: !!token.value
     })
     
-    if (!tokens?.access) {
+    if (!token.value) {
       handleError('No se encontró token de autenticación. Por favor, inicia sesión nuevamente.', 'handleImageUpload')
       return
     }
@@ -390,7 +387,7 @@ const handleImageUpload = async (event) => {
       method: 'POST',
       body: formData,
       headers: {
-        'Authorization': `Bearer ${tokens.access}`
+        'Authorization': `Bearer ${token.value}`
       }
     })
 
@@ -436,26 +433,30 @@ const submitPost = async (status) => {
   try {
     loading.value = true
 
-    // Get dashboard auth tokens
-    const dashboardAuth = useDashboardAuthSimple()
-    const tokens = dashboardAuth.getDashboardTokens()
+    // Get auth token from main auth system
+    const { token } = useAuth()
     
-    if (!tokens?.access) {
+    if (!token.value) {
       handleError('No se encontró token de autenticación. Por favor, inicia sesión nuevamente.', 'submitPost')
       return
     }
 
     const postData = {
-      ...form,
+      titulo: form.title,
+      contenido: form.content,
       status,
-      tags: form.tags.join(',')
+      featured: form.featured,
+      imagen: form.featured_image,
+      categoria: form.category,
+      meta_title: form.title,
+      meta_description: form.excerpt
     }
 
-    await $fetch('/api/v1/dashboard/posts/', {
+    await $fetch('/api/v1/dashboard/api/posts/', {
       method: 'POST',
       body: postData,
       headers: {
-        'Authorization': `Bearer ${tokens.access}`
+        'Authorization': `Bearer ${token.value}`
       }
     })
 
@@ -471,10 +472,29 @@ const submitPost = async (status) => {
 
 const fetchCategories = async () => {
   try {
-    const response = await $fetch('/api/v1/categories/')
-    categories.value = response
+    const { token } = useAuth()
+    
+    if (!token.value) {
+      console.error('No auth token available for fetching categories')
+      return
+    }
+    
+    const response = await $fetch('/api/v1/dashboard/api/categories/', {
+      headers: {
+        'Authorization': `Bearer ${token.value}`
+      }
+    })
+    
+    categories.value = response.results || response
   } catch (error) {
     console.error('Error fetching categories:', error)
+    // Fallback to public categories endpoint
+    try {
+      const response = await $fetch('/api/v1/categories/')
+      categories.value = response.results || response
+    } catch (fallbackError) {
+      console.error('Error fetching categories from fallback:', fallbackError)
+    }
   }
 }
 

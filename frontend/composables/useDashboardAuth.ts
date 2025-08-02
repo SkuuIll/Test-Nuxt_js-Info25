@@ -56,7 +56,7 @@ interface DashboardAuthError {
 
 export const useDashboardAuth = () => {
     // Error handlers are now imported from utils to avoid circular dependencies
-    const { dashboardLoading } = useLoading()
+    const { authLoading } = useLoading()
 
     // Defer api and router initialization
     let api: ReturnType<typeof useApi>;
@@ -96,7 +96,7 @@ export const useDashboardAuth = () => {
     })
 
     // Computed
-    const loading = computed(() => dashboardLoading.loading.value)
+    const loading = computed(() => authLoading.loading.value)
     const isAdmin = computed(() => user.value?.is_staff || false)
     const isSuperuser = computed(() => user.value?.is_superuser || false)
     const isSessionActive = computed(() => {
@@ -273,72 +273,74 @@ export const useDashboardAuth = () => {
 
     // Enhanced dashboard login with comprehensive error handling
     const login = async (credentials: LoginCredentials) => {
-        return await dashboardLoading.withLoading(async () => {
+        return await authLoading.withLoading(async () => {
             try {
                 error.value = null
                 clearDashboardErrors()
                 updateDashboardActivity()
 
-                console.log('🔐 Starting enhanced dashboard login for:', credentials.username)
+                console.log('🔐 Starting enhanced dashboard login for:', credentials.email || credentials.username)
 
                 // Validate credentials before sending
-                if (!credentials.username?.trim() || !credentials.password?.trim()) {
-                    throw new Error('Username and password are required')
+                if ((!credentials.email?.trim() && !credentials.username?.trim()) || !credentials.password?.trim()) {
+                    throw new Error('Email/username and password are required')
                 }
 
                 // Use dashboard-specific login endpoint
                 const response = await getApi().apiRequest<AuthTokens>('/dashboard/auth/login/', {
                     method: 'POST',
-                    body: credentials
+                    body: JSON.stringify(credentials)
                 })
 
                 console.log('✅ Dashboard login successful, tokens received')
 
                 // Validate response structure
-                if (!response.access || !response.refresh) {
+                if (!response.data?.access || !response.data?.refresh) {
                     throw new Error('Invalid token response from server')
                 }
 
                 // Store dashboard tokens and update session
-                setDashboardTokens(response)
+                setDashboardTokens({
+                    access: response.data.access,
+                    refresh: response.data.refresh
+                })
 
-                // Fetch dashboard user profile with retry logic
-                let profile: DashboardUser
-                let profileAttempts = 0
-                const maxProfileAttempts = 3
+                // Use user data from login response instead of making additional request
+                const userData = response.data.user
 
-                while (profileAttempts < maxProfileAttempts) {
-                    try {
-                        profile = await fetchDashboardProfile()
-                        break
-                    } catch (profileError: any) {
-                        profileAttempts++
-                        console.warn(`⚠️ Dashboard profile fetch attempt ${profileAttempts} failed:`, profileError)
-
-                        if (profileAttempts >= maxProfileAttempts) {
-                            throw profileError
-                        }
-
-                        // Wait before retry
-                        await new Promise(resolve => setTimeout(resolve, 1000 * profileAttempts))
-                    }
-                }
-
-                console.log('👤 Dashboard user profile fetched:', {
-                    username: profile!.username,
-                    isStaff: profile!.is_staff,
-                    permissions: profile!.permissions
+                console.log('👤 Dashboard user data from login:', {
+                    username: userData.username,
+                    isStaff: userData.is_staff,
+                    isSuperuser: userData.is_superuser,
+                    permissions: userData.permissions
                 })
 
                 // Validate user permissions for dashboard access
-                if (!profile!.is_staff && !profile!.is_superuser) {
+                if (!userData.is_superuser && !userData.is_staff) {
                     await clearDashboardAuthState()
                     throw new Error('Insufficient permissions for dashboard access')
                 }
 
+                // Create dashboard user object with permissions
+                const dashboardUser: DashboardUser = {
+                    ...userData,
+                    permissions: userData.permissions || {
+                        can_manage_posts: userData.is_superuser,
+                        can_manage_users: userData.is_superuser,
+                        can_manage_comments: userData.is_superuser,
+                        can_view_stats: userData.is_superuser || userData.is_staff,
+                        can_moderate_content: userData.is_superuser,
+                        can_access_analytics: userData.is_superuser,
+                        can_manage_categories: userData.is_superuser,
+                        can_manage_media: userData.is_superuser,
+                        can_export_data: userData.is_superuser,
+                        can_manage_settings: userData.is_superuser
+                    }
+                }
+
                 // Set authentication state
-                user.value = profile!
-                permissions.value = profile!.permissions
+                user.value = dashboardUser
+                permissions.value = dashboardUser.permissions
                 isAuthenticated.value = true
 
                 // Setup session monitoring
@@ -410,7 +412,7 @@ export const useDashboardAuth = () => {
     } = {}) => {
         const { redirectTo = '/dashboard/login', reason = 'user', showMessage = true } = options
 
-        return await dashboardLoading.withLoading(async () => {
+        return await authLoading.withLoading(async () => {
             try {
                 console.log(`👋 Starting enhanced dashboard logout (reason: ${reason})...`)
 

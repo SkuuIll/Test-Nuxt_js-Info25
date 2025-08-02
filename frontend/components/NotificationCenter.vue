@@ -194,8 +194,13 @@ const toggleDropdown = async () => {
   showDropdown.value = !showDropdown.value
   
   if (showDropdown.value) {
-    // Fetch latest notifications when opening
-    await notificationStore.fetchNotifications({ page: 1, page_size: props.maxVisible })
+    try {
+      // Fetch latest notifications when opening
+      await notificationStore.fetchNotifications({ page: 1, page_size: props.maxVisible })
+    } catch (error) {
+      console.error('Error fetching notifications:', error)
+      // Don't show error to user, just log it
+    }
   }
 }
 

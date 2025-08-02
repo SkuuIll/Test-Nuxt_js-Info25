@@ -15,15 +15,15 @@
       <form class="mt-8 space-y-6" @submit.prevent="handleLogin">
         <div class="rounded-md shadow-sm -space-y-px">
           <div>
-            <label for="username" class="sr-only">Usuario</label>
+            <label for="email" class="sr-only">Email</label>
             <input
-              id="username"
-              v-model="form.username"
-              name="username"
-              type="text"
+              id="email"
+              v-model="form.email"
+              name="email"
+              type="email"
               required
               class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-              placeholder="Usuario"
+              placeholder="Email"
               :disabled="loading"
             />
           </div>
@@ -116,20 +116,20 @@ const route = useRoute()
 
 // Form state
 const form = reactive({
-  username: '',
+  email: '',
   password: '',
   rememberMe: false
 })
 
-// Load remembered username on mount
+// Load remembered email on mount
 onMounted(() => {
-  if (isAuthenticated()) {
+  if (isAuthenticated.value) {
     navigateTo('/dashboard')
   } else {
-    // Load remembered username
-    const rememberedUsername = localStorage.getItem('dashboard_remembered_username')
-    if (rememberedUsername) {
-      form.username = rememberedUsername
+    // Load remembered email
+    const rememberedEmail = localStorage.getItem('dashboard_remembered_email')
+    if (rememberedEmail) {
+      form.email = rememberedEmail
       form.rememberMe = true
     }
   }
@@ -140,16 +140,18 @@ const error = ref<string | null>(null)
 
 // Form validation
 const validateForm = () => {
-  if (!form.username.trim()) {
-    error.value = 'El usuario es requerido'
+  if (!form.email.trim()) {
+    error.value = 'El email es requerido'
     return false
   }
   if (!form.password.trim()) {
     error.value = 'La contraseña es requerida'
     return false
   }
-  if (form.username.length < 3) {
-    error.value = 'El usuario debe tener al menos 3 caracteres'
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(form.email)) {
+    error.value = 'Por favor ingresa un email válido'
     return false
   }
   if (form.password.length < 6) {
@@ -175,7 +177,7 @@ const handleLogin = async () => {
     if (response.error) {
       error.value = response.message
       
-      // Focus on password field for retry if username exists
+      // Focus on password field for retry if email exists
       nextTick(() => {
         const passwordInput = document.getElementById('password')
         if (passwordInput) {
@@ -186,9 +188,9 @@ const handleLogin = async () => {
     } else {
       // Handle remember me
       if (form.rememberMe) {
-        localStorage.setItem('dashboard_remembered_username', form.username)
+        localStorage.setItem('dashboard_remembered_email', form.email)
       } else {
-        localStorage.removeItem('dashboard_remembered_username')
+        localStorage.removeItem('dashboard_remembered_email')
       }
       
       // Show success message briefly before redirect

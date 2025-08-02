@@ -35,16 +35,25 @@ class DashboardTokenObtainPairView(TokenObtainPairView):
     
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
+        email = request.data.get('email')
         password = request.data.get('password')
         
-        if not username or not password:
+        if not password or (not username and not email):
             return DashboardAPIResponse.error(
-                'Username y password son requeridos',
+                'Email/username y password son requeridos',
                 status_code=HTTPStatus.BAD_REQUEST
             )
         
-        # Autenticar usuario
-        user = authenticate(username=username, password=password)
+        # Autenticar usuario (probar con email primero, luego username)
+        user = None
+        if email:
+            user = authenticate(email=email, password=password)
+        elif username:
+            # Intentar con username primero
+            user = authenticate(username=username, password=password)
+            # Si falla, intentar con email usando el username como email
+            if not user:
+                user = authenticate(email=username, password=password)
         
         if not user:
             return DashboardAPIResponse.unauthorized('Credenciales inválidas')

@@ -68,7 +68,7 @@ onMounted(() => {
   // Esperar a que se inicialice la autenticación
   const checkAuth = () => {
     if (initialized.value) {
-      if (!isAuthenticated()) {
+      if (!isAuthenticated.value) {
         navigateTo('/dashboard/login')
       } else {
         showContent.value = true

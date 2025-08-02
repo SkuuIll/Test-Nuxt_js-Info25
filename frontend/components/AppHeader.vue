@@ -110,12 +110,41 @@
                   Mi Perfil
                 </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/dashboard" class="dropdown-item bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300">
-                  <Icon name="settings" class="w-4 h-4" />
+                <!-- Admin Section -->
+                <div v-if="user?.is_staff" class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                
+                <div v-if="user?.is_staff" class="px-3 py-2">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Administración
+                  </p>
+                </div>
+
+                <NuxtLink v-if="user?.is_staff" to="/admin/posts/create" class="dropdown-item text-green-700 dark:text-green-300">
+                  <Icon name="plus" class="w-4 h-4" />
                   <span class="flex items-center space-x-2">
-                    <span>Dashboard</span>
-                    <span class="text-xs bg-primary-100 dark:bg-primary-800 px-2 py-0.5 rounded-full">Admin</span>
+                    <span>Crear Post</span>
+                    <span class="text-xs bg-green-100 dark:bg-green-900 px-2 py-0.5 rounded-full">Nuevo</span>
                   </span>
+                </NuxtLink>
+
+                <NuxtLink v-if="user?.is_staff" to="/admin/posts" class="dropdown-item">
+                  <Icon name="document-text" class="w-4 h-4" />
+                  Gestionar Posts
+                </NuxtLink>
+
+                <NuxtLink v-if="user?.is_staff" to="/admin/users" class="dropdown-item">
+                  <Icon name="users" class="w-4 h-4" />
+                  Gestionar Usuarios
+                </NuxtLink>
+
+                <NuxtLink v-if="user?.is_staff" to="/admin/comments" class="dropdown-item">
+                  <Icon name="chat" class="w-4 h-4" />
+                  Moderar Comentarios
+                </NuxtLink>
+
+                <NuxtLink v-if="user?.is_staff" to="/admin/stats" class="dropdown-item">
+                  <Icon name="chart-bar" class="w-4 h-4" />
+                  Estadísticas
                 </NuxtLink>
 
                 <button class="dropdown-item w-full text-left" @click="handleLogout">

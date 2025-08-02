@@ -99,6 +99,13 @@ export const useNotificationStore = defineStore('notifications', () => {
             loading.value = true
             error.value = null
 
+            // Check if user is authenticated before fetching notifications
+            const { isAuthenticated } = useAuth()
+            if (!isAuthenticated.value) {
+                console.log('User not authenticated, skipping notifications fetch')
+                return
+            }
+
             const mergedFilters = { ...filters.value, ...options }
             const searchParams = new URLSearchParams()
 
