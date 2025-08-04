@@ -310,7 +310,7 @@
               <h4 class="font-semibold text-gray-900 dark:text-white mb-2">Aplicación</h4>
               <div class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                 <p>Versión: 1.0.0</p>
-                <p>Entorno: {{ import.meta.dev ? 'Desarrollo' : 'Producción' }}</p>
+                <p>Entorno: {{ $dev ? 'Desarrollo' : 'Producción' }}</p>
                 <p>Framework: Nuxt 3</p>
               </div>
             </div>
