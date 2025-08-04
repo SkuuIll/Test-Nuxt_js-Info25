@@ -84,7 +84,7 @@ Proyecto/
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/tu-usuario/blog-noticias.git
+git clone https://github.com/SkuuIll/Test-Nuxt_js-Info25.git
 cd Proyecto
 ```
 
