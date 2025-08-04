@@ -38,7 +38,33 @@ if %errorlevel% equ 0 (
 echo ✅ Puertos disponibles.
 echo.
 
+echo 🔧 Verificando entorno virtual...
+if not exist "entorno\Scripts\activate.bat" (
+    echo ⚠️ Entorno virtual no encontrado. Creando entorno virtual...
+    python -m venv entorno
+    if %errorlevel% neq 0 (
+        echo ❌ Error al crear el entorno virtual.
+        pause
+        exit /b 1
+    )
+    echo ✅ Entorno virtual creado.
+    
+    echo 📦 Instalando dependencias...
+    call entorno\Scripts\activate.bat
+    pip install -r requirements.txt
+    if %errorlevel% neq 0 (
+        echo ❌ Error al instalar dependencias.
+        pause
+        exit /b 1
+    )
+    echo ✅ Dependencias instaladas.
+) else (
+    echo ✅ Entorno virtual encontrado.
+)
+echo.
+
 echo 🔧 Configurando usuario administrador...
+call entorno\Scripts\activate.bat
 python setup_admin_only.py
 if %errorlevel% neq 0 (
     echo ❌ Error al configurar el usuario administrador.
@@ -49,7 +75,7 @@ echo ✅ Usuario administrador configurado.
 echo.
 
 echo 🔧 Iniciando Backend (Django)...
-start "Django Backend" cmd /k "python manage.py runserver 0.0.0.0:8000"
+start "Django Backend" cmd /k "call entorno\Scripts\activate.bat && python manage.py runserver 0.0.0.0:8000"
 
 echo ⏳ Esperando que el backend se inicie...
 timeout /t 5 /nobreak >nul
