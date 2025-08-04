@@ -151,9 +151,9 @@ describe('App Fixes Integration', () => {
 
     describe('Error Recovery Integration', () => {
         it('should handle errors without breaking the app', async () => {
-            const { useErrorRecovery } = await import('~/composables/useErrorRecovery')
+            const { useErrorHandler } = await import('~/composables/useErrorHandler')
 
-            const errorRecovery = useErrorRecovery()
+            const errorRecovery = useErrorHandler()
 
             expect(() => {
                 errorRecovery.handleError(new Error('Test error'), 'test-context')
@@ -164,7 +164,7 @@ describe('App Fixes Integration', () => {
         })
 
         it('should handle API errors gracefully', async () => {
-            const { useAPIErrorHandler } = await import('~/composables/useErrorRecovery')
+            const { useAPIErrorHandler } = await import('~/composables/useErrorHandler')
 
             const apiErrorHandler = useAPIErrorHandler()
 
@@ -181,7 +181,7 @@ describe('App Fixes Integration', () => {
 
     describe('Hydration Integration', () => {
         it('should handle hydration mismatches', async () => {
-            const { useHydrationRecovery } = await import('~/composables/useErrorRecovery')
+            const { useHydrationRecovery } = await import('~/composables/useErrorHandler')
 
             const hydrationRecovery = useHydrationRecovery()
 

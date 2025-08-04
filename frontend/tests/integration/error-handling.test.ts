@@ -282,7 +282,7 @@ describe('Error Handling Integration', () => {
                 ]),
             }
 
-            global.useErrorRecovery = vi.fn(() => mockErrorRecovery)
+            global.useErrorHandler = vi.fn(() => mockErrorRecovery)
 
             const error = new Error('Network error')
             await mockErrorRecovery.handleError(error, 'network')

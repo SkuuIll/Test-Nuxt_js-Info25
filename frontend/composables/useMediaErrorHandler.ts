@@ -5,7 +5,6 @@
 interface MediaErrorOptions {
     retryAttempts?: number
     retryDelay?: number
-    enableLogging?: boolean
     onError?: (error: MediaError) => void
     onRetry?: (attempt: number) => void
     onFallback?: (fallbackSrc: string) => void
@@ -30,14 +29,12 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
     const {
         retryAttempts = 3,
         retryDelay = 1000,
-        enableLogging = true,
         onError,
         onRetry,
         onFallback
     } = options
 
     // State
-    const errorHistory = ref<MediaError[]>([])
     const retryCount = ref(0)
     const isRetrying = ref(false)
 
@@ -80,9 +77,7 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
                     priority: 1
                 })
             } catch (e) {
-                if (enableLogging) {
-                    console.warn('Failed to generate IPX fallback:', e)
-                }
+                // Silently handle IPX fallback errors
             }
         }
 
@@ -152,13 +147,6 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
             message: getErrorMessage(errorType)
         }
 
-        // Add to error history
-        errorHistory.value.push(error)
-
-        if (enableLogging) {
-            console.warn(`❌ Media error (${errorType}):`, originalSrc)
-        }
-
         // Call error callback
         onError?.(error)
 
@@ -167,10 +155,6 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
 
         for (const strategy of strategies) {
             try {
-                if (enableLogging) {
-                    console.log(`🔄 Trying ${strategy.type} fallback:`, strategy.src)
-                }
-
                 // Test if fallback image loads
                 const canLoad = await testImageLoad(strategy.src)
                 if (canLoad) {
@@ -178,9 +162,7 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
                     return strategy.src
                 }
             } catch (e) {
-                if (enableLogging) {
-                    console.warn(`❌ ${strategy.type} fallback failed:`, e)
-                }
+                // Silently handle fallback errors
             }
         }
 
@@ -195,8 +177,8 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
             img.onerror = () => resolve(false)
             img.src = src
 
-            // Timeout after 5 seconds
-            setTimeout(() => resolve(false), 5000)
+            // Timeout after 2 seconds for production
+            setTimeout(() => resolve(false), 2000)
         })
     }
 
@@ -209,19 +191,15 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
         isRetrying.value = true
         retryCount.value++
 
-        if (enableLogging) {
-            console.log(`🔄 Retrying media load (${retryCount.value}/${retryAttempts}):`, src)
-        }
-
         onRetry?.(retryCount.value)
 
         // Calculate delay with exponential backoff
         const delay = retryDelay * Math.pow(2, retryCount.value - 1)
         await new Promise(resolve => setTimeout(resolve, delay))
 
-        // Add cache busting parameter
+        // Simple retry without extensive cache busting
         const separator = src.includes('?') ? '&' : '?'
-        const retrySrc = `${src}${separator}_retry=${retryCount.value}&_t=${Date.now()}`
+        const retrySrc = `${src}${separator}_t=${Date.now()}`
 
         try {
             const canLoad = await testImageLoad(retrySrc)
@@ -230,9 +208,7 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
                 return retrySrc
             }
         } catch (e) {
-            if (enableLogging) {
-                console.warn(`❌ Retry ${retryCount.value} failed:`, e)
-            }
+            // Handle retry errors silently
         }
 
         isRetrying.value = false
@@ -257,59 +233,21 @@ export const useMediaErrorHandler = (options: MediaErrorOptions = {}) => {
 
     // Reset error state
     const resetErrorState = () => {
-        errorHistory.value = []
         retryCount.value = 0
         isRetrying.value = false
     }
 
-    // Get error statistics
-    const getErrorStats = () => {
-        const stats = {
-            total: errorHistory.value.length,
-            byType: {} as Record<MediaError['errorType'], number>,
-            recentErrors: errorHistory.value.slice(-10)
-        }
-
-        errorHistory.value.forEach(error => {
-            stats.byType[error.errorType] = (stats.byType[error.errorType] || 0) + 1
-        })
-
-        return stats
-    }
-
-    // Preload critical images
-    const preloadImages = async (srcs: string[]): Promise<void> => {
-        const { preloadImages: preload } = useImagePreloader()
-
-        try {
-            await preload(srcs)
-            if (enableLogging) {
-                console.log(`✅ Preloaded ${srcs.length} images`)
-            }
-        } catch (e) {
-            if (enableLogging) {
-                console.warn('⚠️ Some images failed to preload:', e)
-            }
-        }
-    }
-
     return {
         // State
-        errorHistory: readonly(errorHistory),
         retryCount: readonly(retryCount),
         isRetrying: readonly(isRetrying),
 
         // Methods
         handleMediaError,
         retryWithBackoff,
-        testImageLoad,
         resetErrorState,
-        getErrorStats,
-        preloadImages,
 
-        // Utilities
-        classifyError,
-        generateFallbackStrategies,
+        // Utilities (essential only)
         getErrorMessage
     }
 }

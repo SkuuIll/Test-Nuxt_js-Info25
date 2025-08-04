@@ -238,10 +238,10 @@ describe('App Fixes Integration (Improved)', () => {
                 })
             }
 
-            global.useErrorRecovery = vi.fn(() => mockErrorRecovery)
+            global.useErrorHandler = vi.fn(() => mockErrorRecovery)
 
             expect(() => {
-                const errorRecovery = useErrorRecovery()
+                const errorRecovery = useErrorHandler()
                 errorRecovery.handleError(new Error('Test error'), 'Test context')
             }).not.toThrow()
 
@@ -258,9 +258,9 @@ describe('App Fixes Integration (Improved)', () => {
                 })
             }
 
-            global.useErrorRecovery = vi.fn(() => mockErrorRecovery)
+            global.useErrorHandler = vi.fn(() => mockErrorRecovery)
 
-            const errorRecovery = useErrorRecovery()
+            const errorRecovery = useErrorHandler()
             const stats = errorRecovery.getErrorStats()
 
             expect(stats.total).toBe(5)
@@ -273,7 +273,7 @@ describe('App Fixes Integration (Improved)', () => {
         it('should handle media errors with comprehensive fallback strategies', async () => {
             const mockMediaErrorHandler = {
                 handleMediaError: vi.fn().mockResolvedValue('/fallback-image.jpg'),
-                testImageLoad: vi.fn().mockResolvedValue(true),
+                resetErrorState: vi.fn(),
                 getErrorStats: vi.fn().mockReturnValue({
                     total: 0,
                     byType: {},
@@ -385,7 +385,7 @@ describe('App Fixes Integration (Improved)', () => {
             }
 
             global.useNuxtApp = vi.fn(() => mockNuxtApp)
-            global.useErrorRecovery = vi.fn(() => ({
+            global.useErrorHandler = vi.fn(() => ({
                 handleError: mockErrorHandler
             }))
 
@@ -401,7 +401,7 @@ describe('App Fixes Integration (Improved)', () => {
 
         it('should handle unhandled promise rejections', () => {
             const mockErrorHandler = vi.fn()
-            global.useErrorRecovery = vi.fn(() => ({
+            global.useErrorHandler = vi.fn(() => ({
                 handleError: mockErrorHandler
             }))
 

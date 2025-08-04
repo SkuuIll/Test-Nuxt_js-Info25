@@ -16,23 +16,32 @@ interface AuthError {
   timestamp: Date
 }
 
+interface AuthErrorInfo {
+  message: string
+  type: 'auth' | 'validation' | 'network' | 'server'
+  code?: string | number
+  details?: any
+  userFriendly: boolean
+}
+
+interface AuthRedirectOptions {
+  message?: string
+  storeRoute?: boolean
+  loginUrl?: string
+}
+
+interface PermissionRedirectOptions {
+  message?: string
+  requiredPermissions?: string[]
+  redirectUrl?: string
+}
+
 export const useAuth = () => {
   const authStore = useAuthStore()
   const api = useApi()
   const router = useRouter()
 
-  // Independent error handling to avoid circular dependencies
-  const handleAuthError = (error: any, context?: string) => {
-    console.error('🔐 Auth Error:', context || 'Unknown context', error)
 
-    // Clear auth state on auth errors
-    authStore.clearAuth()
-
-    // Redirect to login if needed
-    if (import.meta.client && !window.location.pathname.includes('/login')) {
-      router.push('/login')
-    }
-  }
 
   const handleValidationError = (error: any, context?: string) => {
     console.error('📝 Validation Error:', context || 'Unknown context', error)
@@ -170,29 +179,14 @@ export const useAuth = () => {
     } catch (error: any) {
       console.error('❌ Enhanced login failed:', error)
 
-      // Categorize and handle different types of errors
-      let errorType: AuthError['type'] = 'auth'
-      let errorMessage = 'Login failed'
-
-      if (error?.status === 401 || error?.statusCode === 401) {
-        errorType = 'auth'
-        errorMessage = 'Invalid username or password'
-      } else if (error?.status === 422 || error?.statusCode === 422) {
-        errorType = 'validation'
-        errorMessage = 'Please check your input and try again'
-      } else if (error?.status >= 500 || error?.statusCode >= 500) {
-        errorType = 'network'
-        errorMessage = 'Server error. Please try again later'
-      } else if (!error?.status && !error?.statusCode) {
-        errorType = 'network'
-        errorMessage = 'Network error. Please check your connection'
-      }
+      // Use consolidated error handling
+      const errorInfo = handleLoginError(error)
 
       addAuthError({
-        type: errorType,
-        message: errorMessage,
-        code: error?.status || error?.statusCode,
-        details: error
+        type: errorInfo.type as AuthError['type'],
+        message: errorInfo.message,
+        code: errorInfo.code,
+        details: errorInfo.details
       })
 
       throw error
@@ -218,28 +212,14 @@ export const useAuth = () => {
     } catch (error: any) {
       console.error('❌ Enhanced registration failed:', error)
 
-      // Handle registration-specific errors
-      let errorType: AuthError['type'] = 'validation'
-      let errorMessage = 'Registration failed'
-
-      if (error?.data?.errors) {
-        errorType = 'validation'
-        const errors = error.data.errors
-        const errorMessages = Object.values(errors).flat()
-        errorMessage = errorMessages.join(', ')
-      } else if (error?.status >= 500 || error?.statusCode >= 500) {
-        errorType = 'network'
-        errorMessage = 'Server error. Please try again later'
-      } else if (!error?.status && !error?.statusCode) {
-        errorType = 'network'
-        errorMessage = 'Network error. Please check your connection'
-      }
+      // Use consolidated error handling
+      const errorInfo = handleRegistrationError(error)
 
       addAuthError({
-        type: errorType,
-        message: errorMessage,
-        code: error?.status || error?.statusCode,
-        details: error
+        type: errorInfo.type as AuthError['type'],
+        message: errorInfo.message,
+        code: errorInfo.code,
+        details: errorInfo.details
       })
 
       throw error
@@ -310,24 +290,24 @@ export const useAuth = () => {
       authState.value.isInitialized = false
       sessionWarningShown.value = false
 
-      // Show appropriate message
+      // Show appropriate message using consolidated functions
       if (showMessage) {
-        const { success, warning, info } = useToast()
-
         switch (reason) {
           case 'session_expired':
-            warning('Sesión Expirada', 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
-            break
+            await handleSessionExpired()
+            return // handleSessionExpired already handles navigation
           case 'token_invalid':
+            const { warning } = useToast()
             warning('Error de Autenticación', 'Tu sesión ya no es válida. Por favor inicia sesión nuevamente.')
             break
           case 'security':
+            const { info } = useToast()
             info('Logout de Seguridad', 'Has sido desconectado por razones de seguridad.')
             break
           case 'user':
           default:
-            success('Sesión Cerrada', 'Has cerrado sesión exitosamente.')
-            break
+            await handleLogout(redirectTo)
+            return // handleLogout already handles navigation
         }
       }
 
@@ -804,7 +784,6 @@ export const useAuth = () => {
     checkSession?: boolean
   } = {}) => {
     const { redirectTo = '/login', message = 'Authentication required', checkSession = true } = options
-    const { handleAuthRequired } = useAuthRedirect()
 
     try {
       updateActivity()
@@ -849,7 +828,6 @@ export const useAuth = () => {
     message?: string
   } = {}) => {
     const { redirectTo = '/unauthorized', message = 'Admin access required' } = options
-    const { handleInsufficientPermissions } = useAuthRedirect()
 
     // First ensure user is authenticated
     await requireAuth()
@@ -914,7 +892,6 @@ export const useAuth = () => {
     message?: string
   } = {}) => {
     const { redirectTo = '/unauthorized', message = `Permission '${permission}' required` } = options
-    const { handleInsufficientPermissions } = useAuthRedirect()
 
     // First ensure user is authenticated
     await requireAuth()
@@ -1084,6 +1061,276 @@ export const useAuth = () => {
     })
   }
 
+  // ===== ERROR HANDLING FUNCTIONS (from useAuthErrorHandler) =====
+
+  const categorizeError = (error: any): AuthErrorInfo['type'] => {
+    const status = error?.status || error?.statusCode
+
+    if (!status || status === 0) {
+      return 'network'
+    }
+
+    if (status === 401 || status === 403) {
+      return 'auth'
+    }
+
+    if (status === 422 || status === 400) {
+      return 'validation'
+    }
+
+    if (status >= 500) {
+      return 'server'
+    }
+
+    return 'auth'
+  }
+
+  const getErrorMessage = (error: any, type: AuthErrorInfo['type']): string => {
+    // Handle Django API error format
+    if (error?.data?.success === false) {
+      if (error.data.message) {
+        return error.data.message
+      }
+      if (error.data.error) {
+        return error.data.error
+      }
+    }
+
+    // Handle validation errors
+    if (type === 'validation' && error?.data?.errors) {
+      const errors = error.data.errors
+      if (typeof errors === 'object') {
+        const errorMessages = Object.entries(errors).map(([field, messages]) => {
+          const messageArray = Array.isArray(messages) ? messages : [messages]
+          return `${field}: ${messageArray.join(', ')}`
+        })
+        return errorMessages.join('; ')
+      }
+    }
+
+    // Handle standard error formats
+    if (error?.message) {
+      return error.message
+    }
+
+    if (error?.data?.detail) {
+      return error.data.detail
+    }
+
+    // Default messages by type
+    const defaultMessages = {
+      auth: 'Error de autenticación. Verifica tus credenciales.',
+      validation: 'Los datos ingresados no son válidos.',
+      network: 'Error de conexión. Verifica tu conexión a internet.',
+      server: 'Error del servidor. Intenta nuevamente más tarde.'
+    }
+
+    return defaultMessages[type]
+  }
+
+  const handleAuthError = (error: any, context?: string): AuthErrorInfo => {
+    const type = categorizeError(error)
+    const message = getErrorMessage(error, type)
+
+    const errorInfo: AuthErrorInfo = {
+      message,
+      type,
+      code: error?.status || error?.statusCode,
+      details: error,
+      userFriendly: true
+    }
+
+    // Log technical details for debugging
+    console.error(`🔐 Auth Error [${type.toUpperCase()}]:`, {
+      context: context || 'Unknown',
+      message: errorInfo.message,
+      code: errorInfo.code,
+      originalError: error
+    })
+
+    return errorInfo
+  }
+
+  const handleLoginError = (error: any): AuthErrorInfo => {
+    const errorInfo = handleAuthError(error, 'Login')
+
+    // Customize login-specific messages
+    if (errorInfo.type === 'auth') {
+      if (errorInfo.code === 401) {
+        errorInfo.message = 'Usuario o contraseña incorrectos'
+      } else if (errorInfo.code === 403) {
+        errorInfo.message = 'Tu cuenta está desactivada. Contacta al administrador.'
+      }
+    }
+
+    return errorInfo
+  }
+
+  const handleRegistrationError = (error: any): AuthErrorInfo => {
+    const errorInfo = handleAuthError(error, 'Registration')
+
+    // Customize registration-specific messages
+    if (errorInfo.type === 'validation') {
+      // Keep the detailed validation message for registration
+      return errorInfo
+    }
+
+    if (errorInfo.type === 'auth' && errorInfo.code === 409) {
+      errorInfo.message = 'Ya existe un usuario con este email o nombre de usuario'
+    }
+
+    return errorInfo
+  }
+
+  const handleTokenError = (error: any): AuthErrorInfo => {
+    const errorInfo = handleAuthError(error, 'Token')
+
+    if (errorInfo.type === 'auth') {
+      errorInfo.message = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
+    }
+
+    return errorInfo
+  }
+
+  const isRetryableError = (errorInfo: AuthErrorInfo): boolean => {
+    return errorInfo.type === 'network' || errorInfo.type === 'server'
+  }
+
+  const shouldClearAuth = (errorInfo: AuthErrorInfo): boolean => {
+    return errorInfo.type === 'auth' && (errorInfo.code === 401 || errorInfo.code === 403)
+  }
+
+  const getErrorActions = (errorInfo: AuthErrorInfo) => {
+    const actions = []
+
+    if (isRetryableError(errorInfo)) {
+      actions.push({
+        label: 'Reintentar',
+        action: 'retry'
+      })
+    }
+
+    if (shouldClearAuth(errorInfo)) {
+      actions.push({
+        label: 'Iniciar Sesión',
+        action: 'login'
+      })
+    }
+
+    if (errorInfo.type === 'network') {
+      actions.push({
+        label: 'Verificar Conexión',
+        action: 'check_network'
+      })
+    }
+
+    return actions
+  }
+
+  // ===== REDIRECT FUNCTIONS (from useAuthRedirect) =====
+
+  const handleAuthRequired = async (options: AuthRedirectOptions = {}) => {
+    const {
+      message = 'Debes iniciar sesión para acceder a esta página',
+      storeRoute = true,
+      loginUrl = '/login'
+    } = options
+
+    // Show error message
+    const { authError } = useToast()
+    authError(message)
+
+    // Store current route for redirect after login
+    let redirectUrl = loginUrl
+    if (storeRoute && router.currentRoute.value.fullPath !== loginUrl) {
+      redirectUrl = `${loginUrl}?redirect=${encodeURIComponent(router.currentRoute.value.fullPath)}`
+    }
+
+    // Navigate to login
+    await navigateTo(redirectUrl)
+  }
+
+  const handleInsufficientPermissions = async (options: PermissionRedirectOptions = {}) => {
+    const {
+      message = 'No tienes permisos para acceder a esta página',
+      requiredPermissions = [],
+      redirectUrl = '/unauthorized'
+    } = options
+
+    // Show error message with permission details
+    const permissionText = requiredPermissions.length > 0
+      ? ` Permisos requeridos: ${requiredPermissions.join(', ')}`
+      : ''
+
+    const { authError } = useToast()
+    authError(message + permissionText)
+
+    // Navigate to unauthorized page or specified redirect
+    await navigateTo(redirectUrl)
+  }
+
+  const handleSessionExpired = async () => {
+    const { warning } = useToast()
+
+    warning(
+      'Sesión Expirada',
+      'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
+    )
+
+    // Store current route for redirect after login
+    const currentPath = router.currentRoute.value.fullPath
+    const redirectUrl = currentPath !== '/login'
+      ? `/login?redirect=${encodeURIComponent(currentPath)}`
+      : '/login'
+
+    await navigateTo(redirectUrl)
+  }
+
+  const handleSuccessfulAuth = async (redirectTo?: string) => {
+    const { authSuccess } = useToast()
+
+    authSuccess('¡Bienvenido! Has iniciado sesión correctamente')
+
+    // Get redirect from query params or use provided redirect
+    const targetUrl = redirectTo ||
+      (router.currentRoute.value.query.redirect as string) ||
+      '/'
+
+    // Ensure we navigate to the home page by default
+    console.log('🔄 Redirecting after successful auth to:', targetUrl)
+
+    await navigateTo(targetUrl, { replace: true })
+  }
+
+  const handleSuccessfulRegistration = async (redirectTo?: string) => {
+    const { authSuccess } = useToast()
+
+    authSuccess('¡Cuenta creada exitosamente! Bienvenido al blog')
+
+    // Get redirect from query params or use provided redirect
+    const targetUrl = redirectTo ||
+      (router.currentRoute.value.query.redirect as string) ||
+      '/'
+
+    await navigateTo(targetUrl)
+  }
+
+  const handleLogout = async (redirectTo: string = '/') => {
+    const { success } = useToast()
+
+    success('Sesión Cerrada', 'Has cerrado sesión exitosamente')
+
+    await navigateTo(redirectTo)
+  }
+
+  const getRedirectUrl = (): string => {
+    return (router.currentRoute.value.query.redirect as string) || '/'
+  }
+
+  const storeCurrentRoute = (): string => {
+    return router.currentRoute.value.fullPath
+  }
+
   return {
     // Enhanced State
     isAuthenticated: computed(() => authStore.isAuthenticated),
@@ -1147,6 +1394,26 @@ export const useAuth = () => {
     // Store Utilities (Enhanced)
     clearAuthState: authStore.clearAuthState,
     refreshAuthIfNeeded: authStore.refreshAuthIfNeeded,
+
+    // Error Handling Functions
+    categorizeError,
+    handleAuthError,
+    handleLoginError,
+    handleRegistrationError,
+    handleTokenError,
+    isRetryableError,
+    shouldClearAuth,
+    getErrorActions,
+
+    // Redirect Functions
+    handleAuthRequired,
+    handleInsufficientPermissions,
+    handleSessionExpired,
+    handleSuccessfulAuth,
+    handleSuccessfulRegistration,
+    handleLogout,
+    getRedirectUrl,
+    storeCurrentRoute,
 
     // Cleanup
     cleanup

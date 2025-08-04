@@ -70,54 +70,7 @@ export const useCors = () => {
         return headers
     }
 
-    // Test CORS connectivity
-    const testCorsConnection = async (endpoint: string = '/api/v1/posts/'): Promise<boolean> => {
-        try {
-            const url = `${config.public.apiBase}${endpoint}`
 
-            console.log('🔍 Testing CORS connection to:', url)
-
-            // Test preflight request
-            const preflightResponse = await fetch(url, {
-                method: 'OPTIONS',
-                headers: {
-                    'Origin': getCurrentOrigin(),
-                    'Access-Control-Request-Method': 'GET',
-                    'Access-Control-Request-Headers': 'Content-Type, Authorization'
-                },
-                credentials: 'include'
-            })
-
-            if (!preflightResponse.ok) {
-                console.error('❌ CORS preflight failed:', preflightResponse.status)
-                return false
-            }
-
-            // Check CORS headers in response
-            const corsHeaders = {
-                allowOrigin: preflightResponse.headers.get('Access-Control-Allow-Origin'),
-                allowMethods: preflightResponse.headers.get('Access-Control-Allow-Methods'),
-                allowHeaders: preflightResponse.headers.get('Access-Control-Allow-Headers'),
-                allowCredentials: preflightResponse.headers.get('Access-Control-Allow-Credentials')
-            }
-
-            console.log('✅ CORS preflight successful:', corsHeaders)
-
-            // Test actual request
-            const actualResponse = await fetch(url, {
-                method: 'GET',
-                headers: createCorsHeaders(),
-                credentials: 'include'
-            })
-
-            console.log('✅ CORS actual request successful:', actualResponse.status)
-            return true
-
-        } catch (error: any) {
-            console.error('❌ CORS connection test failed:', error)
-            return false
-        }
-    }
 
     // Handle CORS errors
     const handleCorsError = (error: any, context: string = 'CORS Request'): CorsError => {
@@ -219,53 +172,7 @@ export const useCors = () => {
         }
     }
 
-    // Validate CORS setup
-    const validateCorsSetup = async (): Promise<{
-        isValid: boolean
-        issues: string[]
-        recommendations: string[]
-    }> => {
-        const issues: string[] = []
-        const recommendations: string[] = []
 
-        try {
-            // Test basic connectivity
-            const isConnected = await testCorsConnection()
-            if (!isConnected) {
-                issues.push('CORS connection test failed')
-                recommendations.push('Check if backend server is running and CORS is properly configured')
-            }
-
-            // Check origin
-            const currentOrigin = getCurrentOrigin()
-            if (!isOriginAllowed(currentOrigin)) {
-                issues.push(`Current origin ${currentOrigin} may not be allowed`)
-                recommendations.push('Add current origin to CORS_ALLOWED_ORIGINS in backend settings')
-            }
-
-            // Check if CORS is enabled
-            if (!isCorsEnabled.value) {
-                issues.push('CORS is disabled in frontend configuration')
-                recommendations.push('Enable CORS in frontend configuration')
-            }
-
-            return {
-                isValid: issues.length === 0,
-                issues,
-                recommendations
-            }
-
-        } catch (error) {
-            issues.push('CORS validation failed with error')
-            recommendations.push('Check network connectivity and server configuration')
-
-            return {
-                isValid: false,
-                issues,
-                recommendations
-            }
-        }
-    }
 
     return {
         // Configuration
@@ -277,9 +184,7 @@ export const useCors = () => {
         isOriginAllowed,
         createCorsHeaders,
 
-        // Testing
-        testCorsConnection,
-        validateCorsSetup,
+
 
         // Error handling
         handleCorsError,

@@ -54,15 +54,15 @@
 
         <!-- Right Side Actions -->
         <div class="flex items-center space-x-4">
-          <!-- Dashboard Quick Access (only for admin users) -->
+          <!-- Admin Quick Access (only for admin users) -->
           <NuxtLink 
-            v-if="isAuthenticated && user?.is_staff" 
-            to="/dashboard"
+            v-if="isAuthenticated && (user?.is_staff || user?.is_superuser)" 
+            to="/admin"
             class="hidden md:flex items-center space-x-1 px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors text-sm font-medium"
-            title="Acceder al Dashboard de Administración"
+            title="Acceder al Panel de Administración"
           >
             <Icon name="settings" class="w-4 h-4" />
-            <span>Dashboard</span>
+            <span>Admin</span>
           </NuxtLink>
           
           <!-- Notification Center (only for authenticated users) -->
@@ -111,15 +111,20 @@
                 </NuxtLink>
 
                 <!-- Admin Section -->
-                <div v-if="user?.is_staff" class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                <div v-if="user?.is_staff || user?.is_superuser" class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
                 
-                <div v-if="user?.is_staff" class="px-3 py-2">
+                <div v-if="user?.is_staff || user?.is_superuser" class="px-3 py-2">
                   <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Administración
                   </p>
                 </div>
 
-                <NuxtLink v-if="user?.is_staff" to="/admin/posts/create" class="dropdown-item text-green-700 dark:text-green-300">
+                <NuxtLink v-if="user?.is_staff || user?.is_superuser" to="/admin" class="dropdown-item">
+                  <Icon name="home" class="w-4 h-4" />
+                  Panel Admin
+                </NuxtLink>
+
+                <NuxtLink v-if="user?.is_staff || user?.is_superuser" to="/admin/posts/create" class="dropdown-item text-green-700 dark:text-green-300">
                   <Icon name="plus" class="w-4 h-4" />
                   <span class="flex items-center space-x-2">
                     <span>Crear Post</span>
@@ -127,25 +132,22 @@
                   </span>
                 </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/admin/posts" class="dropdown-item">
+                <NuxtLink v-if="user?.is_staff || user?.is_superuser" to="/admin/posts" class="dropdown-item">
                   <Icon name="document-text" class="w-4 h-4" />
                   Gestionar Posts
                 </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/admin/users" class="dropdown-item">
+                <NuxtLink v-if="user?.is_staff || user?.is_superuser" to="/admin/comments" class="dropdown-item">
+                  <Icon name="chat-bubble-left-right" class="w-4 h-4" />
+                  Moderar Comentarios
+                </NuxtLink>
+
+                <NuxtLink v-if="user?.is_superuser" to="/admin/users" class="dropdown-item">
                   <Icon name="users" class="w-4 h-4" />
                   Gestionar Usuarios
                 </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/admin/comments" class="dropdown-item">
-                  <Icon name="chat" class="w-4 h-4" />
-                  Moderar Comentarios
-                </NuxtLink>
 
-                <NuxtLink v-if="user?.is_staff" to="/admin/stats" class="dropdown-item">
-                  <Icon name="chart-bar" class="w-4 h-4" />
-                  Estadísticas
-                </NuxtLink>
 
                 <button class="dropdown-item w-full text-left" @click="handleLogout">
                   <Icon name="logout" class="w-4 h-4" />

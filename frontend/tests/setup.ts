@@ -141,7 +141,7 @@ global.useErrorHandler = vi.fn(() => ({
     handleError: vi.fn().mockReturnValue({ message: 'Test error' }),
 }))
 
-global.useErrorRecovery = vi.fn(() => ({
+global.useErrorHandler = vi.fn(() => ({
     hasError: { value: false },
     errorMessage: { value: '' },
     retryCount: { value: 0 },
@@ -159,8 +159,9 @@ global.useErrorRecovery = vi.fn(() => ({
 
 global.useMediaErrorHandler = vi.fn(() => ({
     handleMediaError: vi.fn(),
-    testImageLoad: vi.fn().mockResolvedValue(true),
     resetErrorState: vi.fn(),
+    classifyError: vi.fn(),
+    getErrorMessage: vi.fn()
 }))
 
 global.useImageFallback = vi.fn(() => ({

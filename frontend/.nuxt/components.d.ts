@@ -12,7 +12,9 @@ type HydrationStrategies = {
 }
 type LazyComponent<T> = (T & DefineComponent<HydrationStrategies, {}, {}, {}, {}, {}, {}, { hydrated: () => void }>)
 interface _GlobalComponents {
-      'AppFooter': typeof import("../components/AppFooter.vue")['default']
+      'AdminLink': typeof import("../components/AdminLink.vue")['default']
+    'AdminMenu': typeof import("../components/AdminMenu.vue")['default']
+    'AppFooter': typeof import("../components/AppFooter.vue")['default']
     'AppHeader': typeof import("../components/AppHeader.vue")['default']
     'BackToTop': typeof import("../components/BackToTop.vue")['default']
     'BlogSidebar': typeof import("../components/BlogSidebar.vue")['default']
@@ -35,13 +37,13 @@ interface _GlobalComponents {
     'DashboardStatCard': typeof import("../components/Dashboard/StatCard.vue")['default']
     'DashboardToast': typeof import("../components/Dashboard/Toast.vue")['default']
     'DashboardUserMenu': typeof import("../components/Dashboard/UserMenu.vue")['default']
-    'DebugPanel': typeof import("../components/DebugPanel.vue")['default']
-    'EnhancedImageBackup': typeof import("../components/EnhancedImage-backup.vue")['default']
     'EnhancedImage': typeof import("../components/EnhancedImage.vue")['default']
     'ErrorBoundary': typeof import("../components/ErrorBoundary.vue")['default']
     'HeroSection': typeof import("../components/HeroSection.vue")['default']
     'Icon': typeof import("../components/Icon.vue")['default']
     'LoadingIndicator': typeof import("../components/LoadingIndicator.vue")['default']
+    'MarkdownEditor': typeof import("../components/MarkdownEditor.vue")['default']
+    'MarkdownPreview': typeof import("../components/MarkdownPreview.vue")['default']
     'NotificationCenter': typeof import("../components/NotificationCenter.vue")['default']
     'NotificationItem': typeof import("../components/NotificationItem.vue")['default']
     'PostCard': typeof import("../components/PostCard.vue")['default']
@@ -50,6 +52,7 @@ interface _GlobalComponents {
     'ReadingProgress': typeof import("../components/ReadingProgress.vue")['default']
     'SafeImage': typeof import("../components/SafeImage.vue")['default']
     'SearchBar': typeof import("../components/SearchBar.vue")['default']
+    'SimpleForm': typeof import("../components/SimpleForm.vue")['default']
     'SkeletonLoader': typeof import("../components/SkeletonLoader.vue")['default']
     'SocialShare': typeof import("../components/SocialShare.vue")['default']
     'TableOfContents': typeof import("../components/TableOfContents.vue")['default']
@@ -88,7 +91,9 @@ interface _GlobalComponents {
     'Body': typeof import("../node_modules/nuxt/dist/head/runtime/components")['Body']
     'NuxtIsland': typeof import("../node_modules/nuxt/dist/app/components/nuxt-island")['default']
     'NuxtRouteAnnouncer': typeof import("../node_modules/nuxt/dist/app/components/server-placeholder")['default']
-      'LazyAppFooter': LazyComponent<typeof import("../components/AppFooter.vue")['default']>
+      'LazyAdminLink': LazyComponent<typeof import("../components/AdminLink.vue")['default']>
+    'LazyAdminMenu': LazyComponent<typeof import("../components/AdminMenu.vue")['default']>
+    'LazyAppFooter': LazyComponent<typeof import("../components/AppFooter.vue")['default']>
     'LazyAppHeader': LazyComponent<typeof import("../components/AppHeader.vue")['default']>
     'LazyBackToTop': LazyComponent<typeof import("../components/BackToTop.vue")['default']>
     'LazyBlogSidebar': LazyComponent<typeof import("../components/BlogSidebar.vue")['default']>
@@ -111,13 +116,13 @@ interface _GlobalComponents {
     'LazyDashboardStatCard': LazyComponent<typeof import("../components/Dashboard/StatCard.vue")['default']>
     'LazyDashboardToast': LazyComponent<typeof import("../components/Dashboard/Toast.vue")['default']>
     'LazyDashboardUserMenu': LazyComponent<typeof import("../components/Dashboard/UserMenu.vue")['default']>
-    'LazyDebugPanel': LazyComponent<typeof import("../components/DebugPanel.vue")['default']>
-    'LazyEnhancedImageBackup': LazyComponent<typeof import("../components/EnhancedImage-backup.vue")['default']>
     'LazyEnhancedImage': LazyComponent<typeof import("../components/EnhancedImage.vue")['default']>
     'LazyErrorBoundary': LazyComponent<typeof import("../components/ErrorBoundary.vue")['default']>
     'LazyHeroSection': LazyComponent<typeof import("../components/HeroSection.vue")['default']>
     'LazyIcon': LazyComponent<typeof import("../components/Icon.vue")['default']>
     'LazyLoadingIndicator': LazyComponent<typeof import("../components/LoadingIndicator.vue")['default']>
+    'LazyMarkdownEditor': LazyComponent<typeof import("../components/MarkdownEditor.vue")['default']>
+    'LazyMarkdownPreview': LazyComponent<typeof import("../components/MarkdownPreview.vue")['default']>
     'LazyNotificationCenter': LazyComponent<typeof import("../components/NotificationCenter.vue")['default']>
     'LazyNotificationItem': LazyComponent<typeof import("../components/NotificationItem.vue")['default']>
     'LazyPostCard': LazyComponent<typeof import("../components/PostCard.vue")['default']>
@@ -126,6 +131,7 @@ interface _GlobalComponents {
     'LazyReadingProgress': LazyComponent<typeof import("../components/ReadingProgress.vue")['default']>
     'LazySafeImage': LazyComponent<typeof import("../components/SafeImage.vue")['default']>
     'LazySearchBar': LazyComponent<typeof import("../components/SearchBar.vue")['default']>
+    'LazySimpleForm': LazyComponent<typeof import("../components/SimpleForm.vue")['default']>
     'LazySkeletonLoader': LazyComponent<typeof import("../components/SkeletonLoader.vue")['default']>
     'LazySocialShare': LazyComponent<typeof import("../components/SocialShare.vue")['default']>
     'LazyTableOfContents': LazyComponent<typeof import("../components/TableOfContents.vue")['default']>
@@ -170,6 +176,8 @@ declare module 'vue' {
   export interface GlobalComponents extends _GlobalComponents { }
 }
 
+export const AdminLink: typeof import("../components/AdminLink.vue")['default']
+export const AdminMenu: typeof import("../components/AdminMenu.vue")['default']
 export const AppFooter: typeof import("../components/AppFooter.vue")['default']
 export const AppHeader: typeof import("../components/AppHeader.vue")['default']
 export const BackToTop: typeof import("../components/BackToTop.vue")['default']
@@ -193,13 +201,13 @@ export const DashboardSidebarSection: typeof import("../components/Dashboard/Sid
 export const DashboardStatCard: typeof import("../components/Dashboard/StatCard.vue")['default']
 export const DashboardToast: typeof import("../components/Dashboard/Toast.vue")['default']
 export const DashboardUserMenu: typeof import("../components/Dashboard/UserMenu.vue")['default']
-export const DebugPanel: typeof import("../components/DebugPanel.vue")['default']
-export const EnhancedImageBackup: typeof import("../components/EnhancedImage-backup.vue")['default']
 export const EnhancedImage: typeof import("../components/EnhancedImage.vue")['default']
 export const ErrorBoundary: typeof import("../components/ErrorBoundary.vue")['default']
 export const HeroSection: typeof import("../components/HeroSection.vue")['default']
 export const Icon: typeof import("../components/Icon.vue")['default']
 export const LoadingIndicator: typeof import("../components/LoadingIndicator.vue")['default']
+export const MarkdownEditor: typeof import("../components/MarkdownEditor.vue")['default']
+export const MarkdownPreview: typeof import("../components/MarkdownPreview.vue")['default']
 export const NotificationCenter: typeof import("../components/NotificationCenter.vue")['default']
 export const NotificationItem: typeof import("../components/NotificationItem.vue")['default']
 export const PostCard: typeof import("../components/PostCard.vue")['default']
@@ -208,6 +216,7 @@ export const PostGrid: typeof import("../components/PostGrid.vue")['default']
 export const ReadingProgress: typeof import("../components/ReadingProgress.vue")['default']
 export const SafeImage: typeof import("../components/SafeImage.vue")['default']
 export const SearchBar: typeof import("../components/SearchBar.vue")['default']
+export const SimpleForm: typeof import("../components/SimpleForm.vue")['default']
 export const SkeletonLoader: typeof import("../components/SkeletonLoader.vue")['default']
 export const SocialShare: typeof import("../components/SocialShare.vue")['default']
 export const TableOfContents: typeof import("../components/TableOfContents.vue")['default']
@@ -246,6 +255,8 @@ export const Html: typeof import("../node_modules/nuxt/dist/head/runtime/compone
 export const Body: typeof import("../node_modules/nuxt/dist/head/runtime/components")['Body']
 export const NuxtIsland: typeof import("../node_modules/nuxt/dist/app/components/nuxt-island")['default']
 export const NuxtRouteAnnouncer: typeof import("../node_modules/nuxt/dist/app/components/server-placeholder")['default']
+export const LazyAdminLink: LazyComponent<typeof import("../components/AdminLink.vue")['default']>
+export const LazyAdminMenu: LazyComponent<typeof import("../components/AdminMenu.vue")['default']>
 export const LazyAppFooter: LazyComponent<typeof import("../components/AppFooter.vue")['default']>
 export const LazyAppHeader: LazyComponent<typeof import("../components/AppHeader.vue")['default']>
 export const LazyBackToTop: LazyComponent<typeof import("../components/BackToTop.vue")['default']>
@@ -269,13 +280,13 @@ export const LazyDashboardSidebarSection: LazyComponent<typeof import("../compon
 export const LazyDashboardStatCard: LazyComponent<typeof import("../components/Dashboard/StatCard.vue")['default']>
 export const LazyDashboardToast: LazyComponent<typeof import("../components/Dashboard/Toast.vue")['default']>
 export const LazyDashboardUserMenu: LazyComponent<typeof import("../components/Dashboard/UserMenu.vue")['default']>
-export const LazyDebugPanel: LazyComponent<typeof import("../components/DebugPanel.vue")['default']>
-export const LazyEnhancedImageBackup: LazyComponent<typeof import("../components/EnhancedImage-backup.vue")['default']>
 export const LazyEnhancedImage: LazyComponent<typeof import("../components/EnhancedImage.vue")['default']>
 export const LazyErrorBoundary: LazyComponent<typeof import("../components/ErrorBoundary.vue")['default']>
 export const LazyHeroSection: LazyComponent<typeof import("../components/HeroSection.vue")['default']>
 export const LazyIcon: LazyComponent<typeof import("../components/Icon.vue")['default']>
 export const LazyLoadingIndicator: LazyComponent<typeof import("../components/LoadingIndicator.vue")['default']>
+export const LazyMarkdownEditor: LazyComponent<typeof import("../components/MarkdownEditor.vue")['default']>
+export const LazyMarkdownPreview: LazyComponent<typeof import("../components/MarkdownPreview.vue")['default']>
 export const LazyNotificationCenter: LazyComponent<typeof import("../components/NotificationCenter.vue")['default']>
 export const LazyNotificationItem: LazyComponent<typeof import("../components/NotificationItem.vue")['default']>
 export const LazyPostCard: LazyComponent<typeof import("../components/PostCard.vue")['default']>
@@ -284,6 +295,7 @@ export const LazyPostGrid: LazyComponent<typeof import("../components/PostGrid.v
 export const LazyReadingProgress: LazyComponent<typeof import("../components/ReadingProgress.vue")['default']>
 export const LazySafeImage: LazyComponent<typeof import("../components/SafeImage.vue")['default']>
 export const LazySearchBar: LazyComponent<typeof import("../components/SearchBar.vue")['default']>
+export const LazySimpleForm: LazyComponent<typeof import("../components/SimpleForm.vue")['default']>
 export const LazySkeletonLoader: LazyComponent<typeof import("../components/SkeletonLoader.vue")['default']>
 export const LazySocialShare: LazyComponent<typeof import("../components/SocialShare.vue")['default']>
 export const LazyTableOfContents: LazyComponent<typeof import("../components/TableOfContents.vue")['default']>

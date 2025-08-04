@@ -102,22 +102,17 @@
             {{ loading ? 'Iniciando sesión...' : 'Iniciar Sesión' }}
           </button>
           
-          <div class="flex space-x-2">
-            <button
-              type="button"
-              @click="clearAuth"
-              class="flex-1 text-sm text-gray-500 hover:text-gray-700 py-2"
-            >
-              🧹 Limpiar datos
-            </button>
-            <button
-              type="button"
-              @click="forceRedirectToHome"
-              class="flex-1 text-sm text-blue-600 hover:text-blue-700 py-2"
-            >
-              🏠 Ir a Inicio
-            </button>
-          </div>
+          <!-- Development Admin Login -->
+          <button
+            type="button"
+            @click="loginAsAdmin"
+            :disabled="loading"
+            class="w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            🔧 Login como Admin (Dev)
+          </button>
+          
+
         </div>
 
         <div
@@ -140,8 +135,8 @@ definePageMeta({
 })
 
 const { login, loading, error } = useAuth()
-const { handleSuccessfulLogin, forceRedirectToHome } = useLoginRedirect()
-const { authError } = useToast()
+const { handleSuccessfulLogin } = useLoginRedirect()
+const { error: authError } = useToast()
 
 const form = reactive({
   username: '',
@@ -169,19 +164,21 @@ const handleLogin = async () => {
   }
 }
 
-const clearAuth = () => {
-  if (process.client) {
-    // Clear all localStorage
-    localStorage.clear()
-    sessionStorage.clear()
+// Development function to login as admin
+const loginAsAdmin = async () => {
+  try {
+    console.log('🔧 DEV: Logging in as admin...')
     
-    // Show success message
-    authSuccess('Datos de autenticación limpiados')
+    // Simulate admin login by setting form values
+    form.username = 'admin@test.com'
+    form.password = 'admin123'
     
-    // Reload page
-    setTimeout(() => {
-      window.location.reload()
-    }, 1000)
+    // Call the regular login function
+    await handleLogin()
+    
+  } catch (err: any) {
+    console.error('❌ Admin login error:', err)
+    authError('Error al iniciar sesión como admin')
   }
 }
 

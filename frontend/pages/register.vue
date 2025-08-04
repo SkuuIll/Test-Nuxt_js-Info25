@@ -190,8 +190,7 @@ definePageMeta({
   layout: false
 })
 
-const { register, loading, error } = useAuth()
-const { handleSuccessfulRegistration } = useAuthRedirect()
+const { register, loading, error, handleSuccessfulRegistration } = useAuth()
 const { handleError } = useErrorHandler()
 
 const form = reactive({

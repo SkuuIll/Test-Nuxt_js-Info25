@@ -1,0 +1,1 @@
+import{U as o,s as i,D as u,K as d}from"./BE3ND16f.js";const c=o(a=>{var s,t;const{user:e,isAuthenticated:r}=i();if(!r.value)return u("/login?redirect="+encodeURIComponent(a.fullPath));if(!((s=e.value)!=null&&s.is_staff)&&!((t=e.value)!=null&&t.is_superuser))throw d({statusCode:403,statusMessage:"Acceso denegado. Se requieren permisos de administrador."})});export{c as default};

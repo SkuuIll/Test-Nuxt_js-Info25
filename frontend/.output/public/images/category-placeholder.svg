@@ -1,0 +1,10 @@
+<svg width="200" height="120" viewBox="0 0 200 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="120" fill="#f9fafb"/>
+  <rect x="75" y="35" width="50" height="50" rx="4" fill="#d1d5db"/>
+  <rect x="85" y="45" width="30" height="2" fill="#9ca3af"/>
+  <rect x="85" y="50" width="20" height="2" fill="#9ca3af"/>
+  <rect x="85" y="55" width="25" height="2" fill="#9ca3af"/>
+  <text x="100" y="100" font-family="system-ui, sans-serif" font-size="10" fill="#6b7280" text-anchor="middle">
+    Categoría
+  </text>
+</svg>

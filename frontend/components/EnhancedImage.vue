@@ -77,13 +77,7 @@
       <slot name="overlay" />
     </div>
 
-    <!-- Debug Info (only in development) -->
-    <div v-if="showDebugInfo && isDevelopment" class="debug-info">
-      <div class="debug-item">Src: {{ currentSrc }}</div>
-      <div class="debug-item">Attempts: {{ currentAttempt }}/{{ retryAttempts }}</div>
-      <div class="debug-item">IPX: {{ isIPXUrl ? 'Yes' : 'No' }}</div>
-      <div class="debug-item">Fallback: {{ currentFallbackSrc || 'None' }}</div>
-    </div>
+
   </div>
 </template>
 
@@ -110,7 +104,7 @@ interface Props {
   sizes?: string
   srcset?: string
   fadeInOnLoad?: boolean
-  showDebugInfo?: boolean
+
   onErrorReport?: (error: ErrorReport) => void
 }
 
@@ -136,8 +130,7 @@ const props = withDefaults(defineProps<Props>(), {
   showLoadingText: false,
   loadingText: 'Cargando imagen...',
   errorMessage: 'Error al cargar imagen',
-  fadeInOnLoad: true,
-  showDebugInfo: false
+  fadeInOnLoad: true
 })
 
 const emit = defineEmits<{
@@ -208,9 +201,9 @@ const onLoad = (event: Event) => {
   hasError.value = false
   retrying.value = false
   
-  // Log successful load after retry
+  // Reset retry count on successful load
   if (currentAttempt.value > 0) {
-    console.log(`✅ Image loaded successfully after ${currentAttempt.value} attempts: ${currentSrc.value}`)
+    currentAttempt.value = 0
   }
   
   emit('load', event)
@@ -218,7 +211,6 @@ const onLoad = (event: Event) => {
 
 const onError = async (event: Event) => {
   const errorSrc = currentSrc.value
-  console.warn(`❌ Error loading image: ${errorSrc}`)
   
   // Add to error history
   errorHistory.value.push(errorSrc)
@@ -236,19 +228,19 @@ const onError = async (event: Event) => {
   if (isIPXUrl.value && !currentFallbackSrc.value) {
     try {
       const fallbackSrc = handleIPXError(errorSrc)
-      console.log(`🔄 Trying IPX fallback: ${fallbackSrc}`)
+
       currentSrc.value = fallbackSrc
       currentFallbackSrc.value = fallbackSrc
       emit('fallback', fallbackSrc)
       return
     } catch (ipxError) {
-      console.warn('❌ IPX fallback failed:', ipxError)
+      // IPX fallback failed, continue to next fallback
     }
   }
   
   // Try custom fallback if available and not already using it
   if (props.fallbackSrc && currentSrc.value !== props.fallbackSrc && !currentFallbackSrc.value) {
-    console.log(`🔄 Trying custom fallback: ${props.fallbackSrc}`)
+
     currentSrc.value = props.fallbackSrc
     currentFallbackSrc.value = props.fallbackSrc
     emit('fallback', props.fallbackSrc)
@@ -258,7 +250,7 @@ const onError = async (event: Event) => {
   // Try default fallback based on context
   const defaultFallback = getDefaultFallback()
   if (defaultFallback && currentSrc.value !== defaultFallback && !currentFallbackSrc.value) {
-    console.log(`🔄 Trying default fallback: ${defaultFallback}`)
+
     currentSrc.value = defaultFallback
     currentFallbackSrc.value = defaultFallback
     emit('fallback', defaultFallback)
@@ -284,7 +276,7 @@ const retryWithDelay = async () => {
   currentAttempt.value++
   retrying.value = true
   
-  console.log(`🔄 Retrying image load (attempt ${currentAttempt.value}/${props.retryAttempts})`)
+
   
   // Wait for retry delay
   if (props.retryDelay > 0) {

@@ -107,13 +107,13 @@
                 Privacidad
               </NuxtLink>
             </li>
-            <li>
+            <li v-if="user?.is_staff || user?.is_superuser">
               <NuxtLink
-                to="/dashboard-info"
+                to="/admin"
                 class="text-gray-300 hover:text-primary-400 transition-colors duration-200 flex items-center space-x-1"
               >
                 <Icon name="settings" class="w-4 h-4" />
-                <span>Dashboard</span>
+                <span>Admin</span>
               </NuxtLink>
             </li>
           </ul>
@@ -211,6 +211,7 @@
 <script setup lang="ts">
 const blogStore = useBlogStore()
 const { $toast } = useNuxtApp()
+const { user } = useAuth()
 
 // Reactive state
 const newsletterEmail = ref('')

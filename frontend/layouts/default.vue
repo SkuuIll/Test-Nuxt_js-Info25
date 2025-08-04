@@ -17,8 +17,7 @@
     <!-- Toast Container -->
     <ToastContainer />
     
-    <!-- Debug Panel (only in development) -->
-    <DebugPanel />
+
   </div>
 </template>
 

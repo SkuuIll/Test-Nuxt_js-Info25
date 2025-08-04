@@ -8,8 +8,9 @@ describe('EnhancedImage', () => {
     beforeEach(() => {
         mockMediaErrorHandler = {
             handleMediaError: vi.fn(),
-            testImageLoad: vi.fn().mockResolvedValue(true),
             resetErrorState: vi.fn(),
+            classifyError: vi.fn(),
+            getErrorMessage: vi.fn()
         }
 
         global.useMediaErrorHandler = vi.fn(() => mockMediaErrorHandler)
