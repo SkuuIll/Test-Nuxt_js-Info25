@@ -35,7 +35,7 @@ Una aplicación web completa de blog de noticias construida con **Django REST Fr
 ## 🏗️ Arquitectura del Proyecto
 
 ```
-proyecto/
+Proyecto/
 ├── django_blog/          # Backend Django
 │   ├── settings.py       # Configuración principal
 │   ├── urls.py          # URLs principales
@@ -85,7 +85,7 @@ proyecto/
 
 ```bash
 git clone https://github.com/tu-usuario/blog-noticias.git
-cd blog-noticias
+cd Proyecto
 ```
 
 ### 2. Inicio Rápido
@@ -278,9 +278,8 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 
 ## 👨‍💻 Autor
 
-**Tu Nombre**
-- GitHub: [@tu-usuario](https://github.com/tu-usuario)
-- Email: tu-email@ejemplo.com
+**Skull**
+- GitHub: [@skull](https://github.com/skull)
 
 ## 🙏 Agradecimientos
 
