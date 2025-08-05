@@ -146,10 +146,6 @@ npm run dev
 | Usuario | Email | Tipo | Descripción |
 |---------|-------|------|-------------|
 | **admin** | admin@test.com | Superuser | Acceso completo al sistema |
-| **skull** | a@a.com | Superuser | Acceso completo al sistema |
-| **editor** | editor@test.com | Staff | Puede gestionar contenido |
-| **author** | author@test.com | Normal | Puede crear posts |
-| **user** | user@test.com | Normal | Usuario básico |
 
 > **Nota**: Para acceder al Django Admin, usa cualquiera de los superusuarios. Las contraseñas se pueden resetear desde el admin.
 
